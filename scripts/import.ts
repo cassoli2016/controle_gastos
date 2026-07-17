@@ -51,10 +51,19 @@ async function main() {
   // diferente ("TOTAL CONTAS", "SALDO TÉORICO", "DIAS", "CAIXA", "DIFERENÇA",
   // "SALDO" etc.) — não são Itens de conta fixa e importá-los infla o total
   // em ~500 mil (confirmado manualmente contra a planilha real).
+  //
+  // Âncora defensiva: além da linha em branco, também paramos se o nome da
+  // linha bater com um dos marcadores conhecidos do painel de resumo. Isso
+  // não deveria disparar nos dados atuais (a linha em branco já corta antes),
+  // mas protege contra uma planilha futura em que o painel de resumo venha
+  // colado direto após o último item, sem linha em branco entre eles.
+  const SUMMARY_MARKER = /^(total contas|saldo|caixa|diferen|dias)/i;
   const itemRows: unknown[][] = [];
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r] as unknown[];
     if (!row || row.length === 0) break;
+    const rawName = typeof row[0] === "string" ? row[0].trim() : "";
+    if (SUMMARY_MARKER.test(rawName)) break;
     itemRows.push(row);
   }
   console.log(`Linhas de item detectadas antes do painel de resumo: ${itemRows.length}.`);
@@ -127,6 +136,16 @@ async function main() {
   console.log(`Total importado (previsto): ${importedTotal.toFixed(2)}`);
   console.log(`Soma da coluna TOTAL da planilha (linhas de item): ${sheetTotal.toFixed(2)}`);
   console.log(`Diferença: ${diff.toFixed(2)} ${diffOk ? "(OK, bate com a planilha)" : "(DIVERGÊNCIA — revisar células não parseadas)"}`);
+
+  // Sanity-check bloqueante: um reimport futuro que divirja da coluna TOTAL
+  // da planilha (ex. corte de itens errado, célula não parseada) não deve
+  // sair silenciosamente com exit 0 — o erro aqui cai no `.catch` de `main()`,
+  // que já encerra o processo com `process.exit(1)`.
+  if (!diffOk) {
+    throw new Error(
+      `Sanity-check falhou: total importado (${importedTotal.toFixed(2)}) diverge da soma da coluna TOTAL da planilha (${sheetTotal.toFixed(2)}) em ${diff.toFixed(2)}. Import abortado — revisar corte de linhas/células não parseadas antes de confiar nos dados.`
+    );
+  }
 }
 
 main()
