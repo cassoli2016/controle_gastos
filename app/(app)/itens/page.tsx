@@ -17,6 +17,7 @@ export default async function ItensPage() {
         }}
         className="flex flex-wrap items-end gap-3"
       >
+        <input type="hidden" name="active" value="true" />
         <input name="name" placeholder="Nome" required className="border rounded px-2 py-1" />
         <select name="categoryId" required className="border rounded px-2 py-1">
           {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
