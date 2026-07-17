@@ -37,3 +37,43 @@ export function expenseByCategory(e: EntryView[]): { categoryName: string; cents
     .map(([categoryName, cents]) => ({ categoryName, cents }))
     .sort((a, b) => b.cents - a.cents);
 }
+
+export type CategoryGroup<T> = {
+  categoryName: string;
+  categoryType: "INCOME" | "EXPENSE";
+  rows: T[];
+  subtotalCents: number;
+};
+
+/**
+ * Agrupa linhas por categoria e soma subtotais (em centavos).
+ * Ordena: INCOME antes de EXPENSE; dentro do mesmo tipo, subtotal desc.
+ * Não muta o array de entrada.
+ */
+export function groupByCategory<
+  T extends { categoryName: string; categoryType: "INCOME" | "EXPENSE"; plannedCents: number },
+>(rows: T[]): CategoryGroup<T>[] {
+  const map = new Map<string, CategoryGroup<T>>();
+  for (const row of rows) {
+    const key = `${row.categoryType}:${row.categoryName}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.rows.push(row);
+    } else {
+      map.set(key, {
+        categoryName: row.categoryName,
+        categoryType: row.categoryType,
+        rows: [row],
+        subtotalCents: 0,
+      });
+    }
+  }
+  const groups = [...map.values()].map((g) => ({
+    ...g,
+    subtotalCents: sumCents(g.rows.map((r) => r.plannedCents)),
+  }));
+  return groups.sort((a, b) => {
+    if (a.categoryType !== b.categoryType) return a.categoryType === "INCOME" ? -1 : 1;
+    return b.subtotalCents - a.subtotalCents;
+  });
+}

@@ -10,3 +10,17 @@ export function monthStringFromDate(d: Date): string {
 export function formatCompetencia(d: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" }).format(d);
 }
+
+/** Lista "YYYY-MM" inclusiva de `from` até `to`. Vazio se `to` < `from`. */
+export function monthRange(from: string, to: string): string[] {
+  const start = monthToDate(from);
+  const end = monthToDate(to);
+  if (end.getTime() < start.getTime()) return [];
+  const result: string[] = [];
+  const d = new Date(start);
+  while (d.getTime() <= end.getTime()) {
+    result.push(monthStringFromDate(d));
+    d.setUTCMonth(d.getUTCMonth() + 1);
+  }
+  return result;
+}
