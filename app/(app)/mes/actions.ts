@@ -85,3 +85,11 @@ export async function copyPreviousMonth(month: string) {
   revalidatePath("/mes");
   return { ok: true, copied: prevEntries.length };
 }
+
+/** Adaptador de assinatura para uso com useActionState (não altera a lógica de copyPreviousMonth). */
+export async function copyPreviousMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const month = formData.get("month");
+  if (typeof month !== "string" || !month) return { error: "Mês inválido." };
+  const result = await copyPreviousMonth(month);
+  return { ok: result.ok, count: result.copied };
+}
