@@ -1,13 +1,25 @@
 import NextAuth from "next-auth";
-import Google from "next-auth/providers/google";
-import { isEmailAllowed } from "@/lib/auth-allowlist";
+import Credentials from "next-auth/providers/credentials";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  providers: [Google],
+  providers: [
+    Credentials({
+      credentials: { password: { label: "Senha", type: "password" } },
+      authorize(credentials) {
+        const expected = process.env.APP_PASSWORD;
+        if (
+          typeof expected === "string" &&
+          expected.length > 0 &&
+          typeof credentials?.password === "string" &&
+          credentials.password === expected
+        ) {
+          return { id: "owner", name: "Owner" };
+        }
+        return null;
+      },
+    }),
+  ],
   callbacks: {
-    signIn({ profile }) {
-      return isEmailAllowed(profile?.email, process.env.ALLOWED_EMAILS ?? "");
-    },
     // beta.31: sem este callback, `auth` usado como middleware assume
     // `authorized = true` por padrão (ver node_modules/next-auth/lib/index.js,
     // handleAuth) e NÃO redireciona usuários sem sessão. Precisamos declarar
@@ -16,6 +28,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return !!auth?.user;
     },
   },
-  pages: { signIn: "/login", error: "/acesso-negado" },
+  pages: { signIn: "/login" },
   session: { strategy: "jwt" },
 });
