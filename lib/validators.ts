@@ -26,3 +26,15 @@ export const markPaidSchema = z.object({
   paidAmount: z.coerce.number().nonnegative().nullable().optional(),
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
+
+export const applyRangeSchema = z
+  .object({
+    itemId: z.string().min(1),
+    from: z.string().regex(/^\d{4}-\d{2}$/, "Competência no formato YYYY-MM"),
+    to: z.string().regex(/^\d{4}-\d{2}$/, "Competência no formato YYYY-MM"),
+    amount: z.coerce.number().nonnegative(),
+  })
+  .refine((data) => data.to >= data.from, {
+    message: "O mês final deve ser igual ou posterior ao inicial",
+    path: ["to"],
+  });

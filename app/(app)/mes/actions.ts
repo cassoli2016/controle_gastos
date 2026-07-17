@@ -1,10 +1,13 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { entryUpsertSchema, markPaidSchema } from "@/lib/validators";
-import { monthToDate } from "@/lib/dates";
+import { entryUpsertSchema, markPaidSchema, applyRangeSchema } from "@/lib/validators";
+import { monthToDate, monthRange } from "@/lib/dates";
 
-export async function upsertEntry(formData: FormData) {
+/** Estado retornado por todas as Server Actions consumidas via useActionState. */
+export type ActionState = { error?: string; ok?: boolean; count?: number };
+
+export async function upsertEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryUpsertSchema.safeParse({
     itemId: formData.get("itemId"),
     month: formData.get("month"),
@@ -21,7 +24,7 @@ export async function upsertEntry(formData: FormData) {
   return { ok: true };
 }
 
-export async function markPaid(formData: FormData) {
+export async function markPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = markPaidSchema.safeParse({
     entryId: formData.get("entryId"),
     paid: formData.get("paid") === "true",
@@ -40,6 +43,28 @@ export async function markPaid(formData: FormData) {
   });
   revalidatePath("/mes");
   return { ok: true };
+}
+
+export async function applyRange(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = applyRangeSchema.safeParse({
+    itemId: formData.get("itemId"),
+    from: formData.get("from"),
+    to: formData.get("to"),
+    amount: formData.get("amount"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { itemId, from, to, amount } = parsed.data;
+  const months = monthRange(from, to);
+  for (const month of months) {
+    const monthDate = monthToDate(month);
+    await prisma.monthlyEntry.upsert({
+      where: { itemId_month: { itemId, month: monthDate } },
+      create: { itemId, month: monthDate, plannedAmount: amount },
+      update: { plannedAmount: amount },
+    });
+  }
+  revalidatePath("/mes");
+  return { ok: true, count: months.length };
 }
 
 export async function copyPreviousMonth(month: string) {

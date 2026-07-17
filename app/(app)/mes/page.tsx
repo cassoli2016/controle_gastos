@@ -11,7 +11,11 @@ import {
 import type { EntryView } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
 import { MonthNav } from "@/components/MonthNav";
-import { markPaid, copyPreviousMonth } from "./actions";
+import { copyPreviousMonth } from "./actions";
+import { PayCell } from "./PayCell";
+import { PlannedCell } from "./PlannedCell";
+import { AddEntryForm } from "./AddEntryForm";
+import { BulkApplyForm } from "./BulkApplyForm";
 
 type DisplayRow = EntryView & {
   entryId: string;
@@ -25,11 +29,14 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const month = qMonth ?? monthStringFromDate(new Date());
   const monthDate = monthToDate(month);
 
-  const rows = await prisma.monthlyEntry.findMany({
-    where: { month: monthDate },
-    include: { item: { include: { category: true } } },
-    orderBy: { item: { name: "asc" } },
-  });
+  const [rows, activeItems] = await Promise.all([
+    prisma.monthlyEntry.findMany({
+      where: { month: monthDate },
+      include: { item: { include: { category: true } } },
+      orderBy: { item: { name: "asc" } },
+    }),
+    prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+  ]);
 
   const views: DisplayRow[] = rows.map((r) => ({
     ...toEntryView(r as never),
@@ -41,6 +48,12 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
 
   const groups = groupByCategory(views);
   const isEmpty = views.length === 0;
+
+  const entryItemIds = new Set(views.map((v) => v.itemId));
+  const availableItems = activeItems
+    .filter((i) => !entryItemIds.has(i.id))
+    .map((i) => ({ id: i.id, name: i.name }));
+  const allActiveItems = activeItems.map((i) => ({ id: i.id, name: i.name }));
 
   return (
     <div className="space-y-6">
@@ -86,7 +99,6 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                       <th className="px-3 py-1">Dia venc</th>
                       <th className="px-3 py-1">Previsto</th>
                       <th className="px-3 py-1">Pago</th>
-                      <th className="px-3 py-1">Valor pago</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -94,15 +106,18 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                       <tr key={row.entryId} className="border-b last:border-b-0">
                         <td className="px-3 py-1">{row.itemName}</td>
                         <td className="px-3 py-1">{row.dueDay ?? "—"}</td>
-                        <td className="px-3 py-1">{formatCents(row.plannedCents)}</td>
                         <td className="px-3 py-1">
-                          <form action={async (formData: FormData) => { "use server"; await markPaid(formData); }}>
-                            <input type="hidden" name="entryId" value={row.entryId} />
-                            <input type="hidden" name="paid" value={(!row.paid).toString()} />
-                            <button type="submit">{row.paid ? "✅" : "⬜"}</button>
-                          </form>
+                          <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />
                         </td>
-                        <td className="px-3 py-1">{row.paidCents !== null ? formatCents(row.paidCents) : "—"}</td>
+                        <td className="px-3 py-1">
+                          <PayCell
+                            entryId={row.entryId}
+                            plannedCents={row.plannedCents}
+                            paid={row.paid}
+                            paidCents={row.paidCents}
+                            paidDate={row.paidDate}
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -112,6 +127,16 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           </div>
         </>
       )}
+
+      <section className="rounded-lg border p-4 space-y-2">
+        <h2 className="font-medium">Adicionar lançamento ao mês</h2>
+        <AddEntryForm month={month} availableItems={availableItems} />
+      </section>
+
+      <section className="rounded-lg border p-4 space-y-2">
+        <h2 className="font-medium">Aplicar valor em lote (de um mês até outro)</h2>
+        <BulkApplyForm items={allActiveItems} defaultMonth={month} />
+      </section>
     </div>
   );
 }

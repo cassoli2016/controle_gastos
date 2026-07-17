@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { categorySchema, itemSchema, entryUpsertSchema, markPaidSchema } from "@/lib/validators";
+import { categorySchema, itemSchema, entryUpsertSchema, markPaidSchema, applyRangeSchema } from "@/lib/validators";
 
 describe("validators", () => {
   it("categorySchema aceita válido", () => {
@@ -19,5 +19,13 @@ describe("validators", () => {
   });
   it("markPaidSchema", () => {
     expect(markPaidSchema.safeParse({ entryId: "e1", paid: true, paidAmount: 220, paidDate: "2026-08-05" }).success).toBe(true);
+  });
+  it("applyRangeSchema aceita intervalo válido e rejeita 'até' antes de 'de'", () => {
+    expect(
+      applyRangeSchema.safeParse({ itemId: "i1", from: "2026-01", to: "2026-06", amount: 220 }).success,
+    ).toBe(true);
+    expect(
+      applyRangeSchema.safeParse({ itemId: "i1", from: "2026-06", to: "2026-01", amount: 220 }).success,
+    ).toBe(false);
   });
 });
