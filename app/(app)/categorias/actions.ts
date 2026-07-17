@@ -3,7 +3,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validators";
 
-export async function createCategory(formData: FormData) {
+/** Estado retornado por todas as Server Actions consumidas via useActionState. */
+export type ActionState = { error?: string; ok?: boolean };
+
+export async function createCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
@@ -15,7 +18,9 @@ export async function createCategory(formData: FormData) {
   return { ok: true };
 }
 
-export async function updateCategory(id: string, formData: FormData) {
+export async function updateCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return { error: "Categoria inválida." };
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
@@ -27,7 +32,9 @@ export async function updateCategory(id: string, formData: FormData) {
   return { ok: true };
 }
 
-export async function deleteCategory(id: string) {
+export async function deleteCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const id = formData.get("id");
+  if (typeof id !== "string" || !id) return { error: "Categoria inválida." };
   const count = await prisma.item.count({ where: { categoryId: id } });
   if (count > 0) return { error: "Categoria em uso por itens; recategorize antes de excluir." };
   await prisma.category.delete({ where: { id } });
