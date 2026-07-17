@@ -1,5 +1,6 @@
 "use client";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { formatCents } from "@/lib/money";
 
 export function ExpensePie({ data }: { data: { categoryName: string; value: number; color: string }[] }) {
   return (
@@ -8,7 +9,7 @@ export function ExpensePie({ data }: { data: { categoryName: string; value: numb
         <Pie data={data} dataKey="value" nameKey="categoryName" outerRadius={100}>
           {data.map((d, i) => <Cell key={i} fill={d.color} />)}
         </Pie>
-        <Tooltip formatter={(v) => `R$ ${(Number(v) / 100).toFixed(2)}`} />
+        <Tooltip formatter={(v) => formatCents(Number(v))} />
       </PieChart>
     </ResponsiveContainer>
   );
