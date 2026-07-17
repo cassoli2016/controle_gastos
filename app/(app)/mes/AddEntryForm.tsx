@@ -22,7 +22,10 @@ export function AddEntryForm({
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
       <input type="hidden" name="month" value={month} />
-      <select name="itemId" required className="border rounded px-2 py-1 text-sm">
+      <select name="itemId" required defaultValue="" className="border rounded px-2 py-1 text-sm">
+        <option value="" disabled>
+          — selecione —
+        </option>
         {availableItems.map((i) => (
           <option key={i.id} value={i.id}>
             {i.name}

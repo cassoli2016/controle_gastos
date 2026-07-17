@@ -13,7 +13,10 @@ export function BulkApplyForm({
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
-      <select name="itemId" required className="border rounded px-2 py-1 text-sm">
+      <select name="itemId" required defaultValue="" className="border rounded px-2 py-1 text-sm">
+        <option value="" disabled>
+          — selecione —
+        </option>
         {items.map((i) => (
           <option key={i.id} value={i.id}>
             {i.name}

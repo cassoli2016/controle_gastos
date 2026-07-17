@@ -55,14 +55,16 @@ export async function applyRange(_prevState: ActionState, formData: FormData): P
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { itemId, from, to, amount } = parsed.data;
   const months = monthRange(from, to);
-  for (const month of months) {
-    const monthDate = monthToDate(month);
-    await prisma.monthlyEntry.upsert({
-      where: { itemId_month: { itemId, month: monthDate } },
-      create: { itemId, month: monthDate, plannedAmount: amount },
-      update: { plannedAmount: amount },
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    for (const month of months) {
+      const monthDate = monthToDate(month);
+      await tx.monthlyEntry.upsert({
+        where: { itemId_month: { itemId, month: monthDate } },
+        create: { itemId, month: monthDate, plannedAmount: amount },
+        update: { plannedAmount: amount },
+      });
+    }
+  });
   revalidatePath("/mes");
   return { ok: true, count: months.length };
 }
@@ -71,13 +73,15 @@ export async function copyPreviousMonth(month: string) {
   const target = monthToDate(month);
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
   const prevEntries = await prisma.monthlyEntry.findMany({ where: { month: prev } });
-  for (const e of prevEntries) {
-    await prisma.monthlyEntry.upsert({
-      where: { itemId_month: { itemId: e.itemId, month: target } },
-      create: { itemId: e.itemId, month: target, plannedAmount: e.plannedAmount },
-      update: {},
-    });
-  }
+  await prisma.$transaction(async (tx) => {
+    for (const e of prevEntries) {
+      await tx.monthlyEntry.upsert({
+        where: { itemId_month: { itemId: e.itemId, month: target } },
+        create: { itemId: e.itemId, month: target, plannedAmount: e.plannedAmount },
+        update: {},
+      });
+    }
+  });
   revalidatePath("/mes");
   return { ok: true, copied: prevEntries.length };
 }

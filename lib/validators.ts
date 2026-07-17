@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { monthRange } from "./dates";
+
+/** Limite máximo de meses num intervalo de aplicação em lote. */
+export const MAX_APPLY_RANGE_MONTHS = 120;
 
 export const categorySchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
@@ -36,5 +40,9 @@ export const applyRangeSchema = z
   })
   .refine((data) => data.to >= data.from, {
     message: "O mês final deve ser igual ou posterior ao inicial",
+    path: ["to"],
+  })
+  .refine((data) => monthRange(data.from, data.to).length <= MAX_APPLY_RANGE_MONTHS, {
+    message: `Intervalo muito grande (máx. ${MAX_APPLY_RANGE_MONTHS} meses).`,
     path: ["to"],
   });
