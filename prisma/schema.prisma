@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CategoryType {
+  INCOME
+  EXPENSE
+}
+
+model Category {
+  id        String       @id @default(cuid())
+  name      String
+  type      CategoryType
+  color     String
+  createdAt DateTime     @default(now())
+  items     Item[]
+}
+
+model Item {
+  id         String         @id @default(cuid())
+  name       String
+  category   Category       @relation(fields: [categoryId], references: [id])
+  categoryId String
+  dueDay     Int?
+  active     Boolean        @default(true)
+  notes      String?
+  createdAt  DateTime       @default(now())
+  entries    MonthlyEntry[]
+
+  @@index([categoryId])
+}
+
+model MonthlyEntry {
+  id            String    @id @default(cuid())
+  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId        String
+  month         DateTime  @db.Date
+  plannedAmount Decimal   @db.Decimal(12, 2)
+  paid          Boolean   @default(false)
+  paidAmount    Decimal?  @db.Decimal(12, 2)
+  paidDate      DateTime? @db.Date
+
+  @@unique([itemId, month])
+  @@index([month])
+}
