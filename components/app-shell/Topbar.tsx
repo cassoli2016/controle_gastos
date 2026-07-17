@@ -23,13 +23,17 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
             <SheetTitle className="px-2 py-3">Gastos</SheetTitle>
             <SheetDescription className="sr-only">Navegação principal</SheetDescription>
             <nav className="flex flex-col gap-1">
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href} onClick={() => setOpen(false)}
-                  className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm",
-                    path.startsWith(href) ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent")}>
-                  <Icon className="h-4 w-4" /> {label}
-                </Link>
-              ))}
+              {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+                const active = path.startsWith(href);
+                return (
+                  <Link key={href} href={href} onClick={() => setOpen(false)}
+                    aria-current={active ? "page" : undefined}
+                    className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm",
+                      active ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent")}>
+                    <Icon className="h-4 w-4" /> {label}
+                  </Link>
+                );
+              })}
             </nav>
           </SheetContent>
         </Sheet>
