@@ -1,27 +1,30 @@
 "use client";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./NavItems";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 
 export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }) {
   const path = usePathname();
+  const [open, setOpen] = useState(false);
   return (
     <header className="flex h-14 items-center gap-2 border-b px-4">
       <div className="md:hidden">
-        <Sheet>
+        <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Menu"><Menu className="h-5 w-5" /></Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64">
             <SheetTitle className="px-2 py-3">Gastos</SheetTitle>
+            <SheetDescription className="sr-only">Navegação principal</SheetDescription>
             <nav className="flex flex-col gap-1">
               {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
-                <Link key={href} href={href}
+                <Link key={href} href={href} onClick={() => setOpen(false)}
                   className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm",
                     path.startsWith(href) ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent")}>
                   <Icon className="h-4 w-4" /> {label}
