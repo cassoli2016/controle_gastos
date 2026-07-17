@@ -1631,3 +1631,113 @@ git commit -m "test: e2e Playwright do caminho crítico + bypass de auth em test
 - **Cobertura da spec:** papel do app (substituir → CRUD Tasks 8–10), login Google+allowlist (Task 6), previsto+pago+valor real+data (Task 10 `markPaid` + schema Task 4), categorias receita/despesa (Tasks 4/5/8), import com normalização e idempotência `--reset` (Task 7), dinheiro em centavos (Task 2), telas dashboard/mês/itens/categorias/login/acesso-negado (Tasks 6–11), erros via Zod (Tasks 8–10), testes Vitest+Playwright (Tasks 2–7, 10, 12). Sem lacunas.
 - **Placeholders:** nenhum "TBD/TODO"; todo passo com código tem o código.
 - **Consistência de tipos:** `EntryView` definido na Task 3 e consumido igual nas Tasks 10/11; `toEntryView` (Task 10) casa com a assinatura; `isEmailAllowed`/`monthToDate`/`decimalToCents` usados com as assinaturas declaradas.
+
+---
+
+# ADENDO — Passada de Completude da UI (Tasks 13–16)
+
+Traz a tela do mês e o CRUD ao que a spec aprovada previa. Stack real: Next 16, React 19, Prisma 7 (driver adapter), Zod 4, Recharts 3, Tailwind v4. Padrões já estabelecidos: dinheiro em centavos (`lib/money`), pt-BR, competência dia 1 UTC, Server Actions com Zod + `revalidatePath`, sem shadcn (HTML+Tailwind). **Novidade permitida:** para exibir erros de validação e capturar inputs ricos, criar **client components** usando `useActionState` (React 19) — as Server Actions retornam `{ error?: string; ok?: boolean }`.
+
+## Task 13: Helpers de agrupamento/intervalo + navegador de mês
+
+**Files:**
+- Modify: `lib/calc.ts` (add `groupByCategory` + type `CategoryGroup`)
+- Modify: `lib/dates.ts` (add `monthRange`)
+- Create: `components/MonthNav.tsx` (client)
+- Test: `tests/grouping.test.ts`, e amplia `tests/dates.test.ts`
+
+**Interfaces (produce):**
+- `CategoryGroup<T> = { categoryName: string; categoryType: "INCOME"|"EXPENSE"; rows: T[]; subtotalCents: number }`
+- `groupByCategory<T extends { categoryName: string; categoryType: "INCOME"|"EXPENSE"; plannedCents: number }>(rows: T[]): CategoryGroup<T>[]` — agrupa por categoria; income antes de expense; dentro do mesmo tipo, subtotal desc.
+- `monthRange(from: string, to: string): string[]` — lista "YYYY-MM" inclusiva; vazio se `to` < `from`.
+- `MonthNav({ month, basePath }: { month: string; basePath: string })` — client component com ‹ anterior, `<input type="month">`, próximo › que navega via `useRouter().push(`${basePath}?month=${m}`)`.
+
+- [ ] **Step 1: Testes (TDD, RED)** — `tests/grouping.test.ts`:
+```ts
+import { describe, it, expect } from "vitest";
+import { groupByCategory } from "@/lib/calc";
+const rows = [
+  { categoryName: "Renda", categoryType: "INCOME" as const, plannedCents: 2500000 },
+  { categoryName: "Assinaturas", categoryType: "EXPENSE" as const, plannedCents: 6000 },
+  { categoryName: "Assinaturas", categoryType: "EXPENSE" as const, plannedCents: 59000 },
+  { categoryName: "Transporte", categoryType: "EXPENSE" as const, plannedCents: 22000 },
+];
+describe("groupByCategory", () => {
+  it("agrupa, soma subtotais e ordena (income primeiro, depois subtotal desc)", () => {
+    const g = groupByCategory(rows);
+    expect(g.map((x) => x.categoryName)).toEqual(["Renda", "Assinaturas", "Transporte"]);
+    expect(g[0].subtotalCents).toBe(2500000);
+    expect(g[1].subtotalCents).toBe(65000);
+    expect(g[1].rows.length).toBe(2);
+  });
+});
+```
+E em `tests/dates.test.ts` acrescente:
+```ts
+import { monthRange } from "@/lib/dates";
+describe("monthRange", () => {
+  it("intervalo inclusivo", () => {
+    expect(monthRange("2026-08", "2026-11")).toEqual(["2026-08","2026-09","2026-10","2026-11"]);
+  });
+  it("mês único e intervalo invertido", () => {
+    expect(monthRange("2026-08", "2026-08")).toEqual(["2026-08"]);
+    expect(monthRange("2026-11", "2026-08")).toEqual([]);
+  });
+});
+```
+
+- [ ] **Step 2: Implementar** `groupByCategory` em `lib/calc.ts` (usar `sumCents` para subtotais) e `monthRange` em `lib/dates.ts` (iterar com `d.setUTCMonth(d.getUTCMonth()+1)`).
+- [ ] **Step 3: `components/MonthNav.tsx`** (client, `"use client"`): recebe `month`/`basePath`, calcula mês anterior/próximo com as mesmas regras UTC, renderiza links (`<Link href={`${basePath}?month=...`}>`) e um `<input type="month" defaultValue={month} onChange=... >` que faz `router.push`.
+- [ ] **Step 4:** `npx vitest run tests/grouping.test.ts tests/dates.test.ts` (GREEN), `npm test`, `npx tsc --noEmit`, `npm run build`.
+- [ ] **Step 5: Commit** (trailer).
+
+## Task 14: Tela do mês — agrupamento, subtotais, dia venc, empty-state, navegação
+
+**Files:** Modify `app/(app)/mes/page.tsx`.
+
+**Consome:** `groupByCategory` (Task 13), `MonthNav` (Task 13), `toEntryView`/`lib/calc`/`formatCents`/`lib/dates` (existentes).
+
+Requisitos:
+- No topo, renderizar `<MonthNav month={month} basePath="/mes" />` (além do botão "copiar mês anterior").
+- Montar linhas de exibição a partir do Prisma incluindo: `entryId`, `itemId`, `itemName`, `categoryName`, `categoryType`, `dueDay`, `plannedCents`, `paid`, `paidCents`, `paidDate`. (Buscar `item.dueDay` e `item.category`.)
+- Agrupar com `groupByCategory`; renderizar uma seção por categoria com cabeçalho (nome + tipo) e **subtotal** (`formatCents`); dentro, uma linha por item com colunas: item, **dia venc** (`dueDay ?? "—"`), previsto, status pago, valor pago.
+- **Empty-state:** se não houver lançamentos no mês, mostrar mensagem ("Nenhum lançamento neste mês") + botão "copiar mês anterior".
+- Manter os cards de totais (receitas/despesas/saldo/falta pagar). Manter o `markPaid` atual (será enriquecido na Task 15).
+- Não reimplementar conversão Decimal→cents inline: usar `decimalToCents`/`toEntryView`.
+
+- [ ] Passos: implementar a página; `npx tsc --noEmit`; `npm run build`; `npm test`; commit (trailer). Verificação funcional logada fica para teste manual do usuário (e2e adiado).
+
+## Task 15: Tela do mês — interações de escrita (client + useActionState)
+
+**Files:**
+- Modify: `app/(app)/mes/actions.ts` (enriquecer `markPaid`; add `applyRange`)
+- Create: client components em `app/(app)/mes/` (ex.: `PayCell.tsx`, `AddEntryForm.tsx`, `PlannedCell.tsx`, `BulkApplyForm.tsx`)
+- Modify: `app/(app)/mes/page.tsx` para usar esses componentes.
+
+**Consome:** `entryUpsertSchema`, `markPaidSchema` (existentes), `monthRange` (Task 13), `formatCents`.
+
+Requisitos:
+- **Marcar pago com valor/data:** substituir o toggle simples por um client component (`PayCell`, `useActionState`) que, quando NÃO pago, mostra input de **valor** (default = previsto, em reais) + input **data** (`type="date"`, default hoje) + botão "Pagar" → chama `markPaid` com `paidAmount`/`paidDate`; quando pago, mostra valor/data + botão "Desmarcar" (`markPaid` com `paid=false`). Exibir `{error}` retornado.
+  - `markPaid` deve converter o valor (reais) recebido do form para o Decimal do banco corretamente (o form envia reais tipo "220,50" ou "220.50"; parsear com `parseBRLToCents` e gravar como decimal, ou aceitar número). Mantenha `markPaidSchema` (ajuste o schema se precisar aceitar o formato do input, preservando o comportamento).
+- **Adicionar lançamento ao mês:** `AddEntryForm` (client) — `<select>` de Itens ativos que ainda NÃO têm lançamento no mês + input valor → `upsertEntry`. Exibir erro.
+- **Editar previsto inline:** `PlannedCell` (client) — input com o valor previsto atual → `upsertEntry` ao salvar. Exibir erro.
+- **Aplicar valor de X até Y (lote):** `BulkApplyForm` (client) — select Item + de-mês (`type="month"`) + até-mês + valor → nova action `applyRange(prev, formData)` que valida (Zod) e faz `upsertEntry` para cada mês de `monthRange(from,to)`. `revalidatePath("/mes")`. Exibir erro/quantidade aplicada.
+- Todas as Server Actions retornam `{ error?: string; ok?: boolean }` e os client components usam `useActionState` para exibir.
+- A página passa aos componentes os Itens disponíveis e os dados de cada linha.
+
+- [ ] Passos: implementar actions + componentes + fiação na página; `npx tsc --noEmit`; `npm run build`; `npm test`; commit (trailer). Se ficar grande demais, reportar DONE_WITH_CONCERNS ou pedir split.
+
+## Task 16: Categorias & Itens — exibição de erros + edição (CRUD completo)
+
+**Files:** Modify `app/(app)/categorias/page.tsx`, `app/(app)/itens/page.tsx` (e extrair client components conforme necessário, ex.: `CategoryRow.tsx`, `ItemRow.tsx`, `NewCategoryForm.tsx`, `NewItemForm.tsx`).
+
+Requisitos:
+- Converter os forms de criar/excluir/arquivar para **client components com `useActionState`**, exibindo o `{error}` (ex.: "Categoria em uso por itens; recategorize antes de excluir." deve aparecer na tela).
+- Adicionar **edição inline**: wire `updateCategory` (nome/tipo/cor) e `updateItem` (nome/categoria/dia/ativo) via forms de edição por linha. Ao editar item, incluir controle de `active` (para não recair no bug de arquivamento — enviar `active` explicitamente).
+- Manter Server Actions retornando `{ error?, ok? }`.
+
+- [ ] Passos: implementar; `npx tsc --noEmit`; `npm run build`; `npm test`; commit (trailer).
+
+## Task 12 (E2E) — ADIADA
+
+Decisão do usuário: adiar o e2e até a UI estabilizar; rodar depois contra um banco de teste separado. Não executar agora.
