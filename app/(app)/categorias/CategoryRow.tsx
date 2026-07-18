@@ -1,6 +1,33 @@
 "use client";
 import { useActionState, useState } from "react";
 import { updateCategory, deleteCategory, type ActionState } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { TableRow, TableCell } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActionToast } from "@/hooks/use-action-toast";
 
 type Category = {
   id: string;
@@ -10,57 +37,171 @@ type Category = {
 };
 
 export function CategoryRow({ category }: { category: Category }) {
-  const [editing, setEditing] = useState(false);
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateCategory, {});
+  useActionToast(updateState, { success: "Categoria atualizada." });
+
   const [deleteState, deleteAction, deletePending] = useActionState<ActionState, FormData>(deleteCategory, {});
+  useActionToast(deleteState, { success: "Categoria excluída." });
 
-  // Fecha o formulário de edição após sucesso, sem efeito colateral em useEffect
-  // (padrão recomendado: ajustar estado durante a renderização comparando a
-  // referência anterior do estado retornado pela Server Action).
-  const [handledUpdateState, setHandledUpdateState] = useState(updateState);
-  if (updateState !== handledUpdateState) {
-    setHandledUpdateState(updateState);
-    if (updateState.ok && editing) setEditing(false);
+  const [editOpen, setEditOpen] = useState(false);
+  // Fecha o dialog de edição assim que a action retorna sucesso (mesmo
+  // padrão do NewCategoryForm/AddEntryForm: ajustar estado durante a
+  // renderização, sem useEffect).
+  const [seenUpdateState, setSeenUpdateState] = useState(updateState);
+  if (updateState !== seenUpdateState) {
+    setSeenUpdateState(updateState);
+    if (updateState.ok) setEditOpen(false);
   }
 
-  if (editing) {
-    return (
-      <li className="py-2">
-        <form action={updateAction} className="flex flex-wrap items-center gap-3">
-          <input type="hidden" name="id" value={category.id} />
-          <input name="name" defaultValue={category.name} required className="border rounded px-2 py-1" />
-          <select name="type" defaultValue={category.type} className="border rounded px-2 py-1">
-            <option value="EXPENSE">Despesa</option>
-            <option value="INCOME">Receita</option>
-          </select>
-          <input name="color" type="color" defaultValue={category.color} className="h-9 w-12" />
-          <button type="submit" disabled={updatePending} className="border rounded px-3 py-1 text-sm">
-            Salvar
-          </button>
-          <button type="button" onClick={() => setEditing(false)} className="text-sm">
-            Cancelar
-          </button>
-          {updateState.error && <span className="text-sm text-red-600 basis-full">{updateState.error}</span>}
-        </form>
-      </li>
-    );
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  // Mesmo padrão: fecha o AlertDialog de confirmação ao suceder. Em caso de
+  // erro (categoria em uso) o AlertDialog permanece aberto e o toast de erro
+  // aparece via useActionToast, para o usuário ver o motivo sem perder o
+  // contexto de confirmação.
+  const [seenDeleteState, setSeenDeleteState] = useState(deleteState);
+  if (deleteState !== seenDeleteState) {
+    setSeenDeleteState(deleteState);
+    if (deleteState.ok) setDeleteOpen(false);
   }
 
+  const typeBadge = (
+    <Badge variant={category.type === "INCOME" ? "default" : "secondary"}>
+      {category.type === "INCOME" ? "Receita" : "Despesa"}
+    </Badge>
+  );
+
+  const colorChip = (
+    <span
+      className="size-3 shrink-0 rounded-full ring-1 ring-foreground/10"
+      style={{ background: category.color }}
+      aria-hidden
+    />
+  );
+
+  // Um único par Dialog/AlertDialog (estado controlado, single instance),
+  // com DOIS gatilhos cada (um para a linha desktop, outro para o mini-card
+  // mobile) — em vez de duplicar Dialog/AlertDialog inteiros nas duas
+  // variantes. Root do Radix (Dialog/AlertDialog) não renderiza elemento DOM
+  // próprio (é só um provider de contexto), então aninhar as <TableRow> como
+  // filhas dele não quebra a estrutura da tabela; e como só existe UM
+  // DialogContent/AlertDialogContent (portal único), abrir pela linha visível
+  // em qualquer breakpoint não duplica formulário nem sobrepõe dois modais.
   return (
-    <li className="flex flex-wrap items-center gap-3 py-2">
-      <span className="h-3 w-3 rounded-full" style={{ background: category.color }} />
-      <span>{category.name}</span>
-      <span className="text-sm text-gray-500">{category.type === "INCOME" ? "Receita" : "Despesa"}</span>
-      <button type="button" onClick={() => setEditing(true)} className="ml-auto text-sm text-blue-600">
-        Editar
-      </button>
-      <form action={deleteAction}>
-        <input type="hidden" name="id" value={category.id} />
-        <button type="submit" disabled={deletePending} className="text-sm text-red-600">
-          Excluir
-        </button>
-      </form>
-      {deleteState.error && <span className="w-full text-sm text-red-600">{deleteState.error}</span>}
-    </li>
+    <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        {/* Desktop: linha de tabela (shadcn Table) */}
+        <TableRow className="hidden md:table-row">
+          <TableCell>
+            <div className="flex items-center gap-2">
+              {colorChip}
+              <span className="font-medium">{category.name}</span>
+            </div>
+          </TableCell>
+          <TableCell>{typeBadge}</TableCell>
+          <TableCell>
+            <div className="flex items-center justify-end gap-2">
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  Editar
+                </Button>
+              </DialogTrigger>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant="destructive" size="sm">
+                  Excluir
+                </Button>
+              </AlertDialogTrigger>
+            </div>
+          </TableCell>
+        </TableRow>
+
+        {/* Mobile: mini-card empilhado numa única célula */}
+        <TableRow className="md:hidden">
+          <TableCell colSpan={3} className="p-0">
+            <div className="flex flex-col gap-2 p-3 whitespace-normal">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  {colorChip}
+                  <span className="font-medium">{category.name}</span>
+                </div>
+                {typeBadge}
+              </div>
+              <div className="flex items-center gap-2">
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    Editar
+                  </Button>
+                </DialogTrigger>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant="destructive" size="sm">
+                    Excluir
+                  </Button>
+                </AlertDialogTrigger>
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar categoria</DialogTitle>
+            <DialogDescription>Altere nome, tipo ou cor da categoria.</DialogDescription>
+          </DialogHeader>
+
+          <form action={updateAction} className="flex flex-col gap-3">
+            <input type="hidden" name="id" value={category.id} />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-category-name-${category.id}`}>Nome</Label>
+              <Input id={`edit-category-name-${category.id}`} name="name" defaultValue={category.name} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-category-type-${category.id}`}>Tipo</Label>
+              <Select name="type" defaultValue={category.type} required>
+                <SelectTrigger id={`edit-category-type-${category.id}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EXPENSE">Despesa</SelectItem>
+                  <SelectItem value="INCOME">Receita</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-category-color-${category.id}`}>Cor</Label>
+              <Input
+                id={`edit-category-color-${category.id}`}
+                name="color"
+                type="color"
+                defaultValue={category.color}
+                className="h-9 w-16 p-1"
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updatePending}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir categoria?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. A categoria &quot;{category.name}&quot; será excluída
+              permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <form action={deleteAction}>
+            <input type="hidden" name="id" value={category.id} />
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+              <AlertDialogAction type="submit" disabled={deletePending}>
+                Excluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </form>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Dialog>
   );
 }
