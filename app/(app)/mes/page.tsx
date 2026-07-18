@@ -21,12 +21,18 @@ import { PlannedCell } from "./PlannedCell";
 import { AddEntryForm } from "./AddEntryForm";
 import { BulkApplyForm } from "./BulkApplyForm";
 import { PurchaseDialog } from "./PurchaseDialog";
+import { EntryActions } from "./EntryActions";
 
 type DisplayRow = EntryView & {
   entryId: string;
   itemId: string | null;
   dueDay: number | null;
   paidDate: Date | null;
+  cardId: string | null;
+  cardName: string | null;
+  installmentId: string | null;
+  installmentSeq: number | null;
+  installmentCount: number | null;
 };
 
 // Um único componente de linha, com duas formas de renderização (tabela no
@@ -44,8 +50,10 @@ function EntryRow({
   month: string;
   variant: "desktop" | "mobile";
 }) {
-  // Item fixo: edição inline via PlannedCell. Lançamento avulso/parcela (sem itemId):
-  // exibe o valor (edição de avulsos entra na FA-T5).
+  // Item fixo: edição inline via PlannedCell. Lançamento avulso/parcela (sem
+  // itemId): mostra o valor; a edição desse valor acontece via "editar
+  // parcelamento" (InstallmentDialog), já que toda linha avulsa/cartão
+  // carrega um installmentId (mesmo compras não parceladas, count=1).
   const planned = row.itemId ? (
     <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />
   ) : (
@@ -60,14 +68,41 @@ function EntryRow({
       paidDate={row.paidDate}
     />
   );
+  // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
+  // parcelado em mais de 1 vez (count=1 não exibe "1/1", só o badge do cartão).
+  const isMultiInstallment = (row.installmentCount ?? 0) > 1;
+  const badges = (row.cardName || isMultiInstallment) && (
+    <span className="flex items-center gap-1 flex-wrap">
+      {row.cardName && <Badge variant="outline">{row.cardName}</Badge>}
+      {isMultiInstallment && (
+        <Badge variant="secondary">
+          {row.installmentSeq}/{row.installmentCount}
+        </Badge>
+      )}
+    </span>
+  );
+  const actions = (
+    <EntryActions
+      entryId={row.entryId}
+      label={row.itemName}
+      installmentId={row.installmentId}
+      plannedCents={row.plannedCents}
+    />
+  );
 
   if (variant === "desktop") {
     return (
       <tr className="border-b last:border-b-0">
-        <td className="px-3 py-1.5">{row.itemName}</td>
+        <td className="px-3 py-1.5">
+          <span className="flex items-center gap-1.5 flex-wrap">
+            <span>{row.itemName}</span>
+            {badges}
+          </span>
+        </td>
         <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{row.dueDay ?? "—"}</td>
         <td className="px-3 py-1.5">{planned}</td>
         <td className="px-3 py-1.5">{pay}</td>
+        <td className="px-3 py-1.5">{actions}</td>
       </tr>
     );
   }
@@ -75,7 +110,10 @@ function EntryRow({
   return (
     <div className="flex flex-col gap-2 p-3">
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-medium">{row.itemName}</span>
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <span className="font-medium">{row.itemName}</span>
+          {badges}
+        </span>
         <span className="text-xs text-muted-foreground tabular-nums shrink-0">
           {row.dueDay ? `Dia ${row.dueDay}` : "—"}
         </span>
@@ -90,6 +128,7 @@ function EntryRow({
           {pay}
         </div>
       </div>
+      <div className="flex justify-end">{actions}</div>
     </div>
   );
 }
@@ -102,7 +141,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const [rows, activeItems, activeCards, categories] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
-      include: { item: { include: { category: true } } },
+      include: { item: { include: { category: true } }, category: true, card: true },
       orderBy: { item: { name: "asc" } },
     }),
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -116,6 +155,11 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     itemId: r.itemId,
     dueDay: r.item?.dueDay ?? null,
     paidDate: r.paidDate,
+    cardId: r.cardId,
+    cardName: r.card?.name ?? null,
+    installmentId: r.installmentId,
+    installmentSeq: r.installmentSeq,
+    installmentCount: r.installmentCount,
   }));
 
   const groups = groupByCategory(views);
@@ -183,6 +227,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia venc</th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Previsto</th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Pago</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody>

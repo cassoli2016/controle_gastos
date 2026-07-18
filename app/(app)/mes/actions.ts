@@ -1,9 +1,20 @@
 "use server";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema } from "@/lib/validators";
 import { monthToDate, monthRange } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
+
+// Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
+// altera lib/): validam os formulários de excluir lançamento e
+// editar/excluir parcelamento.
+const deleteEntrySchema = z.object({ entryId: z.string().min(1) });
+const updateInstallmentSchema = z.object({
+  installmentId: z.string().min(1),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+});
+const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
 
 /** Nome/cor da categoria padrão usada quando uma compra avulsa não informa categoria. */
 const DEFAULT_PURCHASE_CATEGORY = { name: "Cartão/Compras", type: "EXPENSE" as const, color: "#64748b" };
@@ -164,4 +175,50 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
   revalidatePath("/mes");
   revalidatePath("/cartoes");
   return { ok: true, count: installments };
+}
+
+/**
+ * Exclui um MonthlyEntry pelo id. Usada tanto para lançamentos de item fixo
+ * (o registro do mês some, item continua existindo) quanto para avulsos/
+ * parcelas individuais (exclui só aquela parcela, sem tocar nas demais do
+ * mesmo installmentId — para isso ver deleteInstallment).
+ */
+export async function deleteEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = deleteEntrySchema.safeParse({ entryId: formData.get("entryId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await prisma.monthlyEntry.delete({ where: { id: parsed.data.entryId } });
+  revalidatePath("/mes");
+  revalidatePath("/cartoes");
+  return { ok: true };
+}
+
+/**
+ * Atualiza o valor previsto de todas as parcelas em aberto (paid=false) de um
+ * parcelamento. Parcelas já pagas não são alteradas — o valor pago fica
+ * como registrado no momento do pagamento.
+ */
+export async function updateInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = updateInstallmentSchema.safeParse({
+    installmentId: formData.get("installmentId"),
+    amount: formData.get("amount"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { installmentId, amount } = parsed.data;
+  const { count } = await prisma.monthlyEntry.updateMany({
+    where: { installmentId, paid: false },
+    data: { plannedAmount: amount },
+  });
+  revalidatePath("/mes");
+  revalidatePath("/cartoes");
+  return { ok: true, count };
+}
+
+/** Exclui todas as parcelas (pagas ou não) de um parcelamento. */
+export async function deleteInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = deleteInstallmentSchema.safeParse({ installmentId: formData.get("installmentId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { count } = await prisma.monthlyEntry.deleteMany({ where: { installmentId: parsed.data.installmentId } });
+  revalidatePath("/mes");
+  revalidatePath("/cartoes");
+  return { ok: true, count };
 }
