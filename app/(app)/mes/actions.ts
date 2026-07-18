@@ -75,6 +75,8 @@ export async function copyPreviousMonth(month: string) {
   const prevEntries = await prisma.monthlyEntry.findMany({ where: { month: prev } });
   await prisma.$transaction(async (tx) => {
     for (const e of prevEntries) {
+      // Só copia contas fixas (item recorrente); avulsos/parcelas de cartão não são "copiados".
+      if (e.itemId === null) continue;
       await tx.monthlyEntry.upsert({
         where: { itemId_month: { itemId: e.itemId, month: target } },
         create: { itemId: e.itemId, month: target, plannedAmount: e.plannedAmount },

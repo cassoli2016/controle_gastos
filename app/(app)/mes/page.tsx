@@ -23,7 +23,7 @@ import { BulkApplyForm } from "./BulkApplyForm";
 
 type DisplayRow = EntryView & {
   entryId: string;
-  itemId: string;
+  itemId: string | null;
   dueDay: number | null;
   paidDate: Date | null;
 };
@@ -43,7 +43,13 @@ function EntryRow({
   month: string;
   variant: "desktop" | "mobile";
 }) {
-  const planned = <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />;
+  // Item fixo: edição inline via PlannedCell. Lançamento avulso/parcela (sem itemId):
+  // exibe o valor (edição de avulsos entra na FA-T5).
+  const planned = row.itemId ? (
+    <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />
+  ) : (
+    <span className="tabular-nums">{formatCents(row.plannedCents)}</span>
+  );
   const pay = (
     <PayCell
       entryId={row.entryId}
@@ -105,7 +111,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     ...toEntryView(r as never),
     entryId: r.id,
     itemId: r.itemId,
-    dueDay: r.item.dueDay,
+    dueDay: r.item?.dueDay ?? null,
     paidDate: r.paidDate,
   }));
 
