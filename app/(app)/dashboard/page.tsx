@@ -1,3 +1,4 @@
+import { TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates";
 import { toEntryView } from "@/lib/entries";
@@ -37,15 +38,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">Dashboard — {formatCompetencia(monthDate)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" />
-        <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" />
-        <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone="default" />
-        <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" />
+        <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
+        <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
+        <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
+        <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

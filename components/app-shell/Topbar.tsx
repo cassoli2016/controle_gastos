@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, LogOut } from "lucide-react";
+import { Menu, LogOut, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,19 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
   const path = usePathname();
   const [open, setOpen] = useState(false);
   return (
-    <header className="flex h-14 items-center gap-2 border-b px-4">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
       <div className="md:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" aria-label="Menu"><Menu className="h-5 w-5" /></Button>
           </SheetTrigger>
           <SheetContent side="left" className="w-64">
-            <SheetTitle className="px-2 py-3">Gastos</SheetTitle>
+            <SheetTitle className="flex items-center gap-2 px-2 py-3">
+              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <Wallet className="size-4" />
+              </span>
+              Gastos
+            </SheetTitle>
             <SheetDescription className="sr-only">Navegação principal</SheetDescription>
             <nav className="flex flex-col gap-1">
               {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
@@ -38,7 +43,12 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
           </SheetContent>
         </Sheet>
       </div>
-      <Link href="/dashboard" className="font-semibold">Gastos</Link>
+      <Link href="/dashboard" className="flex items-center gap-2.5">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+          <Wallet className="size-4.5" />
+        </span>
+        <span className="text-[15px] font-semibold tracking-tight">Gastos</span>
+      </Link>
       <div className="ml-auto flex items-center gap-1">
         <ThemeToggle />
         <form action={signOutAction}>

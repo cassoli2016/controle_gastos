@@ -1,6 +1,6 @@
-import { Inbox } from "lucide-react";
+import { Inbox, TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { toEntryView } from "@/lib/entries";
 import {
   plannedIncome,
@@ -174,7 +174,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-xl font-semibold">Lançamentos — {formatCompetencia(monthDate)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
         <div className="flex items-center gap-3">
           <MonthNav month={month} basePath="/mes" />
           <CopyPreviousMonthButton month={month} />
@@ -199,10 +199,10 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" />
-            <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" />
-            <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone="default" />
-            <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" />
+            <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
+            <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
+            <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
+            <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
           </div>
 
           <div className="space-y-4">

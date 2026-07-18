@@ -4,7 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components
 import { Badge } from "@/components/ui/badge";
 import { MonthNav } from "@/components/MonthNav";
 import { StatCard } from "@/components/StatCard";
-import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, sumCents, formatCents } from "@/lib/money";
 import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
@@ -63,7 +63,7 @@ export default async function CartoesPage({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-xl font-semibold">Cartões — {formatCompetencia(monthDate)}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Cartões</h1>
         <MonthNav month={month} basePath="/cartoes" />
       </div>
 
