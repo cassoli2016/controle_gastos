@@ -20,7 +20,7 @@ export function ExpensePie({ data }: { data: { categoryName: string; value: numb
               <Cell key={i} fill={d.color} />
             ))}
           </Pie>
-          <Legend wrapperStyle={{ color: "currentColor" }} />
+          <Legend wrapperStyle={{ color: "currentColor" }} labelStyle={{ color: "currentColor" }} />
           <Tooltip formatter={(v) => formatCents(Number(v))} />
         </PieChart>
       </ResponsiveContainer>
