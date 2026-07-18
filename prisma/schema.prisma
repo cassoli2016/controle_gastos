@@ -18,6 +18,7 @@ model Category {
   color     String
   createdAt DateTime     @default(now())
   items     Item[]
+  entries   MonthlyEntry[]
 }
 
 model Item {
@@ -34,16 +35,36 @@ model Item {
   @@index([categoryId])
 }
 
+model CreditCard {
+  id        String         @id @default(cuid())
+  name      String
+  color     String
+  active    Boolean        @default(true)
+  createdAt DateTime       @default(now())
+  entries   MonthlyEntry[]
+}
+
 model MonthlyEntry {
-  id            String    @id @default(cuid())
-  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  itemId        String
-  month         DateTime  @db.Date
-  plannedAmount Decimal   @db.Decimal(12, 2)
-  paid          Boolean   @default(false)
-  paidAmount    Decimal?  @db.Decimal(12, 2)
-  paidDate      DateTime? @db.Date
+  id               String      @id @default(cuid())
+  item             Item?       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId           String?
+  description      String?
+  category         Category?   @relation(fields: [categoryId], references: [id])
+  categoryId       String?
+  card             CreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  cardId           String?
+  installmentId    String?
+  installmentSeq   Int?
+  installmentCount Int?
+  month            DateTime    @db.Date
+  plannedAmount    Decimal     @db.Decimal(12, 2)
+  paid             Boolean     @default(false)
+  paidAmount       Decimal?    @db.Decimal(12, 2)
+  paidDate         DateTime?   @db.Date
 
   @@unique([itemId, month])
   @@index([month])
+  @@index([categoryId])
+  @@index([cardId])
+  @@index([installmentId])
 }
