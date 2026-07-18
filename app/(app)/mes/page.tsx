@@ -13,7 +13,7 @@ import type { EntryView } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
 import { MonthNav } from "@/components/MonthNav";
 import { StatCard } from "@/components/StatCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyPreviousMonthButton } from "./CopyPreviousMonthButton";
 import { PayCell } from "./PayCell";
@@ -27,6 +27,65 @@ type DisplayRow = EntryView & {
   dueDay: number | null;
   paidDate: Date | null;
 };
+
+// Um único componente de linha, com duas formas de renderização (tabela no
+// desktop, mini-card no mobile). Cada variante retorna uma única raiz válida
+// para o contexto onde é usada — importante porque `variant="desktop"` é
+// mapeado dentro de <tbody> (só pode conter <tr>) e `variant="mobile"` é
+// mapeado numa lista de <div>s; misturar as duas num só retorno quebraria o
+// HTML da tabela (o navegador re-posiciona nós inválidos para fora do <table>).
+function EntryRow({
+  row,
+  month,
+  variant,
+}: {
+  row: DisplayRow;
+  month: string;
+  variant: "desktop" | "mobile";
+}) {
+  const planned = <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />;
+  const pay = (
+    <PayCell
+      entryId={row.entryId}
+      plannedCents={row.plannedCents}
+      paid={row.paid}
+      paidCents={row.paidCents}
+      paidDate={row.paidDate}
+    />
+  );
+
+  if (variant === "desktop") {
+    return (
+      <tr className="border-b last:border-b-0">
+        <td className="px-3 py-1.5">{row.itemName}</td>
+        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{row.dueDay ?? "—"}</td>
+        <td className="px-3 py-1.5">{planned}</td>
+        <td className="px-3 py-1.5">{pay}</td>
+      </tr>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">{row.itemName}</span>
+        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+          {row.dueDay ? `Dia ${row.dueDay}` : "—"}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs text-muted-foreground">Previsto</span>
+          {planned}
+        </div>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="text-xs text-muted-foreground">Pago</span>
+          {pay}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default async function MesPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
@@ -74,7 +133,9 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
             <Inbox className="size-10 text-muted-foreground" />
             <p className="text-muted-foreground">Nenhum lançamento neste mês.</p>
-            <CopyPreviousMonthButton month={month} />
+            <p className="text-sm text-muted-foreground">
+              Use &quot;Copiar mês anterior&quot; acima ou adicione um lançamento abaixo.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -98,37 +159,32 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                     <span className="font-semibold tabular-nums">{formatCents(g.subtotalCents)}</span>
                   </div>
                 </CardHeader>
-                <CardContent className="overflow-x-auto px-0">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left border-b">
-                        <th className="px-3 py-1">Item</th>
-                        <th className="px-3 py-1">Dia venc</th>
-                        <th className="px-3 py-1">Previsto</th>
-                        <th className="px-3 py-1">Pago</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {g.rows.map((row) => (
-                        <tr key={row.entryId} className="border-b last:border-b-0">
-                          <td className="px-3 py-1">{row.itemName}</td>
-                          <td className="px-3 py-1">{row.dueDay ?? "—"}</td>
-                          <td className="px-3 py-1">
-                            <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />
-                          </td>
-                          <td className="px-3 py-1">
-                            <PayCell
-                              entryId={row.entryId}
-                              plannedCents={row.plannedCents}
-                              paid={row.paid}
-                              paidCents={row.paidCents}
-                              paidDate={row.paidDate}
-                            />
-                          </td>
+                <CardContent className="px-0">
+                  {/* Desktop: tabela */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left border-b">
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Item</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia venc</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Previsto</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Pago</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {g.rows.map((row) => (
+                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile: mini-cards empilhados */}
+                  <div className="md:hidden divide-y">
+                    {g.rows.map((row) => (
+                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" />
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -136,23 +192,13 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         </>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Adicionar lançamento ao mês</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AddEntryForm month={month} availableItems={availableItems} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Aplicar valor em lote (de um mês até outro)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BulkApplyForm items={allActiveItems} defaultMonth={month} />
-        </CardContent>
-      </Card>
+      {/* Barra de ações: os próprios botões abrem o Dialog com o formulário e
+          título, então não repetimos um Card/CardTitle aqui (evita título
+          duplicado com o do Dialog). */}
+      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
+        <AddEntryForm month={month} availableItems={availableItems} />
+        <BulkApplyForm items={allActiveItems} defaultMonth={month} />
+      </div>
     </div>
   );
 }
