@@ -73,6 +73,7 @@ export async function copyPreviousMonth(month: string) {
   const target = monthToDate(month);
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
   const prevEntries = await prisma.monthlyEntry.findMany({ where: { month: prev } });
+  let copied = 0;
   await prisma.$transaction(async (tx) => {
     for (const e of prevEntries) {
       // Só copia contas fixas (item recorrente); avulsos/parcelas de cartão não são "copiados".
@@ -82,10 +83,11 @@ export async function copyPreviousMonth(month: string) {
         create: { itemId: e.itemId, month: target, plannedAmount: e.plannedAmount },
         update: {},
       });
+      copied++;
     }
   });
   revalidatePath("/mes");
-  return { ok: true, copied: prevEntries.length };
+  return { ok: true, copied };
 }
 
 /** Adaptador de assinatura para uso com useActionState (não altera a lógica de copyPreviousMonth). */
