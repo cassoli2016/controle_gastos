@@ -17,7 +17,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const rows = await prisma.monthlyEntry.findMany({
     where: { month: monthDate },
-    include: { item: { include: { category: true } } },
+    include: { item: { include: { category: true } }, category: true },
   });
   const views = rows.map((r) => toEntryView(r as never));
 
@@ -30,7 +30,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const proj: { month: string; balance: number }[] = [];
   for (let k = 0; k < 6; k++) {
     const d = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + k, 1));
-    const r = await prisma.monthlyEntry.findMany({ where: { month: d }, include: { item: { include: { category: true } } } });
+    const r = await prisma.monthlyEntry.findMany({ where: { month: d }, include: { item: { include: { category: true } }, category: true } });
     proj.push({ month: formatCompetencia(d), balance: plannedBalance(r.map((x) => toEntryView(x as never))) });
   }
 
