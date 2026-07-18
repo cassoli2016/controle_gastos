@@ -21,10 +21,13 @@ export function PurchaseDialog({
   cards,
   categories,
   defaultMonth,
+  defaultCardId,
 }: {
   cards: { id: string; name: string }[];
   categories: { id: string; name: string }[];
   defaultMonth: string;
+  /** Pré-seleciona o cartão no Select (ex.: botão "Lançar compra" de um cartão específico na tela de Cartões). */
+  defaultCardId?: string;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(createPurchase, {});
   useActionToast(state, {
@@ -61,7 +64,7 @@ export function PurchaseDialog({
             <Label htmlFor="purchase-card">Cartão</Label>
             {/* Select do shadcn/Radix não aceita SelectItem value="" — "none" é
                 o sentinel para "sem cartão", tratado como null na action. */}
-            <Select name="cardId" defaultValue="none">
+            <Select name="cardId" defaultValue={defaultCardId ?? "none"}>
               <SelectTrigger id="purchase-card" className="w-full">
                 <SelectValue placeholder="Sem cartão" />
               </SelectTrigger>
