@@ -20,6 +20,7 @@ import { PayCell } from "./PayCell";
 import { PlannedCell } from "./PlannedCell";
 import { AddEntryForm } from "./AddEntryForm";
 import { BulkApplyForm } from "./BulkApplyForm";
+import { PurchaseDialog } from "./PurchaseDialog";
 
 type DisplayRow = EntryView & {
   entryId: string;
@@ -98,13 +99,15 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const month = qMonth ?? monthStringFromDate(new Date());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems] = await Promise.all([
+  const [rows, activeItems, activeCards, categories] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
       include: { item: { include: { category: true } } },
       orderBy: { item: { name: "asc" } },
     }),
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.creditCard.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
+    prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const views: DisplayRow[] = rows.map((r) => ({
@@ -131,6 +134,11 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         <div className="flex items-center gap-3">
           <MonthNav month={month} basePath="/mes" />
           <CopyPreviousMonthButton month={month} />
+          <PurchaseDialog
+            cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
+            categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+            defaultMonth={month}
+          />
         </div>
       </div>
 
