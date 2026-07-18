@@ -2,9 +2,10 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema } from "@/lib/validators";
+import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema } from "@/lib/validators";
 import { monthToDate, monthRange } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
+import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -221,4 +222,49 @@ export async function deleteInstallment(_prevState: ActionState, formData: FormD
   revalidatePath("/mes");
   revalidatePath("/cartoes");
   return { ok: true, count };
+}
+
+/**
+ * Transfere valor entre dois lançamentos do MESMO mês (ex.: baixar a provisão
+ * "ALMOÇO" e somar no lançamento do cartão). Atômico: origem diminui e destino
+ * aumenta na mesma transação; a origem nunca fica negativa.
+ */
+export async function transferValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = transferSchema.safeParse({
+    sourceEntryId: formData.get("sourceEntryId"),
+    targetEntryId: formData.get("targetEntryId"),
+    amount: formData.get("amount"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { sourceEntryId, targetEntryId, amount } = parsed.data;
+
+  const [source, target] = await Promise.all([
+    prisma.monthlyEntry.findUnique({ where: { id: sourceEntryId } }),
+    prisma.monthlyEntry.findUnique({ where: { id: targetEntryId } }),
+  ]);
+  if (!source || !target) return { error: "Lançamento de origem ou destino não encontrado." };
+  if (source.month.getTime() !== target.month.getTime())
+    return { error: "Origem e destino devem ser do mesmo mês." };
+
+  const amountCents = Math.round(amount * 100);
+  const sourceCents = decimalToCents(String(source.plannedAmount));
+  if (amountCents > sourceCents)
+    return { error: `Valor maior que o disponível na origem (${formatCents(sourceCents)}).` };
+  const targetCents = decimalToCents(String(target.plannedAmount));
+
+  await prisma.$transaction([
+    prisma.monthlyEntry.update({
+      where: { id: source.id },
+      data: { plannedAmount: centsToNumber(sourceCents - amountCents) },
+    }),
+    prisma.monthlyEntry.update({
+      where: { id: target.id },
+      data: { plannedAmount: centsToNumber(targetCents + amountCents) },
+    }),
+  ]);
+
+  revalidatePath("/mes");
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  return { ok: true };
 }

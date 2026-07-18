@@ -21,6 +21,7 @@ import { PlannedCell } from "./PlannedCell";
 import { AddEntryForm } from "./AddEntryForm";
 import { BulkApplyForm } from "./BulkApplyForm";
 import { PurchaseDialog } from "./PurchaseDialog";
+import { TransferDialog } from "./TransferDialog";
 import { EntryActions } from "./EntryActions";
 
 type DisplayRow = EntryView & {
@@ -177,6 +178,9 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
         <div className="flex items-center gap-3">
           <MonthNav month={month} basePath="/mes" />
+          <TransferDialog
+            entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+          />
           <CopyPreviousMonthButton month={month} />
           <PurchaseDialog
             cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}

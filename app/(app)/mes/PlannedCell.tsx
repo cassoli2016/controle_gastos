@@ -1,5 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
+import { Pencil } from "lucide-react";
 import { upsertEntry, type ActionState } from "./actions";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
@@ -33,8 +34,9 @@ export function PlannedCell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="font-medium tabular-nums">
+        <Button type="button" variant="ghost" size="sm" className="font-medium tabular-nums" aria-label="Editar valor previsto">
           {formatCents(plannedCents)}
+          <Pencil className="size-3 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56">

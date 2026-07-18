@@ -60,3 +60,15 @@ export const applyRangeSchema = z
     message: `Intervalo muito grande (máx. ${MAX_APPLY_RANGE_MONTHS} meses).`,
     path: ["to"],
   });
+
+/** Transferência de valor entre dois lançamentos do mesmo mês (ex.: provisão ALMOÇO → CARTÃO). */
+export const transferSchema = z
+  .object({
+    sourceEntryId: z.string().min(1, "Origem obrigatória"),
+    targetEntryId: z.string().min(1, "Destino obrigatório"),
+    amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  })
+  .refine((d) => d.sourceEntryId !== d.targetEntryId, {
+    message: "Origem e destino devem ser diferentes.",
+    path: ["targetEntryId"],
+  });
