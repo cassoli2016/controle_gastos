@@ -28,6 +28,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return !!auth?.user;
     },
   },
+  // Em produção (Vercel/domínio custom/proxy) o Auth.js v5 exige host confiável;
+  // sem isto, a validação de sessão falha com UntrustedHost e as páginas logadas quebram.
+  trustHost: true,
   pages: { signIn: "/login" },
   session: { strategy: "jwt" },
 });
