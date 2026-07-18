@@ -18,4 +18,23 @@ describe("toEntryView", () => {
       paidCents: null,
     });
   });
+
+  it("converte lançamento avulso (sem item, com description/category) em EntryView", () => {
+    const row = {
+      plannedAmount: "350.00",
+      paid: true,
+      paidAmount: "350.00",
+      item: null,
+      description: "Notebook Dell (1/10)",
+      category: { name: "Eletrônicos", type: "EXPENSE" },
+    };
+    expect(toEntryView(row as never)).toEqual({
+      itemName: "Notebook Dell (1/10)",
+      categoryName: "Eletrônicos",
+      categoryType: "EXPENSE",
+      plannedCents: 35000,
+      paid: true,
+      paidCents: 35000,
+    });
+  });
 });

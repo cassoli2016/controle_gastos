@@ -31,6 +31,20 @@ export const markPaidSchema = z.object({
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
 });
 
+export const cardSchema = z.object({
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor deve ser hex #RRGGBB"),
+});
+
+export const purchaseSchema = z.object({
+  cardId: z.string().trim().optional().nullable(),
+  description: z.string().trim().min(1, "Descrição obrigatória"),
+  categoryId: z.string().trim().optional().nullable(),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  installments: z.coerce.number().int().min(1).max(120),
+  startMonth: z.string().regex(/^\d{4}-\d{2}$/, "Competência YYYY-MM"),
+});
+
 export const applyRangeSchema = z
   .object({
     itemId: z.string().min(1),

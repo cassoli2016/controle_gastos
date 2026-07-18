@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { categorySchema, itemSchema, entryUpsertSchema, markPaidSchema, applyRangeSchema } from "@/lib/validators";
+import {
+  categorySchema,
+  itemSchema,
+  entryUpsertSchema,
+  markPaidSchema,
+  applyRangeSchema,
+  cardSchema,
+  purchaseSchema,
+} from "@/lib/validators";
 
 describe("validators", () => {
   it("categorySchema aceita válido", () => {
@@ -26,6 +34,63 @@ describe("validators", () => {
     ).toBe(true);
     expect(
       applyRangeSchema.safeParse({ itemId: "i1", from: "2026-06", to: "2026-01", amount: 220 }).success,
+    ).toBe(false);
+  });
+
+  it("cardSchema aceita válido e rejeita cor/nome inválidos", () => {
+    expect(cardSchema.safeParse({ name: "Nubank", color: "#8a05be" }).success).toBe(true);
+    expect(cardSchema.safeParse({ name: "", color: "#8a05be" }).success).toBe(false);
+    expect(cardSchema.safeParse({ name: "Nubank", color: "roxo" }).success).toBe(false);
+  });
+
+  it("purchaseSchema aceita compra válida", () => {
+    expect(
+      purchaseSchema.safeParse({
+        cardId: "c1",
+        description: "Notebook",
+        categoryId: "cat1",
+        amount: 3500,
+        installments: 10,
+        startMonth: "2026-08",
+      }).success,
+    ).toBe(true);
+  });
+  it("purchaseSchema rejeita amount 0", () => {
+    expect(
+      purchaseSchema.safeParse({
+        description: "Notebook",
+        amount: 0,
+        installments: 1,
+        startMonth: "2026-08",
+      }).success,
+    ).toBe(false);
+  });
+  it("purchaseSchema rejeita installments 0 e 121", () => {
+    expect(
+      purchaseSchema.safeParse({
+        description: "Notebook",
+        amount: 100,
+        installments: 0,
+        startMonth: "2026-08",
+      }).success,
+    ).toBe(false);
+    expect(
+      purchaseSchema.safeParse({
+        description: "Notebook",
+        amount: 100,
+        installments: 121,
+        startMonth: "2026-08",
+      }).success,
+    ).toBe(false);
+  });
+  it("purchaseSchema rejeita description vazia", () => {
+    expect(
+      purchaseSchema.safeParse({
+        description: "",
+        amount: 100,
+        installments: 1,
+        startMonth: "2026-08",
+      }).success,
     ).toBe(false);
   });
 });
