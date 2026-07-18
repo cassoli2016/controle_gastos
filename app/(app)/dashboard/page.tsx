@@ -3,8 +3,12 @@ import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates
 import { toEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
+import { StatCard } from "@/components/StatCard";
+import { MonthNav } from "@/components/MonthNav";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
 import { BalanceProjection } from "@/components/charts/BalanceProjection";
+import { RankingBars } from "@/components/charts/RankingBars";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
@@ -19,6 +23,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const catColor = new Map((await prisma.category.findMany()).map((c) => [c.name, c.color]));
   const pieData = expenseByCategory(views).map((x) => ({ categoryName: x.categoryName, value: x.cents, color: catColor.get(x.categoryName) ?? "#64748b" }));
+  const ranking = expenseRanking(views).slice(0, 10);
+  const hasExpenses = ranking.length > 0;
 
   // Projeção: saldo previsto dos próximos 6 meses
   const proj: { month: string; balance: number }[] = [];
@@ -30,34 +36,53 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Dashboard — {formatCompetencia(monthDate)}</h1>
-      <div className="grid grid-cols-4 gap-3">
-        <Card label="Receitas" value={formatCents(plannedIncome(views))} />
-        <Card label="Despesas" value={formatCents(plannedExpense(views))} />
-        <Card label="Saldo" value={formatCents(plannedBalance(views))} />
-        <Card label="Falta pagar" value={formatCents(remainingToPay(views))} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Dashboard — {formatCompetencia(monthDate)}</h1>
+        <MonthNav month={month} basePath="/dashboard" />
       </div>
-      <div className="grid grid-cols-2 gap-6">
-        <section><h2 className="mb-2 font-medium">Despesas por categoria</h2><ExpensePie data={pieData} /></section>
-        <section><h2 className="mb-2 font-medium">Projeção de saldo</h2><BalanceProjection data={proj} /></section>
-      </div>
-      <section>
-        <h2 className="mb-2 font-medium">Ranking de despesas</h2>
-        <ol className="list-decimal pl-6">
-          {expenseRanking(views).slice(0, 10).map((x, i) => (
-            <li key={i} className="flex justify-between"><span>{x.itemName}</span><span>{formatCents(x.cents)}</span></li>
-          ))}
-        </ol>
-      </section>
-    </div>
-  );
-}
 
-function Card({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="text-sm text-gray-500">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" />
+        <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" />
+        <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone="default" />
+        <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Despesas por categoria</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {hasExpenses ? (
+              <ExpensePie data={pieData} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Projeção de saldo</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BalanceProjection data={proj} />
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Ranking de despesas</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {hasExpenses ? (
+            <RankingBars data={ranking} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
