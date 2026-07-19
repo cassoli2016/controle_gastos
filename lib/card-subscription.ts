@@ -1,17 +1,29 @@
 import { prisma } from "@/lib/prisma";
-import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { monthToDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
-import { installmentMonths } from "@/lib/installments";
-import { upsertCardEntry, cardTargetMonth, type CardRef } from "@/lib/card-entry";
-import { todayISOInSaoPaulo } from "@/lib/fatura";
-
-/** Horizonte de provisionamento de uma assinatura (meses de fatura). */
-export const SUBSCRIPTION_MONTHS = 12;
+import { cardTargetMonth, todayISOInSaoPaulo } from "@/lib/fatura";
+import { descriptionsMatch } from "@/lib/description-match";
+import { createRecurrence } from "@/lib/recurrence";
 
 export { normalizeDescription, descriptionsMatch } from "@/lib/description-match";
 
+type CardLike = { id: string; name?: string; closingDay: number | null };
+
+/** Horizonte padrão da provisão (o usuário pode escolher outro por assinatura). */
+export const SUBSCRIPTION_MONTHS = 12;
+
+/** Categoria padrão das assinaturas (find-or-create; prefere a existente). */
+async function resolveSubscriptionCategoryId(): Promise<string> {
+  const existing = await prisma.category.findFirst({ where: { name: "Assinaturas" } });
+  if (existing) return existing.id;
+  const created = await prisma.category.create({
+    data: { name: "Assinaturas", type: "EXPENSE", color: "#8b5cf6" },
+  });
+  return created.id;
+}
+
 /** Primeira fatura em que a próxima cobrança da assinatura cai. */
-export function firstChargeFaturaMonth(card: CardRef, chargeDay: number, todayISO: string): string {
+export function firstChargeFaturaMonth(card: { closingDay: number | null }, chargeDay: number, todayISO: string): string {
   const [y, m, d] = todayISO.split("-").map(Number);
   // Próxima cobrança: neste mês se o dia ainda não passou, senão no seguinte.
   const chargeMonth = d <= chargeDay ? { y, m } : m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };
@@ -20,80 +32,91 @@ export function firstChargeFaturaMonth(card: CardRef, chargeDay: number, todayIS
 }
 
 /**
- * Garante a provisão da assinatura em cada mês de [fromMonth, fromMonth+N):
- * cria a linha de extrato (subscriptionId) e soma no consolidado apenas nos
- * meses em que ela ainda não existe — idempotente.
+ * Assinatura = LINHA PRÓPRIA no mês (Item recorrente, categoria Assinaturas),
+ * FORA do consolidado do cartão, com duração escolhida. O vínculo com o
+ * cartão serve para o consumo quando a cobrança real chega na fatura.
  */
-export async function ensureSubscriptionProvision(
-  card: CardRef,
-  subscription: { id: string; description: string; amount: unknown },
-  fromMonth: string,
-  monthsAhead: number = SUBSCRIPTION_MONTHS,
-): Promise<{ provisioned: string[] }> {
-  const months = installmentMonths(fromMonth, monthsAhead);
-  const existing = await prisma.cardTransaction.findMany({
-    where: { subscriptionId: subscription.id, month: { in: months.map(monthToDate) } },
-    select: { month: true },
-  });
-  const covered = new Set(existing.map((t) => monthStringFromDate(t.month)));
-  const missing = months.filter((m) => !covered.has(m));
-  const amountCents = decimalToCents(String(subscription.amount));
-
-  for (const month of missing) {
-    await upsertCardEntry({ card, month, amountCents, mode: "add" });
-    await prisma.cardTransaction.create({
-      data: {
-        cardId: card.id,
-        subscriptionId: subscription.id,
-        month: monthToDate(month),
-        description: subscription.description,
-        amount: centsToNumber(amountCents),
-      },
-    });
-  }
-  return { provisioned: missing };
-}
-
-/** Cria a assinatura e provisiona as próximas faturas a partir da cobrança seguinte. */
 export async function createCardSubscription(opts: {
-  card: CardRef;
+  card: CardLike;
   description: string;
-  amount: number; // reais
+  amount: number; // reais/mês
   chargeDay: number;
-}): Promise<{ id: string; firstMonth: string; provisioned: number }> {
-  const sub = await prisma.cardSubscription.create({
+  months?: number;
+}): Promise<{ firstMonth: string; months: number }> {
+  const months = opts.months ?? SUBSCRIPTION_MONTHS;
+  const categoryId = await resolveSubscriptionCategoryId();
+  const firstMonth = firstChargeFaturaMonth(opts.card, opts.chargeDay, todayISOInSaoPaulo());
+  const { itemId } = await createRecurrence({
+    name: opts.description,
+    amount: opts.amount,
+    startMonth: firstMonth,
+    categoryId,
+    dueDay: opts.chargeDay,
+    months,
+  });
+  await prisma.cardSubscription.create({
     data: {
       cardId: opts.card.id,
+      itemId,
       description: opts.description,
       amount: opts.amount,
       chargeDay: opts.chargeDay,
+      months,
     },
   });
-  const firstMonth = firstChargeFaturaMonth(opts.card, opts.chargeDay, todayISOInSaoPaulo());
-  const { provisioned } = await ensureSubscriptionProvision(opts.card, sub, firstMonth);
-  return { id: sub.id, firstMonth, provisioned: provisioned.length };
+  return { firstMonth, months };
 }
 
 /**
- * Cancela a assinatura: remove as provisões de meses >= fromMonth (subtraindo
- * do consolidado) e desativa o cadastro. Cobranças reais já importadas ficam.
+ * Cancela a assinatura: exclui as linhas provisionadas NÃO pagas de fromMonth
+ * em diante e desativa item + cadastro. Meses consumidos ficam como histórico.
  */
 export async function cancelCardSubscription(subscriptionId: string, fromMonth: string): Promise<{ removed: number }> {
-  const sub = await prisma.cardSubscription.findUnique({
-    where: { id: subscriptionId },
-    include: { card: true },
-  });
+  const sub = await prisma.cardSubscription.findUnique({ where: { id: subscriptionId } });
   if (!sub) return { removed: 0 };
-  const card: CardRef = { id: sub.card.id, name: sub.card.name, closingDay: sub.card.closingDay };
-
-  const rows = await prisma.cardTransaction.findMany({
-    where: { subscriptionId, month: { gte: monthToDate(fromMonth) } },
-  });
-  for (const row of rows) {
-    const month = monthStringFromDate(row.month);
-    await upsertCardEntry({ card, month, amountCents: -decimalToCents(String(row.amount)), mode: "add" });
+  let removed = 0;
+  if (sub.itemId) {
+    const { count } = await prisma.monthlyEntry.deleteMany({
+      where: { itemId: sub.itemId, month: { gte: monthToDate(fromMonth) }, paid: false },
+    });
+    removed = count;
+    await prisma.item.update({ where: { id: sub.itemId }, data: { active: false } });
   }
-  await prisma.cardTransaction.deleteMany({ where: { id: { in: rows.map((r) => r.id) } } });
   await prisma.cardSubscription.update({ where: { id: subscriptionId }, data: { active: false } });
-  return { removed: rows.length };
+  return { removed };
+}
+
+/**
+ * Cobrança real chegou na fatura (CSV/share): CONSOME a linha provisionada do
+ * mês — marca como paga (valor real) e abate o previsto, já que o custo passa
+ * a viver dentro do consolidado do cartão. Sem isso o mês contaria em dobro.
+ */
+export async function consumeSubscriptionCharge(
+  card: { id: string },
+  month: string,
+  description: string,
+  chargeCents: number,
+  chargeDateISO?: string,
+): Promise<{ subscriptionId: string | null }> {
+  if (chargeCents <= 0) return { subscriptionId: null };
+  const subs = await prisma.cardSubscription.findMany({ where: { cardId: card.id, active: true } });
+  const match = subs.find((s) => descriptionsMatch(s.description, description));
+  if (!match?.itemId) return { subscriptionId: match?.id ?? null };
+
+  const entry = await prisma.monthlyEntry.findUnique({
+    where: { itemId_month: { itemId: match.itemId, month: monthToDate(month) } },
+  });
+  if (entry && !entry.paid) {
+    const remaining = Math.max(0, decimalToCents(String(entry.plannedAmount)) - chargeCents);
+    await prisma.monthlyEntry.update({
+      where: { id: entry.id },
+      data: {
+        plannedAmount: centsToNumber(remaining),
+        paid: true,
+        paidAmount: centsToNumber(chargeCents),
+        paidDate: chargeDateISO ? new Date(chargeDateISO + "T00:00:00Z") : new Date(),
+      },
+    });
+  }
+  return { subscriptionId: match.id };
 }

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
+import { nthBusinessDay } from "@/lib/fatura";
 
 /** Horizonte padrão de provisionamento de uma recorrência (mês inicial incluso). */
 export const RECURRENCE_MONTHS = 12;
@@ -19,21 +20,78 @@ export async function createRecurrence(opts: {
   categoryId?: string | null;
   dueDay?: number | null;
   months?: number;
+  /** N-ésimo dia útil do mês (ex.: 5 = salário no 5º dia útil): a data varia
+   * por mês e é gravada em purchaseDate de cada lançamento (dueDay ignorado). */
+  businessDay?: number | null;
 }): Promise<{ itemId: string; count: number; months: string[] }> {
   const categoryId = opts.categoryId ?? (await resolveDefaultPurchaseCategoryId());
   const months = installmentMonths(opts.startMonth, opts.months ?? RECURRENCE_MONTHS);
 
   const item = await prisma.item.create({
-    data: { name: opts.name, categoryId, dueDay: opts.dueDay ?? null, active: true },
+    data: {
+      name: opts.name,
+      categoryId,
+      dueDay: opts.businessDay ? null : (opts.dueDay ?? null),
+      active: true,
+    },
   });
   await prisma.monthlyEntry.createMany({
     data: months.map((month) => ({
       itemId: item.id,
       month: monthToDate(month),
       plannedAmount: opts.amount,
+      purchaseDate: opts.businessDay
+        ? new Date(nthBusinessDay(month, opts.businessDay) + "T00:00:00Z")
+        : null,
     })),
   });
   return { itemId: item.id, count: months.length, months };
+}
+
+/**
+ * Recorrência SEMANAL (ex.: diarista às terças e sextas): cria um lançamento
+ * avulso POR OCORRÊNCIA (com a data do dia), de hoje até o fim do horizonte.
+ * Todos compartilham um installmentId para edição/exclusão em bloco.
+ */
+export async function createWeekdayRecurrence(opts: {
+  description: string;
+  /** Valor POR ocorrência (por visita), em reais. */
+  amount: number;
+  /** Dias da semana (0=dom … 6=sáb). */
+  weekdays: number[];
+  /** Data inicial (YYYY-MM-DD) — ocorrências anteriores não são criadas. */
+  startISO: string;
+  months?: number;
+  categoryId?: string | null;
+}): Promise<{ count: number; firstISO: string | null; lastISO: string | null; totalCents: number }> {
+  const categoryId = opts.categoryId ?? (await resolveDefaultPurchaseCategoryId());
+  const monthsList = installmentMonths(opts.startISO.slice(0, 7), opts.months ?? RECURRENCE_MONTHS);
+  const lastMonth = monthsList[monthsList.length - 1];
+  const [ly, lm] = lastMonth.split("-").map(Number);
+  const end = new Date(Date.UTC(ly, lm, 0)); // último dia do último mês
+  const start = new Date(opts.startISO + "T00:00:00Z");
+  const wanted = new Set(opts.weekdays);
+
+  const groupId = crypto.randomUUID();
+  const data: { installmentId: string; description: string; categoryId: string; month: Date; plannedAmount: number; purchaseDate: Date }[] = [];
+  for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    if (!wanted.has(d.getUTCDay())) continue;
+    data.push({
+      installmentId: groupId,
+      description: opts.description,
+      categoryId,
+      month: new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)),
+      plannedAmount: opts.amount,
+      purchaseDate: new Date(d),
+    });
+  }
+  if (data.length > 0) await prisma.monthlyEntry.createMany({ data });
+  return {
+    count: data.length,
+    firstISO: data[0]?.purchaseDate.toISOString().slice(0, 10) ?? null,
+    lastISO: data[data.length - 1]?.purchaseDate.toISOString().slice(0, 10) ?? null,
+    totalCents: Math.round(opts.amount * 100) * data.length,
+  };
 }
 
 /**

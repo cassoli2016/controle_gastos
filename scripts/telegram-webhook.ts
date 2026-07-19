@@ -4,7 +4,7 @@
  */
 import "dotenv/config";
 
-const APP_URL = process.env.APP_URL ?? "https://gastos.cassolitech.com.br";
+const APP_URL = process.env.APP_URL ?? "https://grana.cassolitech.com.br";
 
 async function main() {
   const token = process.env.TELEGRAM_BOT_TOKEN;

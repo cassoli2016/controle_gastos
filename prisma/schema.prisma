@@ -36,6 +36,7 @@ model Item {
   notes      String?
   createdAt  DateTime       @default(now())
   entries    MonthlyEntry[]
+  subscription CardSubscription?
 
   @@index([categoryId])
 }
@@ -55,17 +56,24 @@ model CreditCard {
   subscriptions CardSubscription[]
 }
 
-// Assinatura cobrada no cartão (YouTube, Spotify…): provisiona o valor nas
-// faturas futuras (dia da cobrança + fechamento definem o mês). A cobrança
-// real (CSV/share) substitui a provisão do mês — nunca soma em dobro.
+// Assinatura cobrada no cartão (YouTube, Spotify…): provisionada como LINHA
+// PRÓPRIA no mês (Item recorrente, fora do consolidado do cartão), com
+// duração escolhida. Quando a cobrança real chega na fatura (CSV/share), a
+// linha do mês é CONSUMIDA: marcada como paga e zerada — o valor passa a
+// viver dentro do consolidado do cartão, sem contar em dobro.
 model CardSubscription {
   id          String     @id @default(cuid())
   card        CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
   cardId      String
+  // Item recorrente que carrega as linhas provisionadas no /mes.
+  item        Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  itemId      String?    @unique
   description String
   amount      Decimal    @db.Decimal(12, 2)
   // Dia do mês em que a cobrança acontece (1-31).
   chargeDay   Int
+  // Duração em meses da provisão (assinaturas que vão acabar duram menos).
+  months      Int        @default(12)
   active      Boolean    @default(true)
   createdAt   DateTime   @default(now())
   transactions CardTransaction[]

@@ -3,20 +3,12 @@ import { monthToDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { installmentMonths } from "@/lib/installments";
-import { faturaMonth, todayISOInSaoPaulo } from "@/lib/fatura";
-import { descriptionsMatch } from "@/lib/description-match";
+import { cardTargetMonth } from "@/lib/fatura";
+import { consumeSubscriptionCharge } from "@/lib/card-subscription";
 
 export type CardRef = { id: string; name: string; closingDay: number | null };
 
-/**
- * Mês-alvo de uma compra no cartão: com dia de fechamento cadastrado, a
- * fatura correta pela data da compra (hoje, se não informada); sem
- * fechamento, o mês padrão (primeiro em aberto).
- */
-export function cardTargetMonth(card: CardRef, dateISO: string | undefined, defaultMonth: string): string {
-  if (card.closingDay == null) return defaultMonth;
-  return faturaMonth(dateISO ?? todayISOInSaoPaulo(), card.closingDay) ?? defaultMonth;
-}
+export { cardTargetMonth } from "@/lib/fatura";
 
 /**
  * Garante o lançamento CONSOLIDADO do cartão no mês — 1 por cartão/mês,
@@ -75,24 +67,15 @@ export async function addPurchaseToCard(
 ): Promise<{ months: string[]; firstMonthTotalCents: number; replacedProvision: boolean }> {
   const months = installmentMonths(startMonth, installments);
 
-  // Cobrança de assinatura chegando de verdade (compra 1x): remove a PROVISÃO
-  // de descrição correspondente do mês antes de somar — troca, não duplica.
+  // Cobrança de assinatura chegando de verdade (compra 1x): CONSOME a linha
+  // provisionada da assinatura (marca paga e abate o previsto) — o custo
+  // passa a viver dentro do consolidado do cartão, sem contar em dobro.
+  let subscriptionId: string | null = null;
   let replacedProvision = false;
   if (installments === 1) {
-    const provisions = await prisma.cardTransaction.findMany({
-      where: { cardId: card.id, month: monthToDate(months[0]), subscriptionId: { not: null } },
-    });
-    const match = provisions.find((p) => descriptionsMatch(p.description, meta.description));
-    if (match) {
-      await prisma.cardTransaction.delete({ where: { id: match.id } });
-      await upsertCardEntry({
-        card,
-        month: months[0],
-        amountCents: -decimalToCents(String(match.amount)),
-        mode: "add",
-      });
-      replacedProvision = true;
-    }
+    const consumed = await consumeSubscriptionCharge(card, months[0], meta.description, amountCents, meta.dateISO);
+    subscriptionId = consumed.subscriptionId;
+    replacedProvision = subscriptionId !== null;
   }
 
   let firstMonthTotalCents = 0;
@@ -109,6 +92,7 @@ export async function addPurchaseToCard(
       purchaseDate: meta.dateISO ? new Date(meta.dateISO + "T00:00:00Z") : null,
       installmentSeq: installments > 1 ? i + 1 : null,
       installmentCount: installments > 1 ? installments : null,
+      subscriptionId,
     })),
   });
   return { months, firstMonthTotalCents, replacedProvision };
@@ -155,41 +139,31 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
   const monthDate = monthToDate(month);
   // Antecipações manuais são preservadas: no CSV elas viram "Pagamento
   // recebido" (ignorado), então apagá-las perderia o abatimento.
-  // Provisões de ASSINATURA: só saem se a cobrança real veio no CSV
-  // (descrição correspondente); fatura parcial reimportada antes da cobrança
-  // não pode perder a provisão.
-  const provisions = await prisma.cardTransaction.findMany({
-    where: { cardId: card.id, month: monthDate, subscriptionId: { not: null } },
-  });
-  const chargedProvisionIds = provisions
-    .filter((p) => rows.some((r) => r.amountCents > 0 && descriptionsMatch(p.description, r.description)))
-    .map((p) => p.id);
   await prisma.cardTransaction.deleteMany({
-    where: {
-      cardId: card.id,
-      month: monthDate,
-      prepayment: false,
-      OR: [{ subscriptionId: null }, { id: { in: chargedProvisionIds } }],
-    },
+    where: { cardId: card.id, month: monthDate, prepayment: false },
   });
   if (rows.length > 0) {
-    await prisma.cardTransaction.createMany({
-      data: rows.map((r) => ({
+    // Cobrança de assinatura no CSV: consome a linha provisionada (marca paga)
+    // e etiqueta a linha do extrato com a assinatura.
+    const data = [];
+    for (const r of rows) {
+      const { subscriptionId } =
+        r.amountCents > 0
+          ? await consumeSubscriptionCharge(card, month, r.description, r.amountCents, r.dateISO)
+          : { subscriptionId: null };
+      data.push({
         cardId: card.id,
         month: monthDate,
         description: r.description,
         amount: centsToNumber(r.amountCents),
         purchaseDate: r.dateISO ? new Date(r.dateISO + "T00:00:00Z") : null,
-      })),
-    });
+        subscriptionId,
+      });
+    }
+    await prisma.cardTransaction.createMany({ data });
   }
-  // Mantidos: antecipações + provisões de assinatura ainda não cobradas.
   const kept = await prisma.cardTransaction.aggregate({
-    where: {
-      cardId: card.id,
-      month: monthDate,
-      OR: [{ prepayment: true }, { subscriptionId: { not: null } }],
-    },
+    where: { cardId: card.id, month: monthDate, prepayment: true },
     _sum: { amount: true },
   });
   const keptCents = kept._sum.amount ? decimalToCents(String(kept._sum.amount)) : 0;

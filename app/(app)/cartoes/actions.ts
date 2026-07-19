@@ -69,6 +69,7 @@ const subscriptionSchema = z.object({
   description: z.string().trim().min(1, "Descrição obrigatória"),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   chargeDay: z.coerce.number().int().min(1).max(31),
+  months: z.coerce.number().int().min(1).max(120),
 });
 
 /** Cria assinatura do cartão e provisiona as próximas faturas. */
@@ -78,6 +79,7 @@ export async function createSubscription(_prevState: ActionState, formData: Form
     description: formData.get("description"),
     amount: formData.get("amount"),
     chargeDay: formData.get("chargeDay"),
+    months: formData.get("months"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const card = await prisma.creditCard.findUnique({ where: { id: parsed.data.cardId } });
@@ -87,9 +89,11 @@ export async function createSubscription(_prevState: ActionState, formData: Form
     description: parsed.data.description,
     amount: parsed.data.amount,
     chargeDay: parsed.data.chargeDay,
+    months: parsed.data.months,
   });
   revalidatePath("/cartoes");
   revalidatePath("/mes");
+  revalidatePath("/itens");
   revalidatePath("/dashboard");
   return { ok: true };
 }

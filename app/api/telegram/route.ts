@@ -8,8 +8,8 @@ import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } fro
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
-import { createCardSubscription, ensureSubscriptionProvision } from "@/lib/card-subscription";
-import { installmentMonths } from "@/lib/installments";
+import { createCardSubscription } from "@/lib/card-subscription";
+import { createWeekdayRecurrence } from "@/lib/recurrence";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
@@ -35,7 +35,8 @@ const HELP =
   '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
   '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
   '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
-  '• Assinatura no cartão: "youtube premium 24,90 nubank mensal" (provisiona as faturas)\n' +
+  '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
+  '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -96,6 +97,8 @@ function fmtMonthSpan(months: string[]): string {
   if (months.length === 1) return fmtMonth(months[0]);
   return `${fmtMonth(months[0])} a ${fmtMonth(months[months.length - 1])}`;
 }
+
+const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 const CARD_NOT_FOUND = (hint: string) =>
   `Cartão "${hint}" não encontrado — nada foi importado. Confira o nome ou cadastre em Cartões.`;
@@ -178,15 +181,6 @@ async function handleCsvDocument(
     totalsByMonth.set(month, totalCents);
   }
 
-  // Rola o horizonte das assinaturas: garante provisão nos 12 meses seguintes
-  // ao último mês importado (o mês importado já traz a cobrança real).
-  const activeSubs = await prisma.cardSubscription.findMany({ where: { cardId: card.id, active: true } });
-  if (activeSubs.length > 0) {
-    const nextMonth = installmentMonths(months[months.length - 1], 2)[1];
-    for (const sub of activeSubs) {
-      await ensureSubscriptionProvision(card, sub, nextMonth);
-    }
-  }
   revalidateAll();
 
   const parts = months.map((m) => {
@@ -302,6 +296,7 @@ async function handleBatchText(chatId: number, text: string) {
       description: e.description,
       amount: e.amountReais,
       chargeDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+      months: e.installments > 1 ? e.installments : undefined,
     });
   }
 
@@ -434,6 +429,8 @@ async function handleSingleText(chatId: number, text: string) {
         startMonth: defaultMonth,
         categoryId,
         dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+        // "5du"/"quinto dia util": a data varia por mês (5º dia útil).
+        businessDay: parsed.businessDay,
       });
       revalidateAll();
       await reply(
@@ -456,6 +453,28 @@ async function handleSingleText(chatId: number, text: string) {
     return;
   }
 
+  // Recorrência SEMANAL (diarista ter/sex): um lançamento por ocorrência.
+  if (parsed.weekdays) {
+    if (parsed.cardHint) {
+      await reply(chatId, "Recorrência semanal com cartão não é suportada — lance sem o nome do cartão.");
+      return;
+    }
+    const { count, firstISO, lastISO, totalCents } = await createWeekdayRecurrence({
+      description: parsed.description,
+      amount: parsed.amountReais,
+      weekdays: parsed.weekdays,
+      startISO: todayISOInSaoPaulo(),
+      months: parsed.installments > 1 ? parsed.installments : undefined,
+    });
+    revalidateAll();
+    const dias = parsed.weekdays.map((d) => WEEKDAY_LABELS[d]).join(" e ");
+    await reply(
+      chatId,
+      `🔁📅 ${parsed.description} — ${formatCents(amountCents)} toda ${dias}: ${count} lançamentos de ${firstISO?.split("-").reverse().join("/")} a ${lastISO?.split("-").reverse().join("/")} (${formatCents(totalCents)} no total).`,
+    );
+    return;
+  }
+
   if (parsed.recurring) {
     if (parsed.cardHint) {
       const card = await findCardByHint(parsed.cardHint);
@@ -463,16 +482,18 @@ async function handleSingleText(chatId: number, text: string) {
         await reply(chatId, CARD_NOT_FOUND(parsed.cardHint));
         return;
       }
-      const { firstMonth, provisioned } = await createCardSubscription({
+      const { firstMonth, months } = await createCardSubscription({
         card,
         description: parsed.description,
         amount: parsed.amountReais,
         chargeDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+        // "Nx" numa assinatura = duração em meses ("youtube 24,90 nubank mensal 8x").
+        months: parsed.installments > 1 ? parsed.installments : undefined,
       });
       revalidateAll();
       await reply(
         chatId,
-        `🔁💳 Assinatura no ${card.name}: ${parsed.description} — ${formatCents(amountCents)}/mês provisionado em ${provisioned} faturas a partir de ${fmtMonth(firstMonth)}.\nQuando a cobrança real chegar (CSV/compartilhamento), ela substitui a provisão do mês.`,
+        `🔁💳 Assinatura ${parsed.description} — ${formatCents(amountCents)}/mês por ${months} meses (linha própria no mês, a partir de ${fmtMonth(firstMonth)}).\nQuando a cobrança chegar na fatura ela é marcada como paga automaticamente.`,
       );
       return;
     }
@@ -481,6 +502,8 @@ async function handleSingleText(chatId: number, text: string) {
       amount: parsed.amountReais,
       startMonth: defaultMonth,
       dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+      businessDay: parsed.businessDay,
+      months: parsed.installments > 1 ? parsed.installments : undefined,
     });
     revalidateAll();
     await reply(

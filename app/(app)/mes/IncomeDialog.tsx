@@ -81,6 +81,12 @@ export function IncomeDialog() {
             />
             Recorrência mensal (salário — provisiona os próximos 12 meses)
           </label>
+          {recurring && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="fifthBusinessDay" className="size-4 accent-primary" />
+              Recebo no 5º dia útil (a data varia mês a mês)
+            </label>
+          )}
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Lançar

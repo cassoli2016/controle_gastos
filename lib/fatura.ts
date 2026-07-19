@@ -30,3 +30,36 @@ export function todayISOInSaoPaulo(now: Date = new Date()): string {
     day: "2-digit",
   }).format(now);
 }
+
+/**
+ * Mês-alvo de uma cobrança no cartão: com dia de fechamento, a fatura correta
+ * pela data; sem fechamento, o mês-fallback informado.
+ */
+export function cardTargetMonth(
+  // id/name opcionais: aceita CardRef inteiro sem brigar com literal freshness.
+  card: { closingDay: number | null; id?: string; name?: string },
+  dateISO: string | undefined,
+  fallbackMonth: string,
+): string {
+  if (card.closingDay == null) return fallbackMonth;
+  return faturaMonth(dateISO ?? todayISOInSaoPaulo(), card.closingDay) ?? fallbackMonth;
+}
+
+/**
+ * N-ésimo dia útil (seg-sex) de um mês "YYYY-MM" → "YYYY-MM-DD".
+ * Feriados não são considerados (limitação aceita — salário "5º dia útil").
+ */
+export function nthBusinessDay(month: string, n: number): string {
+  const [y, m] = month.split("-").map(Number);
+  let count = 0;
+  for (let day = 1; day <= 31; day++) {
+    const d = new Date(Date.UTC(y, m - 1, day));
+    if (d.getUTCMonth() !== m - 1) break;
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) {
+      count++;
+      if (count === n) return `${month}-${String(day).padStart(2, "0")}`;
+    }
+  }
+  return `${month}-28`; // inatingível para n<=20, defensivo
+}

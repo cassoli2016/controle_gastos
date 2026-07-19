@@ -19,6 +19,7 @@ const incomeSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
   recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  fifthBusinessDay: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 const updateInstallmentSchema = z.object({
   installmentId: z.string().min(1),
@@ -228,9 +229,10 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
     amount: formData.get("amount"),
     date: formData.get("date"),
     recurring: formData.get("recurring"),
+    fifthBusinessDay: formData.get("fifthBusinessDay"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { description, amount, date, recurring } = parsed.data;
+  const { description, amount, date, recurring, fifthBusinessDay } = parsed.data;
   const categoryId = await resolveIncomeCategoryId();
 
   if (recurring) {
@@ -240,6 +242,7 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
       startMonth: date.slice(0, 7),
       categoryId,
       dueDay: Number(date.slice(8, 10)),
+      businessDay: fifthBusinessDay ? 5 : null,
     });
     revalidatePath("/mes");
     revalidatePath("/itens");

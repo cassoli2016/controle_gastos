@@ -54,8 +54,9 @@ export function SubscriptionsDialog({
         <DialogHeader>
           <DialogTitle>Assinaturas · {cardName}</DialogTitle>
           <DialogDescription>
-            Cobranças mensais do cartão (YouTube, Spotify…) provisionadas nas próximas faturas.
-            Quando a cobrança real chega no CSV ou compartilhamento, ela substitui a provisão.
+            Cada assinatura vira uma linha própria no mês (fora do total do cartão), pela
+            duração escolhida. Quando a cobrança chega na fatura, a linha é marcada como paga
+            automaticamente — o valor passa a contar dentro do cartão.
           </DialogDescription>
         </DialogHeader>
 
@@ -93,7 +94,7 @@ export function SubscriptionsDialog({
             <Label htmlFor={`sub-desc-${cardId}`}>Descrição</Label>
             <Input id={`sub-desc-${cardId}`} name="description" placeholder="ex.: YouTube Premium" required />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`sub-amount-${cardId}`}>Valor mensal</Label>
               <CurrencyInput id={`sub-amount-${cardId}`} name="amount" />
@@ -101,6 +102,10 @@ export function SubscriptionsDialog({
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`sub-day-${cardId}`}>Dia da cobrança</Label>
               <Input id={`sub-day-${cardId}`} name="chargeDay" type="number" min={1} max={31} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`sub-months-${cardId}`}>Duração (meses)</Label>
+              <Input id={`sub-months-${cardId}`} name="months" type="number" min={1} max={120} defaultValue={12} required />
             </div>
           </div>
           <Button type="submit" disabled={createPending}>

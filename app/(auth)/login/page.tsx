@@ -50,7 +50,7 @@ export default async function LoginPage({
           </ul>
         </div>
 
-        <p className="relative text-xs text-slate-500">gastos.cassolitech.com.br</p>
+        <p className="relative text-xs text-slate-500">grana.cassolitech.com.br</p>
       </section>
 
       {/* Formulário */}
@@ -134,7 +134,7 @@ export default async function LoginPage({
             </CardContent>
           </Card>
 
-          <p className="text-center text-xs text-muted-foreground lg:hidden">gastos.cassolitech.com.br</p>
+          <p className="text-center text-xs text-muted-foreground lg:hidden">grana.cassolitech.com.br</p>
         </div>
       </section>
     </main>

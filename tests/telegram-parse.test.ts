@@ -11,6 +11,8 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("descrição + valor + cartão", () => {
@@ -22,6 +24,8 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("parcelado + cartão (ordem livre depois do valor)", () => {
@@ -33,6 +37,8 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
     expect(parseExpenseMessage("geladeira 1.299,90 3x amazon")).toEqual({
       description: "geladeira",
@@ -42,6 +48,8 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("descrição com várias palavras", () => {
@@ -53,6 +61,8 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("inválidos retornam null", () => {
@@ -73,6 +83,8 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("'recorrente' também funciona, combinado com outras palavras de cartão", () => {
@@ -84,6 +96,8 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
     // keyword + cartão: recorrente é extraído e o resto vira cardHint
     expect(parseExpenseMessage("spotify 21,90 nubank mensal")).toEqual({
@@ -94,6 +108,8 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
 });
@@ -108,6 +124,8 @@ describe("recebimentos", () => {
       recurring: false,
       income: true,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("sufixo 'receita'/'recebimento' também marca income", () => {
@@ -119,6 +137,8 @@ describe("recebimentos", () => {
       recurring: false,
       income: true,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
     expect(parseExpenseMessage("dividendos 320,55 recebimento")).toMatchObject({ income: true });
   });
@@ -131,6 +151,8 @@ describe("recebimentos", () => {
       recurring: true,
       income: true,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
   });
 });
@@ -145,6 +167,8 @@ describe("pagamento antecipado", () => {
       recurring: false,
       income: false,
       prepayment: true,
+      weekdays: null,
+      businessDay: null,
     });
   });
   it("variações do prefixo e sem cartão", () => {
@@ -157,6 +181,48 @@ describe("pagamento antecipado", () => {
       prepayment: true,
       description: "fatura",
       cardHint: "itau",
+    });
+  });
+});
+
+describe("recorrência semanal (dias da semana)", () => {
+  it("'diarista 150 ter sex' vira recorrência semanal", () => {
+    expect(parseExpenseMessage("diarista 150 ter sex")).toEqual({
+      description: "diarista",
+      amountReais: 150,
+      installments: 1,
+      cardHint: null,
+      recurring: false,
+      income: false,
+      prepayment: false,
+      weekdays: [2, 5],
+      businessDay: null,
+    });
+  });
+  it("nomes por extenso e 6x como duração", () => {
+    expect(parseExpenseMessage("diarista 150 terça sexta 6x")).toMatchObject({
+      weekdays: [2, 5],
+      installments: 6,
+    });
+    expect(parseExpenseMessage("faxina 200 segunda")).toMatchObject({ weekdays: [1] });
+  });
+});
+
+describe("quinto dia útil", () => {
+  it("'recebi gobrax 25000 mensal 5du'", () => {
+    expect(parseExpenseMessage("recebi gobrax 25000 mensal 5du")).toMatchObject({
+      income: true,
+      recurring: true,
+      businessDay: 5,
+      cardHint: null,
+    });
+  });
+  it("frase 'quinto dia util' também funciona", () => {
+    expect(parseExpenseMessage("recebi salario 25000 mensal quinto dia util")).toMatchObject({
+      income: true,
+      recurring: true,
+      businessDay: 5,
+      cardHint: null,
     });
   });
 });
@@ -176,6 +242,8 @@ describe("parseExpenseLines", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      weekdays: null,
+      businessDay: null,
     });
     expect(entries[2].cardHint).toBeNull();
   });
