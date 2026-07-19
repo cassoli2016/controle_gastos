@@ -12,8 +12,10 @@ import { StatCard } from "@/components/StatCard";
 import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
-import { BalanceProjection } from "@/components/charts/BalanceProjection";
+import { MonthlyBalance, type MonthlyBalancePoint } from "@/components/charts/MonthlyBalance";
 import { RankingBars } from "@/components/charts/RankingBars";
+import { installmentMonths } from "@/lib/installments";
+import { monthStringFromDate } from "@/lib/dates";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
@@ -36,13 +38,29 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
 
-  // Projeção: saldo previsto dos próximos 6 meses
-  const proj: { month: string; balance: number }[] = [];
-  for (let k = 0; k < 6; k++) {
-    const d = new Date(Date.UTC(monthDate.getUTCFullYear(), monthDate.getUTCMonth() + k, 1));
-    const r = await prisma.monthlyEntry.findMany({ where: { month: d }, include: { item: { include: { category: true } }, category: true } });
-    proj.push({ month: formatCompetencia(d), balance: plannedBalance(r.map((x) => toEntryView(x as never))) });
+  // Saldo mensal: receitas − despesas previstas dos próximos 12 meses
+  // (uma query para o intervalo inteiro; agrupamento por mês em JS).
+  const chartMonths = installmentMonths(month, 12);
+  const rangeRows = await prisma.monthlyEntry.findMany({
+    where: { month: { in: chartMonths.map(monthToDate) } },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  const viewsByMonth = new Map<string, ReturnType<typeof toEntryView>[]>();
+  for (const r of rangeRows) {
+    const key = monthStringFromDate(r.month);
+    const list = viewsByMonth.get(key) ?? [];
+    list.push(toEntryView(r as never));
+    viewsByMonth.set(key, list);
   }
+  const balanceData: MonthlyBalancePoint[] = chartMonths.map((m) => {
+    const v = viewsByMonth.get(m) ?? [];
+    return {
+      month: formatCompetencia(monthToDate(m)),
+      incomeCents: plannedIncome(v),
+      expenseCents: plannedExpense(v),
+      balanceCents: plannedBalance(v),
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -132,6 +150,15 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Saldo mensal (próximos 12 meses)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <MonthlyBalance data={balanceData} />
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
@@ -147,26 +174,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Projeção de saldo</CardTitle>
+            <CardTitle>Ranking de despesas</CardTitle>
           </CardHeader>
           <CardContent>
-            <BalanceProjection data={proj} />
+            {hasExpenses ? (
+              <RankingBars data={ranking} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
+            )}
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Ranking de despesas</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {hasExpenses ? (
-            <RankingBars data={ranking} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
