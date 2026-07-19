@@ -8,17 +8,21 @@ export type CsvRow = {
 export type CsvParseResult = {
   rows: CsvRow[];
   /**
-   * Linhas puladas de propósito: pagamento da fatura anterior ("Pagamento
-   * recebido", negativo) e valores zero. Estornos NÃO entram aqui — são
-   * incluídos em rows com valor negativo para abater o total da fatura.
+   * Linhas puladas de propósito: SOMENTE o "Pagamento recebido" (pagamento da
+   * fatura anterior). Estornos e demais lançamentos entram em rows — valores
+   * negativos abatem o total da fatura.
    */
   ignored: number;
   /** Linhas que não puderam ser interpretadas (valor/descrição inválidos). */
   failed: number;
 };
 
-/** Pagamento da fatura anterior — não é despesa nem estorno de compra. */
-const PAYMENT_RE = /pagamento/i;
+/**
+ * Pagamento da fatura anterior (linha "Pagamento recebido" do Nubank) — a
+ * ÚNICA linha desconsiderada na importação; todo o resto entra (estornos e
+ * até compras com "pagamento" no nome).
+ */
+const FATURA_PAYMENT_DESCRIPTION = "pagamento recebido";
 
 // Nomes de coluna reconhecidos (comparados sem acento e em minúsculas).
 const DESCRIPTION_COLUMNS = ["title", "titulo", "descricao", "description", "estabelecimento", "lancamento"];
@@ -79,8 +83,8 @@ function parseAmountCell(cell: string): number | null {
 /**
  * Interpreta o CSV de uma fatura de cartão. Suporta o formato do Nubank
  * (cabeçalho date,title,amount — decimais com ponto) e um formato genérico
- * "descrição;valor" (decimais pt-BR), com ou sem cabeçalho. Valores
- * negativos/zero (pagamentos e estornos) são contados em `ignored`.
+ * "descrição;valor" (decimais pt-BR), com ou sem cabeçalho. Só a linha
+ * "Pagamento recebido" é desconsiderada (contada em `ignored`).
  */
 export function parseCardCsv(content: string): CsvParseResult {
   const lines = content
@@ -114,9 +118,9 @@ export function parseCardCsv(content: string): CsvParseResult {
       result.failed++;
       continue;
     }
-    // Zero não diz nada; negativo de "pagamento" é a fatura anterior sendo
-    // paga. Estornos (outros negativos) ENTRAM e abatem o total.
-    if (amount === 0 || (amount < 0 && PAYMENT_RE.test(description))) {
+    // Só a linha exata "Pagamento recebido" (fatura anterior sendo paga) é
+    // desconsiderada; estornos e demais lançamentos ENTRAM (negativos abatem).
+    if (normalizeHeader(description) === FATURA_PAYMENT_DESCRIPTION) {
       result.ignored++;
       continue;
     }

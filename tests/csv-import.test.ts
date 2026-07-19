@@ -13,6 +13,17 @@ describe("parseCardCsv", () => {
     expect(result.failed).toBe(0);
   });
 
+  it("só a linha exata 'Pagamento recebido' é ignorada; outros negativos com 'pagamento' entram", () => {
+    const csv =
+      "date,title,amount\n2026-07-06,Pagamento recebido,-1200.00\n2026-07-06,PAGAMENTO RECEBIDO,-50.00\n2026-07-08,Estorno de pagamento,-30.00\n2026-07-09,Pagamento de boleto Loja,45.00\n";
+    const result = parseCardCsv(csv);
+    expect(result.rows).toEqual([
+      { description: "Estorno de pagamento", amountReais: -30, date: "2026-07-08" },
+      { description: "Pagamento de boleto Loja", amountReais: 45, date: "2026-07-09" },
+    ]);
+    expect(result.ignored).toBe(2); // as duas variantes de caixa do "Pagamento recebido"
+  });
+
   it("estorno (negativo que NÃO é pagamento) entra e abate o total", () => {
     const csv =
       "date,title,amount\n2026-07-04,Ifood,54.9\n2026-07-08,Estorno Ifood,-54.9\n2026-07-06,Pagamento recebido,-1200.00\n";
