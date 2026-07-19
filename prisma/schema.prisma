@@ -68,3 +68,10 @@ model MonthlyEntry {
   @@index([cardId])
   @@index([installmentId])
 }
+
+model ReserveBox {
+  id        String   @id @default(cuid())
+  name      String
+  amount    Decimal  @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+}

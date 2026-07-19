@@ -7,7 +7,7 @@ import { NAV_ITEMS } from "./NavItems";
 export function MobileNav() {
   const path = usePathname();
   return (
-    <nav className="md:hidden fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed inset-x-0 bottom-0 z-20 flex border-t bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
       {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
         const active = path.startsWith(href);
         return (
@@ -16,7 +16,7 @@ export function MobileNav() {
             href={href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "flex flex-col items-center gap-1 py-2 text-[10px] leading-none",
+              "flex flex-1 flex-col items-center gap-1 py-2 text-[10px] leading-none",
               active ? "text-primary font-semibold" : "text-muted-foreground",
             )}
           >

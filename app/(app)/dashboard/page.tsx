@@ -1,10 +1,13 @@
-import { TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
+import Link from "next/link";
+import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getNegativeMonths, getReserves } from "@/lib/planning";
+import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
-import { formatCents } from "@/lib/money";
+import { formatCents, sumCents } from "@/lib/money";
 import { StatCard } from "@/components/StatCard";
 import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -28,6 +31,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const ranking = expenseRanking(views).slice(0, 10);
   const hasExpenses = ranking.length > 0;
 
+  // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
+  const [negativeMonths, reserves] = await Promise.all([getNegativeMonths(), getReserves()]);
+  const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
+  const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
+
   // Projeção: saldo previsto dos próximos 6 meses
   const proj: { month: string; balance: number }[] = [];
   for (let k = 0; k < 6; k++) {
@@ -48,6 +56,80 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
         <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
         <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Meses no vermelho</CardTitle>
+            <CalendarX2 className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {negativeMonths.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum mês com saldo previsto negativo. 🎉
+              </p>
+            ) : (
+              <>
+                <div>
+                  <div className="text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
+                    {formatCents(uncoveredCents)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Soma dos saldos negativos de {negativeMonths.length}{" "}
+                    {negativeMonths.length === 1 ? "mês" : "meses"} (do atual em diante)
+                  </p>
+                </div>
+                <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                  {negativeMonths.map((m) => (
+                    <li key={m.month} className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-muted-foreground">{formatCompetencia(monthToDate(m.month))}</span>
+                      <span className="tabular-nums text-rose-600 dark:text-rose-400">
+                        {formatCents(m.balanceCents)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Reservas</CardTitle>
+            <PiggyBank className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                {formatCents(reservesTotalCents)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {reserves.length === 0
+                  ? "Nenhuma caixinha ainda"
+                  : `Guardado em ${reserves.length} ${reserves.length === 1 ? "caixinha" : "caixinhas"}`}
+              </p>
+            </div>
+            {uncoveredCents < 0 && (
+              <p className="text-sm">
+                {reservesTotalCents + uncoveredCents >= 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    Cobrem todo o descoberto — sobram {formatCents(reservesTotalCents + uncoveredCents)}.
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    Cobrem {Math.round((reservesTotalCents / -uncoveredCents) * 100)}% do descoberto —
+                    faltam {formatCents(-(reservesTotalCents + uncoveredCents))}.
+                  </span>
+                )}
+              </p>
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/reservas">Gerenciar caixinhas</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

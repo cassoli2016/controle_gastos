@@ -72,3 +72,9 @@ export const transferSchema = z
     message: "Origem e destino devem ser diferentes.",
     path: ["targetEntryId"],
   });
+
+/** Caixinha de reserva de emergência (nome + valor guardado). */
+export const reserveSchema = z.object({
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  amount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
+});
