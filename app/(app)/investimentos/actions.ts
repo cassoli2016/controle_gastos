@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { fetchQuotes } from "@/lib/brapi";
+import { refreshAllQuotes } from "@/lib/quote-refresh";
 import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
 import { parseB3Report } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
@@ -54,26 +54,15 @@ export async function archiveAsset(_prevState: ActionState, formData: FormData):
 
 /** Atualiza as cotações de todos os ativos ativos via brapi (cache no banco). */
 export async function refreshQuotes(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
-  const assets = await prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } });
-  if (assets.length === 0) return { error: "Nenhum ativo ativo para cotar." };
-  const quotes = await fetchQuotes(assets.map((a) => a.ticker));
-  let count = 0;
-  for (const asset of assets) {
-    const q = quotes.get(asset.ticker);
-    if (!q) continue;
-    await prisma.investmentAsset.update({
-      where: { id: asset.id },
-      data: { lastPrice: q.price, priceAt: new Date(), name: q.name ?? asset.name },
-    });
-    count++;
-  }
+  const r = await refreshAllQuotes();
   revalidatePath("/investimentos");
   revalidatePath("/dashboard");
-  if (count === 0)
+  if (r.total === 0) return { error: "Nenhum ativo ativo para cotar." };
+  if (r.updated === 0)
     return {
       error: "Nenhuma cotação obtida. Confira o BRAPI_TOKEN no ambiente (crie grátis em brapi.dev).",
     };
-  return { ok: true, count };
+  return { ok: true, count: r.updated };
 }
 
 /**
