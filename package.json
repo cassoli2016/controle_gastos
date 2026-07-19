@@ -13,7 +13,8 @@
     "e2e": "playwright test",
     "import": "tsx scripts/import.ts",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "e2e:server": "tsx scripts/e2e-reset-db.ts && next build && next start -p 3199"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
