@@ -20,12 +20,10 @@ import { useActionToast } from "@/hooks/use-action-toast";
 export function PurchaseDialog({
   cards,
   categories,
-  defaultMonth,
   defaultCardId,
 }: {
   cards: { id: string; name: string }[];
   categories: { id: string; name: string }[];
-  defaultMonth: string;
   /** Pré-seleciona o cartão no Select (ex.: botão "Lançar compra" de um cartão específico na tela de Cartões). */
   defaultCardId?: string;
 }) {
@@ -122,14 +120,18 @@ export function PurchaseDialog({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="purchase-start-month">Mês inicial</Label>
+            <Label htmlFor="purchase-date">Data da compra</Label>
             <Input
-              id="purchase-start-month"
-              type="month"
-              name="startMonth"
-              defaultValue={defaultMonth}
+              id="purchase-date"
+              type="date"
+              name="date"
+              defaultValue={new Date().toISOString().slice(0, 10)}
               required
             />
+            <p className="text-xs text-muted-foreground">
+              Sem cartão, o mês da data é a competência; no cartão, a data + dia de
+              fechamento definem a fatura.
+            </p>
           </div>
 
           <DialogFooter>

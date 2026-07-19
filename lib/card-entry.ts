@@ -54,15 +54,23 @@ export async function upsertCardEntry(opts: {
   return { totalCents };
 }
 
+export type PurchaseMeta = {
+  description: string;
+  /** Data da compra (YYYY-MM-DD) — vai para o extrato. */
+  dateISO?: string;
+};
+
 /**
- * Soma uma compra (à vista ou parcelada) no consolidado do cartão: o valor
- * POR parcela é somado em cada um dos N meses a partir de startMonth.
+ * Soma uma compra (à vista ou parcelada) no consolidado do cartão E registra
+ * o extrato: o valor POR parcela é somado em cada um dos N meses a partir de
+ * startMonth, com 1 CardTransaction por mês (seq/count).
  */
 export async function addPurchaseToCard(
   card: CardRef,
   startMonth: string,
   amountCents: number,
   installments: number,
+  meta: PurchaseMeta,
 ): Promise<{ months: string[]; firstMonthTotalCents: number }> {
   const months = installmentMonths(startMonth, installments);
   let firstMonthTotalCents = 0;
@@ -70,5 +78,46 @@ export async function addPurchaseToCard(
     const { totalCents } = await upsertCardEntry({ card, month: months[i], amountCents, mode: "add" });
     if (i === 0) firstMonthTotalCents = totalCents;
   }
+  await prisma.cardTransaction.createMany({
+    data: months.map((month, i) => ({
+      cardId: card.id,
+      month: monthToDate(month),
+      description: meta.description,
+      amount: centsToNumber(amountCents),
+      purchaseDate: meta.dateISO ? new Date(meta.dateISO + "T00:00:00Z") : null,
+      installmentSeq: installments > 1 ? i + 1 : null,
+      installmentCount: installments > 1 ? installments : null,
+    })),
+  });
   return { months, firstMonthTotalCents };
+}
+
+export type CardMonthRow = {
+  description: string;
+  /** Negativo = estorno. */
+  amountCents: number;
+  dateISO?: string;
+};
+
+/**
+ * Substitui a fatura de um mês (importação de CSV): apaga o extrato do mês,
+ * grava as linhas novas e DEFINE o total consolidado — reimportar o mesmo
+ * arquivo atualiza em vez de duplicar.
+ */
+export async function replaceCardMonth(card: CardRef, month: string, rows: CardMonthRow[]): Promise<{ totalCents: number }> {
+  const monthDate = monthToDate(month);
+  await prisma.cardTransaction.deleteMany({ where: { cardId: card.id, month: monthDate } });
+  if (rows.length > 0) {
+    await prisma.cardTransaction.createMany({
+      data: rows.map((r) => ({
+        cardId: card.id,
+        month: monthDate,
+        description: r.description,
+        amount: centsToNumber(r.amountCents),
+        purchaseDate: r.dateISO ? new Date(r.dateISO + "T00:00:00Z") : null,
+      })),
+    });
+  }
+  const totalCents = rows.reduce((acc, r) => acc + r.amountCents, 0);
+  return upsertCardEntry({ card, month, amountCents: totalCents, mode: "set" });
 }

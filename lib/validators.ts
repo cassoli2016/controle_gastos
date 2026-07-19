@@ -52,7 +52,7 @@ export const purchaseSchema = z.object({
   categoryId: z.string().trim().optional().nullable(),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   installments: z.coerce.number().int().min(1).max(120),
-  startMonth: z.string().regex(/^\d{4}-\d{2}$/, "Competência YYYY-MM"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
 });
 
 export const applyRangeSchema = z

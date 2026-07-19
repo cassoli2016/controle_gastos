@@ -29,6 +29,7 @@ type DisplayRow = EntryView & {
   entryId: string;
   itemId: string | null;
   dueDay: number | null;
+  purchaseDate: Date | null;
   paidDate: Date | null;
   cardId: string | null;
   cardName: string | null;
@@ -55,6 +56,15 @@ function EntryRow({
   /** Grupo de receita: PayCell e labels usam "Receber/Recebido". */
   income: boolean;
 }) {
+  // Dia: item fixo mostra o dia de vencimento; avulso mostra a data do
+  // lançamento (dd/mm) quando registrada.
+  const dayLabel =
+    row.dueDay !== null
+      ? String(row.dueDay)
+      : row.purchaseDate
+        ? `${String(row.purchaseDate.getUTCDate()).padStart(2, "0")}/${String(row.purchaseDate.getUTCMonth() + 1).padStart(2, "0")}`
+        : null;
+
   // Item fixo: edição inline via PlannedCell. Lançamento avulso/parcela (sem
   // itemId): mostra o valor; a edição desse valor acontece via "editar
   // parcelamento" (InstallmentDialog), já que toda linha avulsa/cartão
@@ -105,7 +115,7 @@ function EntryRow({
             {badges}
           </span>
         </td>
-        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{row.dueDay ?? "—"}</td>
+        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{dayLabel ?? "—"}</td>
         <td className="px-3 py-1.5">{planned}</td>
         <td className="px-3 py-1.5">{pay}</td>
         <td className="px-3 py-1.5">{actions}</td>
@@ -121,7 +131,7 @@ function EntryRow({
           {badges}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums shrink-0">
-          {row.dueDay ? `Dia ${row.dueDay}` : "—"}
+          {row.dueDay ? `Dia ${row.dueDay}` : dayLabel ?? "—"}
         </span>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -160,6 +170,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     entryId: r.id,
     itemId: r.itemId,
     dueDay: r.item?.dueDay ?? null,
+    purchaseDate: r.purchaseDate,
     paidDate: r.paidDate,
     cardId: r.cardId,
     cardName: r.card?.name ?? null,
@@ -191,7 +202,6 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           <PurchaseDialog
             cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-            defaultMonth={month}
           />
           <TransferDialog
             entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}

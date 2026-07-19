@@ -5,7 +5,8 @@ import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/li
 import { parseNubankShares, isNubankShareFormat } from "@/lib/nubank-share";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch } from "@/lib/purchases";
-import { addPurchaseToCard, cardTargetMonth, upsertCardEntry, type CardRef } from "@/lib/card-entry";
+import { addPurchaseToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -136,24 +137,24 @@ async function handleCsvDocument(
   }
 
   const defaultMonth = await resolveDefaultMonth();
-  const centsByMonth = new Map<string, { cents: number; count: number }>();
+  const rowsByMonth = new Map<string, CardMonthRow[]>();
   for (const row of rows) {
     const month = cardTargetMonth(card, row.date, defaultMonth);
-    const acc = centsByMonth.get(month) ?? { cents: 0, count: 0 };
-    acc.cents += Math.round(row.amountReais * 100);
-    acc.count++;
-    centsByMonth.set(month, acc);
+    const list = rowsByMonth.get(month) ?? [];
+    list.push({ description: row.description, amountCents: Math.round(row.amountReais * 100), dateISO: row.date });
+    rowsByMonth.set(month, list);
   }
 
-  const months = [...centsByMonth.keys()].sort();
+  const months = [...rowsByMonth.keys()].sort();
+  const totalsByMonth = new Map<string, number>();
   for (const month of months) {
-    await upsertCardEntry({ card, month, amountCents: centsByMonth.get(month)!.cents, mode: "set" });
+    const { totalCents } = await replaceCardMonth(card, month, rowsByMonth.get(month)!);
+    totalsByMonth.set(month, totalCents);
   }
   revalidateAll();
 
   const parts = months.map((m) => {
-    const { cents, count } = centsByMonth.get(m)!;
-    return `${fmtMonth(m)} — ${formatCents(cents)} (${count} lançamentos)`;
+    return `${fmtMonth(m)} — ${formatCents(totalsByMonth.get(m)!)} (${rowsByMonth.get(m)!.length} lançamentos)`;
   });
   const estornos = rows.filter((r) => r.amountReais < 0).length;
   let msg = `✅ Fatura ${card.name} atualizada:\n${parts.map((p) => `• ${p}`).join("\n")}`;
@@ -190,7 +191,10 @@ async function handleShareText(chatId: number, text: string) {
     const card = p.cardHint ? cardByHint.get(p.cardHint)! : null;
     if (card) {
       const startMonth = cardTargetMonth(card, p.date, defaultMonth);
-      const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, p.installments);
+      const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, p.installments, {
+        description: p.description,
+        dateISO: p.date,
+      });
       const valor = p.installments > 1 ? `${p.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
       lines.push(
         `✅ ${p.description} — ${valor} no ${card.name} · ${fmtMonthSpan(months)} (fatura ${fmtMonth(months[0])}: ${formatCents(firstMonthTotalCents)})`,
@@ -202,6 +206,7 @@ async function handleShareText(chatId: number, text: string) {
         installments: p.installments,
         startMonth: defaultMonth,
         cardId: null,
+        purchaseDateISO: p.date ?? todayISOInSaoPaulo(),
       });
       lines.push(`✅ ${p.description} — ${formatCents(amountCents)} · ${fmtMonth(defaultMonth)}`);
     }
@@ -243,7 +248,9 @@ async function handleBatchText(chatId: number, text: string) {
   for (const e of cardLines) {
     const card = cardByHint.get(e.cardHint!)!;
     const startMonth = cardTargetMonth(card, undefined, defaultMonth);
-    const { months } = await addPurchaseToCard(card, startMonth, Math.round(e.amountReais * 100), e.installments);
+    const { months } = await addPurchaseToCard(card, startMonth, Math.round(e.amountReais * 100), e.installments, {
+      description: e.description,
+    });
     const acc = perCard.get(card.id) ?? { card, cents: 0, months: new Set<string>() };
     acc.cents += Math.round(e.amountReais * 100) * e.installments;
     months.forEach((m) => acc.months.add(m));
@@ -258,6 +265,7 @@ async function handleBatchText(chatId: number, text: string) {
         amount: e.amountReais,
         installments: e.installments,
         cardId: null,
+        purchaseDateISO: todayISOInSaoPaulo(),
       })),
       defaultMonth,
     );
@@ -297,7 +305,9 @@ async function handleSingleText(chatId: number, text: string) {
       return;
     }
     const startMonth = cardTargetMonth(card, undefined, defaultMonth);
-    const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, parsed.installments);
+    const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, parsed.installments, {
+      description: parsed.description,
+    });
     revalidateAll();
     const valor =
       parsed.installments > 1 ? `${parsed.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
@@ -314,6 +324,7 @@ async function handleSingleText(chatId: number, text: string) {
     installments: parsed.installments,
     startMonth: defaultMonth,
     cardId: null,
+    purchaseDateISO: todayISOInSaoPaulo(),
   });
   revalidateAll();
   await reply(

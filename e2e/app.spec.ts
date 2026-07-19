@@ -32,21 +32,29 @@ test.describe.serial("caminho crítico", () => {
     await page.getByRole("button", { name: "Criar" }).click();
     await expect(page.getByText("Cartão criado.")).toBeVisible();
 
-    // Lançar compra parcelada pelo cartão recém-criado
+    // Lançar compra parcelada pelo cartão recém-criado. Modelo consolidado:
+    // o cartão vira 1 lançamento por mês no /mes e o DETALHE fica no extrato
+    // da tela de Cartões (CardTransaction).
     await page.getByRole("button", { name: "Lançar compra" }).first().click();
     await page.fill('input[name="description"]', "Geladeira");
     // CurrencyInput: dígitos viram centavos — "30000" => R$ 300,00
     await page.locator("#purchase-amount").fill("30000");
     await page.fill('input[name="installments"]', "3");
+    // A data define a 1ª fatura (cartão sem dia de fechamento → mês da data).
+    await page.fill('input[name="date"]', `${MONTH}-15`);
     await page.getByRole("button", { name: "Lançar", exact: true }).click();
     await expect(page.getByText(/Compra em 3 parcela\(s\) lançada\./)).toBeVisible();
 
-    // Fatura do mês mostra a 1ª parcela e o total
+    // Extrato do mês mostra a compra com 1/3 e a fatura consolidada
     await expect(page.getByText("Geladeira").first()).toBeVisible();
     await expect(page.getByText("1/3").first()).toBeVisible();
 
-    // Mês seguinte tem a parcela 2/3
-    await page.goto(`/mes?month=${NEXT_MONTH}`);
+    // /mes mostra o lançamento CONSOLIDADO com o nome do cartão
+    await page.goto(`/mes?month=${MONTH}`);
+    await expect(page.getByText("Cartão Teste").first()).toBeVisible();
+
+    // Mês seguinte: extrato tem a parcela 2/3
+    await page.goto(`/cartoes?month=${NEXT_MONTH}`);
     await expect(page.getByText("Geladeira").first()).toBeVisible();
     await expect(page.getByText("2/3").first()).toBeVisible();
   });

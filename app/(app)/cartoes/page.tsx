@@ -11,11 +11,13 @@ import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
 import { PurchaseDialog } from "../mes/PurchaseDialog";
 
-type InvoiceRow = {
-  entryId: string;
+// Linha do EXTRATO do cartão (CardTransaction): cada compra/estorno que
+// compõe o lançamento consolidado do mês. Negativo = estorno.
+type StatementRow = {
+  id: string;
   description: string;
-  plannedCents: number;
-  paid: boolean;
+  amountCents: number;
+  purchaseDate: Date | null;
   installmentSeq: number | null;
   installmentCount: number | null;
 };
@@ -29,33 +31,39 @@ export default async function CartoesPage({
   const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [cards, monthEntries, categories] = await Promise.all([
+  const [cards, monthEntries, transactions, categories] = await Promise.all([
     prisma.creditCard.findMany({ orderBy: { name: "asc" } }),
     prisma.monthlyEntry.findMany({
       where: { month: monthDate, cardId: { not: null } },
       include: { card: true },
       orderBy: { description: "asc" },
     }),
+    prisma.cardTransaction.findMany({
+      where: { month: monthDate },
+      orderBy: [{ purchaseDate: "asc" }, { createdAt: "asc" }],
+    }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
   const activeCards = cards.filter((c) => c.active);
 
-  // Fatura-lite: por cartão ativo, agrupa as compras (MonthlyEntry com
-  // cardId) do mês selecionado e soma o total previsto. Cartões sem compras
-  // no mês aparecem com total R$ 0,00 / "sem compras".
+  // Fatura por cartão: o TOTAL vem do lançamento consolidado do mês
+  // (MonthlyEntry com cardId) e o DETALHE vem do extrato (CardTransaction).
   const invoices = activeCards.map((card) => {
-    const rows: InvoiceRow[] = monthEntries
-      .filter((e) => e.cardId === card.id)
-      .map((e) => ({
-        entryId: e.id,
-        description: e.description ?? "—",
-        plannedCents: decimalToCents(String(e.plannedAmount)),
-        paid: e.paid,
-        installmentSeq: e.installmentSeq,
-        installmentCount: e.installmentCount,
+    const entries = monthEntries.filter((e) => e.cardId === card.id);
+    const totalCents = sumCents(entries.map((e) => decimalToCents(String(e.plannedAmount))));
+    const paid = entries.length > 0 && entries.every((e) => e.paid);
+    const rows: StatementRow[] = transactions
+      .filter((t) => t.cardId === card.id)
+      .map((t) => ({
+        id: t.id,
+        description: t.description,
+        amountCents: decimalToCents(String(t.amount)),
+        purchaseDate: t.purchaseDate,
+        installmentSeq: t.installmentSeq,
+        installmentCount: t.installmentCount,
       }));
-    return { card, rows, totalCents: sumCents(rows.map((r) => r.plannedCents)) };
+    return { card, rows, totalCents, paid, hasEntry: entries.length > 0 };
   });
 
   const dialogCards = activeCards.map((c) => ({ id: c.id, name: c.name }));
@@ -77,7 +85,7 @@ export default async function CartoesPage({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {invoices.map(({ card, rows, totalCents }) => (
+          {invoices.map(({ card, rows, totalCents, paid, hasEntry }) => (
             <Card key={card.id}>
               <CardHeader className="flex items-center justify-between gap-2 border-b">
                 <div className="flex items-center gap-2">
@@ -91,22 +99,33 @@ export default async function CartoesPage({
                 <PurchaseDialog
                   cards={dialogCards}
                   categories={dialogCategories}
-                  defaultMonth={month}
                   defaultCardId={card.id}
                 />
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
-                <StatCard label="Total do mês" value={formatCents(totalCents)} tone="expense" />
+                <div className="flex items-center gap-2">
+                  <StatCard label="Fatura do mês" value={formatCents(totalCents)} tone="expense" />
+                  {hasEntry && (
+                    <Badge variant={paid ? "default" : "outline"}>{paid ? "Paga" : "Em aberto"}</Badge>
+                  )}
+                </div>
                 {rows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sem compras neste mês.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {hasEntry
+                      ? "Sem extrato detalhado — lance pelo bot ou reenvie o CSV da fatura para detalhar."
+                      : "Sem compras neste mês."}
+                  </p>
                 ) : (
                   <ul className="divide-y">
                     {rows.map((row) => (
-                      <li
-                        key={row.entryId}
-                        className="flex items-center justify-between gap-2 py-2 text-sm"
-                      >
+                      <li key={row.id} className="flex items-center justify-between gap-2 py-2 text-sm">
                         <span className="flex items-center gap-1.5 flex-wrap">
+                          {row.purchaseDate && (
+                            <span className="text-xs text-muted-foreground tabular-nums">
+                              {String(row.purchaseDate.getUTCDate()).padStart(2, "0")}/
+                              {String(row.purchaseDate.getUTCMonth() + 1).padStart(2, "0")}
+                            </span>
+                          )}
                           <span>{row.description}</span>
                           {(row.installmentCount ?? 0) > 1 && (
                             <Badge variant="secondary">
@@ -114,11 +133,10 @@ export default async function CartoesPage({
                             </Badge>
                           )}
                         </span>
-                        <span className="flex items-center gap-2 shrink-0">
-                          <span className="tabular-nums">{formatCents(row.plannedCents)}</span>
-                          <Badge variant={row.paid ? "default" : "outline"}>
-                            {row.paid ? "Pago" : "Em aberto"}
-                          </Badge>
+                        <span
+                          className={`tabular-nums shrink-0 ${row.amountCents < 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}
+                        >
+                          {formatCents(row.amountCents)}
                         </span>
                       </li>
                     ))}

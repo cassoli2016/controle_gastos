@@ -28,6 +28,8 @@ export type PurchaseInput = {
   startMonth: string; // YYYY-MM
   cardId?: string | null;
   categoryId?: string | null; // null/undefined → categoria padrão
+  /** Data do lançamento (YYYY-MM-DD) — gravada em todas as parcelas. */
+  purchaseDateISO?: string;
 };
 
 /**
@@ -40,6 +42,7 @@ export async function createPurchaseCore(input: PurchaseInput): Promise<{ count:
   const months = installmentMonths(input.startMonth, input.installments);
   const installmentId = crypto.randomUUID();
 
+  const purchaseDate = input.purchaseDateISO ? new Date(input.purchaseDateISO + "T00:00:00Z") : null;
   await prisma.$transaction(async (tx) => {
     for (let seq = 0; seq < months.length; seq++) {
       await tx.monthlyEntry.create({
@@ -48,6 +51,7 @@ export async function createPurchaseCore(input: PurchaseInput): Promise<{ count:
           installmentSeq: seq + 1,
           installmentCount: input.installments,
           description: input.description,
+          purchaseDate,
           categoryId,
           cardId: input.cardId ?? null,
           month: monthToDate(months[seq]),
@@ -66,6 +70,8 @@ export type BatchPurchaseRow = {
   amount: number;
   installments: number;
   cardId?: string | null;
+  /** Data do lançamento (YYYY-MM-DD). */
+  purchaseDateISO?: string;
 };
 
 /**
@@ -89,6 +95,7 @@ export async function createPurchasesBatch(
       installmentSeq: i + 1,
       installmentCount: row.installments,
       description: row.description,
+      purchaseDate: row.purchaseDateISO ? new Date(row.purchaseDateISO + "T00:00:00Z") : null,
       categoryId: catId,
       cardId: row.cardId ?? null,
       month: monthToDate(month),

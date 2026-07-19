@@ -7,6 +7,7 @@ import { monthToDate, monthRange } from "@/lib/dates";
 import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
+import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -139,14 +140,38 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     categoryId: formData.get("categoryId"),
     amount: formData.get("amount"),
     installments: formData.get("installments"),
-    startMonth: formData.get("startMonth"),
+    date: formData.get("date"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { description, amount, installments, startMonth } = parsed.data;
+  const { description, amount, installments, date } = parsed.data;
 
   // cardId vazio (ou o sentinel "sem cartão" do Select) vira null.
   const cardId = parsed.data.cardId && parsed.data.cardId !== "none" ? parsed.data.cardId : null;
 
+  // Compra NO CARTÃO: a data + dia de fechamento decidem a 1ª fatura; soma no
+  // lançamento consolidado (1 por mês) e registra no extrato — modelo do bot.
+  if (cardId) {
+    const card = await prisma.creditCard.findUnique({ where: { id: cardId } });
+    if (!card) return { error: "Cartão não encontrado." };
+    const startMonth = cardTargetMonth(
+      { id: card.id, name: card.name, closingDay: card.closingDay },
+      date,
+      date.slice(0, 7),
+    );
+    await addPurchaseToCard(
+      { id: card.id, name: card.name, closingDay: card.closingDay },
+      startMonth,
+      Math.round(amount * 100),
+      installments,
+      { description, dateISO: date },
+    );
+    revalidatePath("/mes");
+    revalidatePath("/cartoes");
+    return { ok: true, count: installments };
+  }
+
+  // Sem cartão: lançamento avulso individual com a data da compra; o mês da
+  // data é a competência da 1ª parcela.
   // categoryId vazio (ou o sentinel "categoria padrão" do Select) resolve
   // para a categoria "Cartão/Compras", criando-a se necessário.
   const categoryId =
@@ -154,7 +179,15 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
       ? parsed.data.categoryId
       : await resolveDefaultPurchaseCategoryId();
 
-  await createPurchaseCore({ description, amount, installments, startMonth, cardId, categoryId });
+  await createPurchaseCore({
+    description,
+    amount,
+    installments,
+    startMonth: date.slice(0, 7),
+    cardId: null,
+    categoryId,
+    purchaseDateISO: date,
+  });
 
   revalidatePath("/mes");
   revalidatePath("/cartoes");
