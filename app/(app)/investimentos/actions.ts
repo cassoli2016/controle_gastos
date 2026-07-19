@@ -6,6 +6,7 @@ import { fetchQuotes } from "@/lib/brapi";
 import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
 import { parseB3Report } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
+import type { B3Trade } from "@/lib/b3-report";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado pelas Server Actions (useActionState). */
@@ -185,4 +186,54 @@ export async function importB3Report(_prevState: ActionState, formData: FormData
   if (r.matched + r.created === 0 && r.duplicated > 0)
     return { error: "Nenhum provento novo — este relatório já foi importado." };
   return { ok: true, count: r.matched + r.created };
+}
+
+const tradeSchema = z.object({
+  ticker: z.string().trim().toUpperCase().regex(TICKER_RE, "Ticker inválido (ex.: BBSE3)"),
+  side: z.enum(["BUY", "SELL"]),
+  quantity: z.coerce.number().int().positive("Quantidade deve ser maior que zero"),
+  totalValue: z.coerce.number().positive("Valor total deve ser maior que zero"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+});
+
+/**
+ * Registra uma compra/venda manual: o valor TOTAL gasto/recebido + quantidade
+ * derivam o preço unitário; cotas e PM são recalculados e o negócio entra no
+ * histórico com o mesmo hash da importação B3 (importar o extrato depois não
+ * duplica o mesmo negócio).
+ */
+export async function registerTrade(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = tradeSchema.safeParse({
+    ticker: formData.get("ticker"),
+    side: formData.get("side"),
+    quantity: formData.get("quantity"),
+    totalValue: formData.get("totalValue"),
+    date: formData.get("date"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { ticker, side, quantity, totalValue, date } = parsed.data;
+
+  if (side === "SELL") {
+    const asset = await prisma.investmentAsset.findUnique({ where: { ticker } });
+    if (!asset || asset.quantity < quantity)
+      return { error: `Você tem ${asset?.quantity ?? 0} cotas de ${ticker} — não dá para vender ${quantity}.` };
+  }
+
+  const trade: B3Trade = {
+    dateISO: date,
+    ticker,
+    side,
+    quantity,
+    price: Math.round((totalValue / quantity) * 10000) / 10000,
+    value: totalValue,
+  };
+  const r = await applyB3Trades([trade]);
+  if (r.applied === 0 && r.duplicated > 0)
+    return { error: "Negócio idêntico já registrado (mesma data, quantidade e preço)." };
+  if (r.applied === 0 && r.skippedOld > 0)
+    return { error: "Data anterior à carga inicial (17/07/2026) — esse período já está no PM." };
+
+  revalidatePath("/investimentos");
+  revalidatePath("/dashboard");
+  return { ok: true };
 }

@@ -67,3 +67,45 @@ export function formatPct(frac: number | null): string {
   const sign = pct > 0 ? "+" : "";
   return `${sign}${pct.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
+
+/** Paleta fixa para gráficos por ativo (ordem estável). */
+export const ASSET_PALETTE = [
+  "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#06b6d4",
+  "#ef4444", "#84cc16", "#ec4899", "#14b8a6", "#f97316",
+  "#6366f1", "#a855f7",
+];
+
+export type AllocationSlice = { ticker: string; valueCents: number; frac: number; color: string };
+
+/** Alocação da carteira por ativo (% do valor atual; sem cotação usa o custo). */
+export function allocation(
+  positions: { ticker: string; quantity: number; avgPriceCents: number; lastPriceCents: number | null }[],
+): AllocationSlice[] {
+  const values = positions.map((p) => {
+    const c = calcPosition(p);
+    return { ticker: p.ticker, valueCents: c.valueCents ?? c.costCents };
+  });
+  const total = values.reduce((acc, v) => acc + v.valueCents, 0);
+  return values
+    .sort((a, b) => b.valueCents - a.valueCents)
+    .map((v, i) => ({
+      ...v,
+      frac: total > 0 ? v.valueCents / total : 0,
+      color: ASSET_PALETTE[i % ASSET_PALETTE.length],
+    }));
+}
+
+/**
+ * Soma dos proventos por competência (YYYY-MM), alinhada à lista de meses
+ * pedida — meses sem provento entram com 0.
+ */
+export function sumDividendsByMonth(
+  dividends: { payMonthISO: string; netCents: number }[],
+  monthsISO: string[],
+): number[] {
+  const acc = new Map<string, number>(monthsISO.map((m) => [m, 0]));
+  for (const d of dividends) {
+    if (acc.has(d.payMonthISO)) acc.set(d.payMonthISO, acc.get(d.payMonthISO)! + d.netCents);
+  }
+  return monthsISO.map((m) => acc.get(m) ?? 0);
+}

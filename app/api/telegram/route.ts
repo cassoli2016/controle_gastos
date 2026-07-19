@@ -11,7 +11,7 @@ import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
 import { createWeekdayRecurrence } from "@/lib/recurrence";
 import { calcPortfolio, formatPct } from "@/lib/investments";
-import { parseB3Report } from "@/lib/b3-report";
+import { parseB3Report, type B3Trade } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
 import { decimalToCents } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
@@ -42,7 +42,7 @@ const HELP =
   '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
   '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
-  '• "carteira": resumo dos investimentos\n' +
+  '• "carteira": resumo · "comprei 100 bbse3 41,27" / "vendi …": registra negócio\n' +
   "• Relatórios da B3 (.xlsx de Negociação/Movimentação): envie o arquivo aqui\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -681,6 +681,47 @@ export async function POST(req: Request) {
 
   if (text === "/start" || text === "/help" || /^ajuda$/i.test(text)) {
     await reply(chatId, HELP);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Compra/venda de ações: "comprei 100 bbse3 41,27" (preço POR COTA).
+  const tradeMatch = /^(comprei|vendi)\s+(\d+)\s+([a-z0-9]{5,7})\s+(?:a\s+)?([\d.,]+)$/i.exec(text);
+  if (tradeMatch) {
+    const side = /^comprei$/i.test(tradeMatch[1]) ? "BUY" : "SELL";
+    const quantity = parseInt(tradeMatch[2], 10);
+    const ticker = tradeMatch[3].toUpperCase().replace(/F$/, "");
+    const priceToken = tradeMatch[4];
+    const price = Number(priceToken.includes(",") ? priceToken.replace(/\./g, "").replace(",", ".") : priceToken);
+    if (!/^[A-Z]{4}\d{1,2}$/.test(ticker) || !Number.isFinite(price) || price <= 0 || quantity <= 0) {
+      await reply(chatId, 'Não entendi o negócio. Ex.: "comprei 100 bbse3 41,27" (preço por cota).');
+      return NextResponse.json({ ok: true });
+    }
+    if (side === "SELL") {
+      const asset = await prisma.investmentAsset.findUnique({ where: { ticker } });
+      if (!asset || asset.quantity < quantity) {
+        await reply(chatId, `Você tem ${asset?.quantity ?? 0} cotas de ${ticker} — não dá para vender ${quantity}.`);
+        return NextResponse.json({ ok: true });
+      }
+    }
+    const trade: B3Trade = {
+      dateISO: todayISOInSaoPaulo(),
+      ticker,
+      side,
+      quantity,
+      price: Math.round(price * 10000) / 10000,
+      value: Math.round(quantity * price * 100) / 100,
+    };
+    const r = await applyB3Trades([trade]);
+    if (r.applied === 0 && r.duplicated > 0) {
+      await reply(chatId, "Negócio idêntico já registrado hoje (mesma quantidade e preço).");
+      return NextResponse.json({ ok: true });
+    }
+    const asset = await prisma.investmentAsset.findUnique({ where: { ticker } });
+    revalidateAll();
+    await reply(
+      chatId,
+      `${side === "BUY" ? "🟢 Compra" : "🔴 Venda"}: ${quantity} ${ticker} a R$ ${price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} — ${formatCents(Math.round(quantity * price * 100))}\nPosição: ${asset?.quantity ?? 0} cotas · PM R$ ${Number(asset?.avgPrice ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+    );
     return NextResponse.json({ ok: true });
   }
 

@@ -1,11 +1,18 @@
-import { TrendingUp, TrendingDown, Wallet, CalendarClock } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, CalendarClock, Coins, Percent } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { decimalToCents, formatCents, sumCents } from "@/lib/money";
-import { calcPosition, calcPortfolio, formatPct } from "@/lib/investments";
+import { calcPosition, calcPortfolio, formatPct, allocation, sumDividendsByMonth } from "@/lib/investments";
+import { installmentMonths } from "@/lib/installments";
+import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { ExpensePie } from "@/components/charts/ExpensePie";
+import { DividendsBars } from "@/components/charts/DividendsBars";
+import { RankingBars } from "@/components/charts/RankingBars";
 import { StatCard } from "@/components/StatCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RefreshQuotesButton } from "./RefreshQuotesButton";
+import { TradeDialog } from "./TradeDialog";
 import { ImportB3Dialog } from "./ImportB3Dialog";
 import { AssetForm } from "./AssetForm";
 import { DividendReceiveButton, DividendDeleteButton, NewDividendForm } from "./DividendControls";
@@ -51,12 +58,48 @@ export default async function InvestimentosPage() {
     .filter((d): d is Date => d !== null)
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
+  // Renda de proventos: janela dos últimos 12 meses (mês corrente incluso).
+  const currentMonth = todayISOInSaoPaulo().slice(0, 7);
+  const [cy, cm] = currentMonth.split("-").map(Number);
+  const window12 = installmentMonths(monthStringFromDate(new Date(Date.UTC(cy, cm - 1 - 11, 1))), 12);
+  const receivedAll = dividends.filter((d) => d.received);
+  const received12 = receivedAll.filter((d) => window12.includes(monthStringFromDate(d.payDate)));
+  const income12Cents = sumCents(received12.map((d) => decimalToCents(String(d.net))));
+  const monthlyAvgCents = Math.round(income12Cents / 12);
+  const yield12 = totals.valueCents > 0 ? income12Cents / totals.valueCents : null;
+
+  const dividendSeries = sumDividendsByMonth(
+    receivedAll.map((d) => ({ payMonthISO: monthStringFromDate(d.payDate), netCents: decimalToCents(String(d.net)) })),
+    window12,
+  );
+  const dividendChart = window12.map((m, i) => ({ month: formatCompetencia(monthToDate(m)), cents: dividendSeries[i] }));
+
+  const allocationData = allocation(
+    positions.map((p) => ({
+      ticker: p.asset.ticker,
+      quantity: p.asset.quantity,
+      avgPriceCents: p.avgPriceCents,
+      lastPriceCents: p.lastPriceCents,
+    })),
+  );
+
+  // Renda 12m por ativo (yield sobre o valor da posição) + top pagadores.
+  const incomeByTicker = new Map<string, number>();
+  for (const d of received12) {
+    incomeByTicker.set(d.asset.ticker, (incomeByTicker.get(d.asset.ticker) ?? 0) + decimalToCents(String(d.net)));
+  }
+  const topPayers = [...incomeByTicker.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([itemName, cents]) => ({ itemName, cents }));
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Investimentos</h1>
         <div className="flex flex-wrap items-center gap-2">
           <RefreshQuotesButton />
+          <TradeDialog tickers={assets.map((a) => a.ticker)} />
           <ImportB3Dialog />
           <AssetForm />
         </div>
@@ -79,6 +122,16 @@ export default async function InvestimentosPage() {
         <StatCard label="Proventos a receber" value={formatCents(pendingCents)} tone="warn" icon={CalendarClock} />
       </div>
 
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <StatCard label="Renda 12 meses" value={formatCents(income12Cents)} tone="income" icon={Coins} />
+        <StatCard label="Média mensal" value={formatCents(monthlyAvgCents)} tone="income" icon={CalendarClock} />
+        <StatCard
+          label="Yield 12m (s/ carteira)"
+          value={formatPct(yield12).replace("+", "")}
+          icon={Percent}
+        />
+      </div>
+
       {lastQuoteAt ? (
         <p className="text-xs text-muted-foreground">
           Cotações de {fmtDateBR(lastQuoteAt)} às {String(lastQuoteAt.getHours()).padStart(2, "0")}:
@@ -89,6 +142,46 @@ export default async function InvestimentosPage() {
         <p className="text-xs text-muted-foreground">
           Sem cotações ainda — use &quot;Atualizar cotações&quot; (requer BRAPI_TOKEN no ambiente).
         </p>
+      )}
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Alocação da carteira</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {allocationData.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sem posições.</p>
+            ) : (
+              <ExpensePie
+                data={allocationData.map((a) => ({
+                  categoryName: `${a.ticker} (${(a.frac * 100).toFixed(1)}%)`,
+                  value: a.valueCents,
+                  color: a.color,
+                }))}
+              />
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Proventos por mês (12 meses)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DividendsBars data={dividendChart} />
+          </CardContent>
+        </Card>
+      </div>
+
+      {topPayers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Maiores pagadores (12 meses)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RankingBars data={topPayers} />
+          </CardContent>
+        </Card>
       )}
 
       <Card>
@@ -111,6 +204,8 @@ export default async function InvestimentosPage() {
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Cotação</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Valor</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Resultado</th>
+                    <th className="px-3 py-1.5 font-medium text-muted-foreground">% cart.</th>
+                    <th className="px-3 py-1.5 font-medium text-muted-foreground">Renda 12m</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Ações</th>
                   </tr>
                 </thead>
@@ -143,6 +238,17 @@ export default async function InvestimentosPage() {
                         }`}
                       >
                         {p.resultCents !== null ? `${formatCents(p.resultCents)} (${formatPct(p.resultPct)})` : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 tabular-nums text-muted-foreground">
+                        {(() => {
+                          const slice = allocationData.find((a) => a.ticker === p.asset.ticker);
+                          return slice ? `${(slice.frac * 100).toFixed(1)}%` : "—";
+                        })()}
+                      </td>
+                      <td className="px-3 py-1.5 tabular-nums">
+                        {incomeByTicker.has(p.asset.ticker)
+                          ? formatCents(incomeByTicker.get(p.asset.ticker)!)
+                          : "—"}
                       </td>
                       <td className="px-3 py-1.5">
                         <div className="flex justify-end">

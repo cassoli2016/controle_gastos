@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcPosition, calcPortfolio, formatPct } from "@/lib/investments";
+import { calcPosition, calcPortfolio, formatPct, allocation, sumDividendsByMonth } from "@/lib/investments";
 
 describe("calcPosition", () => {
   it("posição com lucro (BBSE3 do usuário)", () => {
@@ -43,5 +43,38 @@ describe("formatPct", () => {
     expect(formatPct(0.1804)).toBe("+18,04%");
     expect(formatPct(-0.0576)).toBe("-5,76%");
     expect(formatPct(null)).toBe("—");
+  });
+});
+
+describe("allocation", () => {
+  it("fração do valor atual, ordenada desc, cores estáveis", () => {
+    const a = allocation([
+      { ticker: "AAAA3", quantity: 100, avgPriceCents: 1000, lastPriceCents: 3000 }, // 300k
+      { ticker: "BBBB3", quantity: 100, avgPriceCents: 1000, lastPriceCents: 1000 }, // 100k
+    ]);
+    expect(a[0].ticker).toBe("AAAA3");
+    expect(a[0].frac).toBeCloseTo(0.75, 5);
+    expect(a[1].frac).toBeCloseTo(0.25, 5);
+    expect(a[0].color).not.toBe(a[1].color);
+  });
+  it("sem cotação entra pelo custo", () => {
+    const a = allocation([{ ticker: "CCCC3", quantity: 10, avgPriceCents: 500, lastPriceCents: null }]);
+    expect(a[0].valueCents).toBe(5000);
+    expect(a[0].frac).toBe(1);
+  });
+});
+
+describe("sumDividendsByMonth", () => {
+  it("alinha à lista de meses (zeros incluídos)", () => {
+    const out = sumDividendsByMonth(
+      [
+        { payMonthISO: "2026-07", netCents: 1000 },
+        { payMonthISO: "2026-07", netCents: 500 },
+        { payMonthISO: "2026-09", netCents: 200 },
+        { payMonthISO: "2025-01", netCents: 99999 }, // fora da janela
+      ],
+      ["2026-07", "2026-08", "2026-09"],
+    );
+    expect(out).toEqual([1500, 0, 200]);
   });
 });
