@@ -179,3 +179,75 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
   }
   return result;
 }
+
+export type ProvisionedImportResult = {
+  created: number;
+  updated: number;
+  duplicated: number;
+  totalCents: number;
+};
+
+/**
+ * Proventos PROVISIONADOS (anunciados, ainda não pagos): alimentam a agenda
+ * "a receber". Pendente do mesmo ativo com valor ±2% ganha a data de previsão
+ * (refresca placeholders); sem correspondência, cria pendente novo.
+ */
+export async function applyB3Provisioned(incomes: B3Income[]): Promise<ProvisionedImportResult> {
+  const result: ProvisionedImportResult = { created: 0, updated: 0, duplicated: 0, totalCents: 0 };
+
+  for (const income of incomes) {
+    const valueCents = Math.round(income.value * 100);
+    const payDate = new Date(income.dateISO + "T00:00:00Z");
+
+    const asset = await prisma.investmentAsset.upsert({
+      where: { ticker: income.ticker },
+      create: { ticker: income.ticker, quantity: 0, avgPrice: 0, active: false },
+      update: {},
+    });
+
+    // Já recebido com a mesma data/valor? Nada a fazer.
+    const dupReceived = await prisma.dividend.findFirst({
+      where: { assetId: asset.id, received: true, payDate, net: centsToNumber(valueCents) },
+    });
+    if (dupReceived) {
+      result.duplicated++;
+      continue;
+    }
+
+    const pending = await prisma.dividend.findMany({ where: { assetId: asset.id, received: false } });
+    const tolerance = Math.max(2, Math.round(valueCents * 0.02));
+    const match = pending.find((d) => Math.abs(decimalToCents(String(d.net)) - valueCents) <= tolerance);
+    if (match) {
+      // Mesmo anúncio: se a data já bate, é duplicata; senão refresca a previsão.
+      if (match.payDate.getTime() === payDate.getTime()) {
+        result.duplicated++;
+      } else {
+        await prisma.dividend.update({
+          where: { id: match.id },
+          data: {
+            payDate,
+            quantity: income.quantity ?? match.quantity,
+            unitValue: income.unitValue ?? match.unitValue,
+          },
+        });
+        result.updated++;
+      }
+    } else {
+      await prisma.dividend.create({
+        data: {
+          assetId: asset.id,
+          type: income.type,
+          payDate,
+          quantity: income.quantity ?? 0,
+          unitValue: income.unitValue ?? 0,
+          gross: centsToNumber(valueCents),
+          net: centsToNumber(valueCents),
+          received: false,
+        },
+      });
+      result.created++;
+    }
+    result.totalCents += valueCents;
+  }
+  return result;
+}

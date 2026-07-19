@@ -12,7 +12,7 @@ import { createCardSubscription } from "@/lib/card-subscription";
 import { createWeekdayRecurrence } from "@/lib/recurrence";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { parseB3Report } from "@/lib/b3-report";
-import { applyB3Trades, applyB3Incomes } from "@/lib/b3-import";
+import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
 import { decimalToCents } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
@@ -162,9 +162,21 @@ async function handleB3Document(
     return;
   }
 
+  if (parsed.kind === "proventos_provisionados") {
+    const r = await applyB3Provisioned(parsed.incomes);
+    revalidateAll();
+    let msg = `📅 Proventos provisionados: ${formatCents(r.totalCents)} na agenda`;
+    if (r.created > 0) msg += `\n➕ ${r.created} anúncios novos a receber`;
+    if (r.updated > 0) msg += `\n🔄 ${r.updated} datas de previsão atualizadas`;
+    if (r.duplicated > 0) msg += `\n♻️ ${r.duplicated} já estavam na agenda`;
+    await reply(chatId, msg);
+    return;
+  }
+
   const r = await applyB3Incomes(parsed.incomes);
   revalidateAll();
-  let msg = `💰 Movimentação B3: ${r.matched + r.created} proventos — ${formatCents(r.totalCents)}`;
+  const label = parsed.kind === "proventos_recebidos" ? "Proventos recebidos" : "Movimentação B3";
+  let msg = `💰 ${label}: ${r.matched + r.created} proventos — ${formatCents(r.totalCents)}`;
   if (r.matched > 0) msg += `\n✅ ${r.matched} casados com a agenda (marcados recebidos)`;
   if (r.created > 0) msg += `\n➕ ${r.created} novos registrados`;
   if (r.monthEntries > 0) msg += `\n📅 ${r.monthEntries} lançados no fluxo do mês`;

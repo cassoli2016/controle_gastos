@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { fetchQuotes } from "@/lib/brapi";
 import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
 import { parseB3Report } from "@/lib/b3-report";
-import { applyB3Trades, applyB3Incomes } from "@/lib/b3-import";
+import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado pelas Server Actions (useActionState). */
@@ -169,6 +169,15 @@ export async function importB3Report(_prevState: ActionState, formData: FormData
     return { ok: true, count: r.applied };
   }
 
+  if (parsed.kind === "proventos_provisionados") {
+    const r = await applyB3Provisioned(parsed.incomes);
+    revalidatePath("/investimentos");
+    if (r.created + r.updated === 0 && r.duplicated > 0)
+      return { error: "Nenhum anúncio novo — agenda já estava atualizada." };
+    return { ok: true, count: r.created + r.updated };
+  }
+
+  // movimentacao e proventos_recebidos: proventos pagos
   const r = await applyB3Incomes(parsed.incomes);
   revalidatePath("/investimentos");
   revalidatePath("/mes");

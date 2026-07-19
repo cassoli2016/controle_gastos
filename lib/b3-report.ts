@@ -30,7 +30,7 @@ export type B3Income = {
 };
 
 export type B3ParseResult = {
-  kind: "negociacao" | "movimentacao" | "unknown";
+  kind: "negociacao" | "movimentacao" | "proventos_recebidos" | "proventos_provisionados" | "unknown";
   trades: B3Trade[];
   incomes: B3Income[];
   skipped: number;
@@ -86,6 +86,7 @@ const INCOME_TYPES: Record<string, B3Income["type"]> = {
   dividendo: "Dividendos",
   dividendos: "Dividendos",
   "juros sobre capital proprio": "JSCP",
+  jcp: "JSCP",
   rendimento: "Rendimento",
 };
 
@@ -177,6 +178,41 @@ export function parseB3Report(buffer: ArrayBuffer | Buffer): B3ParseResult {
       });
     }
     return { kind: "movimentacao", trades: [], incomes, skipped };
+  }
+
+  // --- Proventos (Extratos → Proventos): recebidos e provisionados.
+  // Recebidos:      Produto | Pagamento | Tipo de Evento | Instituição | Quantidade | Preço unitário | Valor líquido
+  // Provisionados:  Produto | Tipo de Evento | Previsão de pagamento | Quantidade | Preço unitário | Valor líquido
+  const eventoIdx = idx(["tipo de evento", "tipo do evento", "evento"]);
+  if (prodIdx >= 0 && eventoIdx >= 0) {
+    const previsaoIdx = idx(["previsao de pagamento", "previsao"]);
+    const pagamentoIdx = previsaoIdx >= 0 ? previsaoIdx : idx(["pagamento", "data"]);
+    const qtyIdx = idx(["quantidade"]);
+    const unitIdx = idx(["preco unitario"]);
+    const valueIdx = idx(["valor liquido", "valor bruto", "valor"]);
+    const kind = previsaoIdx >= 0 ? "proventos_provisionados" : "proventos_recebidos";
+    const incomes: B3Income[] = [];
+    let skipped = 0;
+    for (const row of rows.slice(1)) {
+      if (!row || row.length === 0) continue;
+      const movType = INCOME_TYPES[normalizeHeader(row[eventoIdx])];
+      const ticker = typeof row[prodIdx] === "string" ? tickerFromProduto(row[prodIdx] as string) : null;
+      const dateISO = toISO(row[pagamentoIdx]);
+      const value = toNumber(row[valueIdx]);
+      if (!movType || !ticker || !dateISO || value === null || value <= 0) {
+        skipped++;
+        continue;
+      }
+      incomes.push({
+        dateISO,
+        ticker,
+        type: movType,
+        quantity: toNumber(row[qtyIdx]) !== null ? Math.round(toNumber(row[qtyIdx])!) : null,
+        unitValue: toNumber(row[unitIdx]),
+        value,
+      });
+    }
+    return { kind, trades: [], incomes, skipped };
   }
 
   return { kind: "unknown", trades: [], incomes: [], skipped: rows.length - 1 };

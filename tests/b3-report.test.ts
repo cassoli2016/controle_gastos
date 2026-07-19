@@ -63,3 +63,37 @@ describe("parseB3Report — desconhecido", () => {
     expect(parseB3Report(buf).kind).toBe("unknown");
   });
 });
+
+describe("parseB3Report — Proventos recebidos", () => {
+  it("extrai proventos pagos (formato do extrato de proventos)", () => {
+    const buf = sheetBuffer([
+      ["Produto", "Pagamento", "Tipo de Evento", "Instituição", "Quantidade", "Preço unitário", "Valor líquido"],
+      ["BBSE3 - BB SEGURIDADE PARTICIPACOES S.A.", "18/07/2026", "Dividendo", "NU INVEST", 1900, 0.5, 950],
+      ["CMIG4 - CIA ENERGETICA DE MINAS GERAIS", "19/07/2026", "Juros Sobre Capital Próprio", "NU INVEST", 100, 0.11, 9.35],
+    ]);
+    const r = parseB3Report(buf);
+    expect(r.kind).toBe("proventos_recebidos");
+    expect(r.incomes).toEqual([
+      { dateISO: "2026-07-18", ticker: "BBSE3", type: "Dividendos", quantity: 1900, unitValue: 0.5, value: 950 },
+      { dateISO: "2026-07-19", ticker: "CMIG4", type: "JSCP", quantity: 100, unitValue: 0.11, value: 9.35 },
+    ]);
+  });
+});
+
+describe("parseB3Report — Proventos provisionados", () => {
+  it("extrai anúncios futuros (previsão de pagamento)", () => {
+    const buf = sheetBuffer([
+      ["Produto", "Tipo de Evento", "Previsão de pagamento", "Quantidade", "Preço unitário", "Valor líquido"],
+      ["KLBN4 - KLABIN S.A.", "Dividendo", "12/11/2026", 1000, 0.0456, 45.6],
+      ["WIZC3 - WIZ CO PARTICIPACOES", "Dividendo", "31/12/2026", 1608, 0.31, 502.72],
+      ["RANI3 - IRANI PAPEL", "Juros Sobre Capital Próprio", "-", 500, 0.1, 50],
+    ]);
+    const r = parseB3Report(buf);
+    expect(r.kind).toBe("proventos_provisionados");
+    expect(r.incomes).toEqual([
+      { dateISO: "2026-11-12", ticker: "KLBN4", type: "Dividendos", quantity: 1000, unitValue: 0.0456, value: 45.6 },
+      { dateISO: "2026-12-31", ticker: "WIZC3", type: "Dividendos", quantity: 1608, unitValue: 0.31, value: 502.72 },
+    ]);
+    expect(r.skipped).toBe(1); // sem previsão de data
+  });
+});
