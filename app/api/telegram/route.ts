@@ -8,6 +8,8 @@ import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } fro
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
+import { createCardSubscription, ensureSubscriptionProvision } from "@/lib/card-subscription";
+import { installmentMonths } from "@/lib/installments";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
@@ -33,6 +35,7 @@ const HELP =
   '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
   '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
   '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
+  '• Assinatura no cartão: "youtube premium 24,90 nubank mensal" (provisiona as faturas)\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -174,6 +177,16 @@ async function handleCsvDocument(
     const { totalCents } = await replaceCardMonth(card, month, rowsByMonth.get(month)!);
     totalsByMonth.set(month, totalCents);
   }
+
+  // Rola o horizonte das assinaturas: garante provisão nos 12 meses seguintes
+  // ao último mês importado (o mês importado já traz a cobrança real).
+  const activeSubs = await prisma.cardSubscription.findMany({ where: { cardId: card.id, active: true } });
+  if (activeSubs.length > 0) {
+    const nextMonth = installmentMonths(months[months.length - 1], 2)[1];
+    for (const sub of activeSubs) {
+      await ensureSubscriptionProvision(card, sub, nextMonth);
+    }
+  }
   revalidateAll();
 
   const parts = months.map((m) => {
@@ -281,6 +294,17 @@ async function handleBatchText(chatId: number, text: string) {
     });
   }
 
+  // Assinaturas de cartão do lote ("mensal" + cartão).
+  for (const e of recurringOnCard) {
+    const card = cardByHint.get(e.cardHint!)!;
+    await createCardSubscription({
+      card,
+      description: e.description,
+      amount: e.amountReais,
+      chargeDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+    });
+  }
+
   // Recebimentos do lote: categoria INCOME; "mensal" vira recorrência.
   let incomeSummary = "";
   if (incomeLines.length > 0) {
@@ -350,7 +374,7 @@ async function handleBatchText(chatId: number, text: string) {
   if (recurringLines.length > 0)
     lines.push(`🔁 ${recurringLines.length} recorrência(s) mensal(is) criada(s) a partir de ${fmtMonth(defaultMonth)}`);
   if (recurringOnCard.length > 0)
-    lines.push(`⚠️ ${recurringOnCard.length} linha(s) "mensal + cartão" puladas — recorrência no cartão entra pela fatura`);
+    lines.push(`🔁💳 ${recurringOnCard.length} assinatura(s) de cartão criada(s) e provisionada(s)`);
   let msg = `✅ ${entries.length} despesas processadas\n${lines.join("\n")}`;
   if (failedLines.length > 0) {
     const shown = failedLines.slice(0, 5).map((l) => `• ${l}`);
@@ -434,9 +458,21 @@ async function handleSingleText(chatId: number, text: string) {
 
   if (parsed.recurring) {
     if (parsed.cardHint) {
+      const card = await findCardByHint(parsed.cardHint);
+      if (!card) {
+        await reply(chatId, CARD_NOT_FOUND(parsed.cardHint));
+        return;
+      }
+      const { firstMonth, provisioned } = await createCardSubscription({
+        card,
+        description: parsed.description,
+        amount: parsed.amountReais,
+        chargeDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+      });
+      revalidateAll();
       await reply(
         chatId,
-        "Recorrência no cartão não precisa ser provisionada — ela entra todo mês pela fatura (CSV ou compartilhamento). Lance sem o nome do cartão para criar uma conta fixa.",
+        `🔁💳 Assinatura no ${card.name}: ${parsed.description} — ${formatCents(amountCents)}/mês provisionado em ${provisioned} faturas a partir de ${fmtMonth(firstMonth)}.\nQuando a cobrança real chegar (CSV/compartilhamento), ela substitui a provisão do mês.`,
       );
       return;
     }

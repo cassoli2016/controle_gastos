@@ -4,6 +4,7 @@ import { decimalToCents, centsToNumber } from "@/lib/money";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { installmentMonths } from "@/lib/installments";
 import { faturaMonth, todayISOInSaoPaulo } from "@/lib/fatura";
+import { descriptionsMatch } from "@/lib/description-match";
 
 export type CardRef = { id: string; name: string; closingDay: number | null };
 
@@ -71,8 +72,29 @@ export async function addPurchaseToCard(
   amountCents: number,
   installments: number,
   meta: PurchaseMeta,
-): Promise<{ months: string[]; firstMonthTotalCents: number }> {
+): Promise<{ months: string[]; firstMonthTotalCents: number; replacedProvision: boolean }> {
   const months = installmentMonths(startMonth, installments);
+
+  // Cobrança de assinatura chegando de verdade (compra 1x): remove a PROVISÃO
+  // de descrição correspondente do mês antes de somar — troca, não duplica.
+  let replacedProvision = false;
+  if (installments === 1) {
+    const provisions = await prisma.cardTransaction.findMany({
+      where: { cardId: card.id, month: monthToDate(months[0]), subscriptionId: { not: null } },
+    });
+    const match = provisions.find((p) => descriptionsMatch(p.description, meta.description));
+    if (match) {
+      await prisma.cardTransaction.delete({ where: { id: match.id } });
+      await upsertCardEntry({
+        card,
+        month: months[0],
+        amountCents: -decimalToCents(String(match.amount)),
+        mode: "add",
+      });
+      replacedProvision = true;
+    }
+  }
+
   let firstMonthTotalCents = 0;
   for (let i = 0; i < months.length; i++) {
     const { totalCents } = await upsertCardEntry({ card, month: months[i], amountCents, mode: "add" });
@@ -89,7 +111,7 @@ export async function addPurchaseToCard(
       installmentCount: installments > 1 ? installments : null,
     })),
   });
-  return { months, firstMonthTotalCents };
+  return { months, firstMonthTotalCents, replacedProvision };
 }
 
 /**
@@ -133,8 +155,22 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
   const monthDate = monthToDate(month);
   // Antecipações manuais são preservadas: no CSV elas viram "Pagamento
   // recebido" (ignorado), então apagá-las perderia o abatimento.
+  // Provisões de ASSINATURA: só saem se a cobrança real veio no CSV
+  // (descrição correspondente); fatura parcial reimportada antes da cobrança
+  // não pode perder a provisão.
+  const provisions = await prisma.cardTransaction.findMany({
+    where: { cardId: card.id, month: monthDate, subscriptionId: { not: null } },
+  });
+  const chargedProvisionIds = provisions
+    .filter((p) => rows.some((r) => r.amountCents > 0 && descriptionsMatch(p.description, r.description)))
+    .map((p) => p.id);
   await prisma.cardTransaction.deleteMany({
-    where: { cardId: card.id, month: monthDate, prepayment: false },
+    where: {
+      cardId: card.id,
+      month: monthDate,
+      prepayment: false,
+      OR: [{ subscriptionId: null }, { id: { in: chargedProvisionIds } }],
+    },
   });
   if (rows.length > 0) {
     await prisma.cardTransaction.createMany({
@@ -147,8 +183,13 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
       })),
     });
   }
+  // Mantidos: antecipações + provisões de assinatura ainda não cobradas.
   const kept = await prisma.cardTransaction.aggregate({
-    where: { cardId: card.id, month: monthDate, prepayment: true },
+    where: {
+      cardId: card.id,
+      month: monthDate,
+      OR: [{ prepayment: true }, { subscriptionId: { not: null } }],
+    },
     _sum: { amount: true },
   });
   const keptCents = kept._sum.amount ? decimalToCents(String(kept._sum.amount)) : 0;

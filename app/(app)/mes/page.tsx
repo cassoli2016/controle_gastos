@@ -22,6 +22,7 @@ import { PlannedCell } from "./PlannedCell";
 import { AddEntryForm } from "./AddEntryForm";
 import { BulkApplyForm } from "./BulkApplyForm";
 import { PurchaseDialog } from "./PurchaseDialog";
+import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
 import { EntryActions } from "./EntryActions";
 
@@ -104,6 +105,7 @@ function EntryRow({
       installmentId={row.installmentId}
       plannedCents={row.plannedCents}
       canRecur={row.itemId === null && row.cardId === null}
+      isRecurring={row.itemId !== null}
     />
   );
 
@@ -204,6 +206,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
             cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}
           />
+          <IncomeDialog />
           <TransferDialog
             entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
           />

@@ -6,7 +6,7 @@ import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, tr
 import { monthToDate, monthRange } from "@/lib/dates";
 import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
-import { createPurchaseCore, resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
+import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { createRecurrence, convertEntryToRecurring } from "@/lib/recurrence";
 
@@ -14,6 +14,12 @@ import { createRecurrence, convertEntryToRecurring } from "@/lib/recurrence";
 // altera lib/): validam os formulários de excluir lançamento e
 // editar/excluir parcelamento.
 const deleteEntrySchema = z.object({ entryId: z.string().min(1) });
+const incomeSchema = z.object({
+  description: z.string().trim().min(1, "Descrição obrigatória"),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+  recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+});
 const updateInstallmentSchema = z.object({
   installmentId: z.string().min(1),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
@@ -213,6 +219,67 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
   revalidatePath("/mes");
   revalidatePath("/cartoes");
   return { ok: true, count: installments };
+}
+
+/** Lança um recebimento (categoria INCOME); recorrente vira conta fixa. */
+export async function createIncome(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = incomeSchema.safeParse({
+    description: formData.get("description"),
+    amount: formData.get("amount"),
+    date: formData.get("date"),
+    recurring: formData.get("recurring"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { description, amount, date, recurring } = parsed.data;
+  const categoryId = await resolveIncomeCategoryId();
+
+  if (recurring) {
+    const { count } = await createRecurrence({
+      name: description,
+      amount,
+      startMonth: date.slice(0, 7),
+      categoryId,
+      dueDay: Number(date.slice(8, 10)),
+    });
+    revalidatePath("/mes");
+    revalidatePath("/itens");
+    revalidatePath("/dashboard");
+    return { ok: true, count };
+  }
+
+  await createPurchaseCore({
+    description,
+    amount,
+    installments: 1,
+    startMonth: date.slice(0, 7),
+    cardId: null,
+    categoryId,
+    purchaseDateISO: date,
+  });
+  revalidatePath("/mes");
+  revalidatePath("/dashboard");
+  return { ok: true, count: 1 };
+}
+
+/**
+ * Encerra uma recorrência a partir de um lançamento: exclui ESTE lançamento e
+ * todos os futuros do mesmo item, e desativa o item (não volta em "Copiar
+ * mês anterior" nem nos formulários). Meses anteriores ficam como histórico.
+ */
+export async function deleteRecurringForward(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const entryId = formData.get("entryId");
+  if (typeof entryId !== "string" || !entryId) return { error: "Lançamento inválido." };
+  const entry = await prisma.monthlyEntry.findUnique({ where: { id: entryId } });
+  if (!entry) return { error: "Lançamento não encontrado." };
+  if (!entry.itemId) return { error: "Este lançamento não é de uma conta recorrente." };
+
+  const [{ count }] = await prisma.$transaction([
+    prisma.monthlyEntry.deleteMany({ where: { itemId: entry.itemId, month: { gte: entry.month } } }),
+    prisma.item.update({ where: { id: entry.itemId }, data: { active: false } }),
+  ]);
+  revalidatePath("/mes");
+  revalidatePath("/itens");
+  return { ok: true, count };
 }
 
 /** Converte um lançamento avulso em recorrência mensal (cria a conta fixa). */

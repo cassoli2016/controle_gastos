@@ -22,6 +22,8 @@ export type StatementRowView = {
   installmentSeq: number | null;
   installmentCount: number | null;
   prepayment: boolean;
+  /** Provisão de assinatura (ainda não cobrada). */
+  subscription: boolean;
 };
 
 /** Modal com o extrato detalhado da fatura do cartão no mês. */
@@ -71,6 +73,11 @@ export function StatementDialog({
                 {row.prepayment && (
                   <Badge variant="outline" className="shrink-0 text-emerald-600 dark:text-emerald-400">
                     Antecipação
+                  </Badge>
+                )}
+                {row.subscription && (
+                  <Badge variant="outline" className="shrink-0 text-muted-foreground">
+                    Assinatura
                   </Badge>
                 )}
               </span>

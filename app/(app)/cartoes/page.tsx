@@ -11,6 +11,7 @@ import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
 import { StatementDialog, type StatementRowView } from "./StatementDialog";
 import { PrepaymentDialog } from "./PrepaymentDialog";
+import { SubscriptionsDialog, type SubscriptionView } from "./SubscriptionsDialog";
 import { formatCompetencia } from "@/lib/dates";
 import { PurchaseDialog } from "../mes/PurchaseDialog";
 
@@ -25,7 +26,7 @@ export default async function CartoesPage({
   const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [cards, monthEntries, transactions, categories] = await Promise.all([
+  const [cards, monthEntries, transactions, categories, subscriptions] = await Promise.all([
     prisma.creditCard.findMany({ orderBy: { name: "asc" } }),
     prisma.monthlyEntry.findMany({
       where: { month: monthDate, cardId: { not: null } },
@@ -37,6 +38,7 @@ export default async function CartoesPage({
       orderBy: [{ purchaseDate: "asc" }, { createdAt: "asc" }],
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    prisma.cardSubscription.findMany({ where: { active: true }, orderBy: { description: "asc" } }),
   ]);
 
   const activeCards = cards.filter((c) => c.active);
@@ -60,8 +62,17 @@ export default async function CartoesPage({
         installmentSeq: t.installmentSeq,
         installmentCount: t.installmentCount,
         prepayment: t.prepayment,
+        subscription: t.subscriptionId !== null,
       }));
-    return { card, rows, totalCents, paid, hasEntry: entries.length > 0 };
+    const subs: SubscriptionView[] = subscriptions
+      .filter((sub) => sub.cardId === card.id)
+      .map((sub) => ({
+        id: sub.id,
+        description: sub.description,
+        amountCents: decimalToCents(String(sub.amount)),
+        chargeDay: sub.chargeDay,
+      }));
+    return { card, rows, totalCents, paid, hasEntry: entries.length > 0, subs };
   });
 
   const dialogCards = activeCards.map((c) => ({ id: c.id, name: c.name }));
@@ -83,7 +94,7 @@ export default async function CartoesPage({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {invoices.map(({ card, rows, totalCents, paid, hasEntry }) => (
+          {invoices.map(({ card, rows, totalCents, paid, hasEntry, subs }) => (
             <Card key={card.id}>
               <CardHeader className="flex items-center justify-between gap-2 border-b">
                 <div className="flex items-center gap-2">
@@ -115,6 +126,7 @@ export default async function CartoesPage({
                     rows={rows}
                   />
                   <PrepaymentDialog cardId={card.id} cardName={card.name} />
+                  <SubscriptionsDialog cardId={card.id} cardName={card.name} subscriptions={subs} />
                 </div>
                 {rows.length === 0 && (
                   <p className="text-sm text-muted-foreground">

@@ -52,6 +52,23 @@ model CreditCard {
   createdAt DateTime       @default(now())
   entries   MonthlyEntry[]
   transactions CardTransaction[]
+  subscriptions CardSubscription[]
+}
+
+// Assinatura cobrada no cartão (YouTube, Spotify…): provisiona o valor nas
+// faturas futuras (dia da cobrança + fechamento definem o mês). A cobrança
+// real (CSV/share) substitui a provisão do mês — nunca soma em dobro.
+model CardSubscription {
+  id          String     @id @default(cuid())
+  card        CreditCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId      String
+  description String
+  amount      Decimal    @db.Decimal(12, 2)
+  // Dia do mês em que a cobrança acontece (1-31).
+  chargeDay   Int
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  transactions CardTransaction[]
 }
 
 // Extrato do cartão: cada compra/estorno individual que compõe o lançamento
@@ -71,6 +88,11 @@ model CardTransaction {
   // preservado quando o CSV substitui o mês (no CSV ele vira "Pagamento
   // recebido", que é ignorado — sem a flag o reimport apagaria o abatimento).
   prepayment       Boolean    @default(false)
+  // Provisão de assinatura (aponta para o cadastro): substituída pela
+  // cobrança real quando ela chega (CSV substitui o mês; share troca a
+  // provisão de descrição correspondente).
+  subscription     CardSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  subscriptionId   String?
   createdAt        DateTime   @default(now())
 
   @@index([cardId, month])

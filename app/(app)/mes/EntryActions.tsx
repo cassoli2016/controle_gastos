@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import { deleteEntry, makeRecurring, type ActionState } from "./actions";
+import { deleteEntry, deleteRecurringForward, makeRecurring, type ActionState } from "./actions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ export function EntryActions({
   installmentId,
   plannedCents,
   canRecur = false,
+  isRecurring = false,
 }: {
   entryId: string;
   label: string;
@@ -36,6 +37,8 @@ export function EntryActions({
   plannedCents: number;
   /** Avulso sem cartão e sem item: pode virar recorrência mensal (conta fixa). */
   canRecur?: boolean;
+  /** Lançamento de conta recorrente (item): excluir pergunta se encerra os futuros. */
+  isRecurring?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(deleteEntry, {});
   useActionToast(state, { success: "Lançamento excluído." });
@@ -46,6 +49,16 @@ export function EntryActions({
   if (state !== seenState) {
     setSeenState(state);
     if (state.ok) setOpen(false);
+  }
+
+  const [endState, endAction, endPending] = useActionState<ActionState, FormData>(deleteRecurringForward, {});
+  useActionToast(endState, {
+    success: (st) => `Recorrência encerrada (${st.count ?? 0} lançamentos excluídos).`,
+  });
+  const [seenEndState, setSeenEndState] = useState(endState);
+  if (endState !== seenEndState) {
+    setSeenEndState(endState);
+    if (endState.ok) setOpen(false);
   }
 
   const [recurState, recurAction, recurPending] = useActionState<ActionState, FormData>(makeRecurring, {});
@@ -99,20 +112,46 @@ export function EntryActions({
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir lançamento?</AlertDialogTitle>
+            <AlertDialogTitle>{isRecurring ? "Excluir lançamento recorrente?" : "Excluir lançamento?"}</AlertDialogTitle>
             <AlertDialogDescription>
-              O lançamento &quot;{label}&quot; deste mês será excluído. Esta ação não pode ser desfeita.
+              {isRecurring ? (
+                <>
+                  &quot;{label}&quot; é uma conta recorrente. Você pode excluir só o lançamento
+                  deste mês (os demais ficam) ou encerrar a recorrência — excluindo este e
+                  TODOS os meses futuros. Esta ação não pode ser desfeita.
+                </>
+              ) : (
+                <>O lançamento &quot;{label}&quot; deste mês será excluído. Esta ação não pode ser desfeita.</>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <form action={formAction}>
-            <input type="hidden" name="entryId" value={entryId} />
-            <AlertDialogFooter>
-              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
-              <AlertDialogAction type="submit" variant="destructive" disabled={pending}>
-                Excluir
-              </AlertDialogAction>
+          {isRecurring ? (
+            <AlertDialogFooter className="flex-col gap-2 sm:flex-col sm:items-stretch sm:justify-stretch sm:space-x-0">
+              <form action={formAction} className="contents">
+                <input type="hidden" name="entryId" value={entryId} />
+                <Button type="submit" variant="outline" disabled={pending || endPending}>
+                  Excluir só este mês
+                </Button>
+              </form>
+              <form action={endAction} className="contents">
+                <input type="hidden" name="entryId" value={entryId} />
+                <Button type="submit" variant="destructive" disabled={pending || endPending}>
+                  Excluir este e todos os futuros
+                </Button>
+              </form>
+              <AlertDialogCancel type="button" className="mt-0">Cancelar</AlertDialogCancel>
             </AlertDialogFooter>
-          </form>
+          ) : (
+            <form action={formAction}>
+              <input type="hidden" name="entryId" value={entryId} />
+              <AlertDialogFooter>
+                <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+                <AlertDialogAction type="submit" variant="destructive" disabled={pending}>
+                  Excluir
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </div>
