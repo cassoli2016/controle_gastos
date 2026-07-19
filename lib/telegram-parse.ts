@@ -2,12 +2,15 @@ export type ParsedExpense = {
   description: string;
   amountReais: number;
   installments: number;
-  /** Palavras após o valor que não são "Nx" — usadas para casar o cartão pelo nome. */
+  /** Palavras após o valor que não são "Nx" nem keyword — casam o cartão pelo nome. */
   cardHint: string | null;
+  /** "mensal"/"recorrente" após o valor: recorrência mensal (vira conta fixa). */
+  recurring: boolean;
 };
 
 const AMOUNT_RE = /^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:[.,]\d{1,2})?$/;
 const INSTALLMENTS_RE = /^(\d{1,3})x$/i;
+const RECURRING_RE = /^(mensal|recorrente)$/i;
 
 function parseAmount(token: string): number {
   // "1.299,90" (pt-BR) ou "512.30"/"300" (decimal com ponto)
@@ -34,10 +37,12 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
   const description = tokens.slice(0, amountIdx).join(" ");
 
   let installments = 1;
+  let recurring = false;
   const cardWords: string[] = [];
   for (const t of tokens.slice(amountIdx + 1)) {
     const m = INSTALLMENTS_RE.exec(t);
     if (m) installments = Math.max(1, parseInt(m[1], 10));
+    else if (RECURRING_RE.test(t)) recurring = true;
     else cardWords.push(t);
   }
 
@@ -46,6 +51,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     amountReais,
     installments,
     cardHint: cardWords.length > 0 ? cardWords.join(" ").toLowerCase() : null,
+    recurring,
   };
 }
 

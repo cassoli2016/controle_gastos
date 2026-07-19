@@ -8,6 +8,7 @@ import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
+import { createRecurrence, convertEntryToRecurring } from "@/lib/recurrence";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -141,12 +142,32 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     amount: formData.get("amount"),
     installments: formData.get("installments"),
     date: formData.get("date"),
+    recurring: formData.get("recurring"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { description, amount, installments, date } = parsed.data;
+  const { description, amount, installments, date, recurring } = parsed.data;
 
   // cardId vazio (ou o sentinel "sem cartão" do Select) vira null.
   const cardId = parsed.data.cardId && parsed.data.cardId !== "none" ? parsed.data.cardId : null;
+
+  // Recorrência mensal: vira conta fixa (Item) provisionada nos próximos
+  // meses. Não se aplica a cartão — assinatura no cartão entra pela fatura.
+  if (recurring) {
+    if (cardId)
+      return { error: "Recorrência no cartão não é provisionada — ela entra todo mês pela fatura importada." };
+    const categoryId =
+      parsed.data.categoryId && parsed.data.categoryId !== "default" ? parsed.data.categoryId : null;
+    const { count } = await createRecurrence({
+      name: description,
+      amount,
+      startMonth: date.slice(0, 7),
+      categoryId,
+      dueDay: Number(date.slice(8, 10)),
+    });
+    revalidatePath("/mes");
+    revalidatePath("/itens");
+    return { ok: true, count };
+  }
 
   // Compra NO CARTÃO: a data + dia de fechamento decidem a 1ª fatura; soma no
   // lançamento consolidado (1 por mês) e registra no extrato — modelo do bot.
@@ -192,6 +213,17 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
   revalidatePath("/mes");
   revalidatePath("/cartoes");
   return { ok: true, count: installments };
+}
+
+/** Converte um lançamento avulso em recorrência mensal (cria a conta fixa). */
+export async function makeRecurring(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const entryId = formData.get("entryId");
+  if (typeof entryId !== "string" || !entryId) return { error: "Lançamento inválido." };
+  const result = await convertEntryToRecurring(entryId);
+  if (!result.ok) return { error: result.error };
+  revalidatePath("/mes");
+  revalidatePath("/itens");
+  return { ok: true, count: result.count };
 }
 
 /**

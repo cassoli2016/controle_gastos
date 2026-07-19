@@ -8,6 +8,7 @@ describe("parseExpenseMessage", () => {
       amountReais: 42.5,
       installments: 1,
       cardHint: null,
+      recurring: false,
     });
   });
   it("descrição + valor + cartão", () => {
@@ -16,6 +17,7 @@ describe("parseExpenseMessage", () => {
       amountReais: 42.5,
       installments: 1,
       cardHint: "nubank",
+      recurring: false,
     });
   });
   it("parcelado + cartão (ordem livre depois do valor)", () => {
@@ -24,12 +26,14 @@ describe("parseExpenseMessage", () => {
       amountReais: 300,
       installments: 3,
       cardHint: "nubank",
+      recurring: false,
     });
     expect(parseExpenseMessage("geladeira 1.299,90 3x amazon")).toEqual({
       description: "geladeira",
       amountReais: 1299.9,
       installments: 3,
       cardHint: "amazon",
+      recurring: false,
     });
   });
   it("descrição com várias palavras", () => {
@@ -38,6 +42,7 @@ describe("parseExpenseMessage", () => {
       amountReais: 512.3,
       installments: 1,
       cardHint: null,
+      recurring: false,
     });
   });
   it("inválidos retornam null", () => {
@@ -45,6 +50,35 @@ describe("parseExpenseMessage", () => {
     expect(parseExpenseMessage("42,50")).toBeNull(); // sem descrição
     expect(parseExpenseMessage("")).toBeNull();
     expect(parseExpenseMessage("almoço 0")).toBeNull(); // valor zero
+  });
+});
+
+describe("recorrência mensal (palavra-chave)", () => {
+  it("'mensal' após o valor marca recorrência (não vira cardHint)", () => {
+    expect(parseExpenseMessage("internet 120 mensal")).toEqual({
+      description: "internet",
+      amountReais: 120,
+      installments: 1,
+      cardHint: null,
+      recurring: true,
+    });
+  });
+  it("'recorrente' também funciona, combinado com outras palavras de cartão", () => {
+    expect(parseExpenseMessage("academia 99,90 recorrente")).toEqual({
+      description: "academia",
+      amountReais: 99.9,
+      installments: 1,
+      cardHint: null,
+      recurring: true,
+    });
+    // keyword + cartão: recorrente é extraído e o resto vira cardHint
+    expect(parseExpenseMessage("spotify 21,90 nubank mensal")).toEqual({
+      description: "spotify",
+      amountReais: 21.9,
+      installments: 1,
+      cardHint: "nubank",
+      recurring: true,
+    });
   });
 });
 
@@ -60,6 +94,7 @@ describe("parseExpenseLines", () => {
       amountReais: 54.9,
       installments: 1,
       cardHint: "nubank",
+      recurring: false,
     });
     expect(entries[2].cardHint).toBeNull();
   });

@@ -29,10 +29,14 @@ export function PurchaseDialog({
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(createPurchase, {});
   useActionToast(state, {
-    success: (s) => `Compra em ${s.count ?? 0} parcela(s) lançada.`,
+    success: (s) =>
+      recurring
+        ? `Recorrência mensal criada (${s.count ?? 0} meses provisionados).`
+        : `Compra em ${s.count ?? 0} parcela(s) lançada.`,
   });
 
   const [open, setOpen] = useState(false);
+  const [recurring, setRecurring] = useState(false);
   // Mesmo padrão do AddEntryForm/BulkApplyForm: fecha o dialog ao detectar
   // sucesso durante a renderização; reabrir remonta o formulário "zerado".
   const [seenState, setSeenState] = useState(state);
@@ -102,7 +106,7 @@ export function PurchaseDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="purchase-amount">Valor da parcela</Label>
+              <Label htmlFor="purchase-amount">{recurring ? "Valor mensal" : "Valor da parcela"}</Label>
               <CurrencyInput id="purchase-amount" name="amount" />
             </div>
             <div className="flex flex-col gap-1.5">
@@ -115,9 +119,21 @@ export function PurchaseDialog({
                 max={120}
                 defaultValue={1}
                 required
+                disabled={recurring}
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="recurring"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            Recorrência mensal (vira conta fixa provisionada nos próximos 12 meses)
+          </label>
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="purchase-date">Data da compra</Label>

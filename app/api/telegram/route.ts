@@ -7,6 +7,7 @@ import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { createRecurrence } from "@/lib/recurrence";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -27,7 +28,8 @@ type TelegramUpdate = {
 const HELP =
   "Jeitos de lançar:\n" +
   "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
-  '• Texto: "descrição valor [cartão] [Nx]" — uma ou várias linhas\n' +
+  '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
+  '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
   "• Fatura: envie o .csv do banco com o cartão na legenda (substitui o total do mês)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -239,10 +241,22 @@ async function handleBatchText(chatId: number, text: string) {
 
   const defaultMonth = await resolveDefaultMonth();
 
-  // Linhas com cartão: acumula centavos por (cartão, mês) — parcelas Nx
-  // espalham o valor POR parcela nos meses seguintes.
-  const cardLines = entries.filter((e) => e.cardHint !== null);
-  const plainLines = entries.filter((e) => e.cardHint === null);
+  // Recorrências ("mensal") viram contas fixas; as demais seguem o fluxo
+  // normal (cartão consolida, sem cartão vira avulso).
+  const recurringLines = entries.filter((e) => e.recurring && e.cardHint === null);
+  const recurringOnCard = entries.filter((e) => e.recurring && e.cardHint !== null);
+  const normal = entries.filter((e) => !e.recurring);
+  const cardLines = normal.filter((e) => e.cardHint !== null);
+  const plainLines = normal.filter((e) => e.cardHint === null);
+
+  for (const e of recurringLines) {
+    await createRecurrence({
+      name: e.description,
+      amount: e.amountReais,
+      startMonth: defaultMonth,
+      dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+    });
+  }
 
   const perCard = new Map<string, { card: CardRef; cents: number; months: Set<string> }>();
   for (const e of cardLines) {
@@ -279,6 +293,10 @@ async function handleBatchText(chatId: number, text: string) {
     lines.push(`💳 ${card.name}: +${formatCents(cents)} · ${fmtMonthSpan(sorted)}`);
   }
   if (plainSummary) lines.push(plainSummary);
+  if (recurringLines.length > 0)
+    lines.push(`🔁 ${recurringLines.length} recorrência(s) mensal(is) criada(s) a partir de ${fmtMonth(defaultMonth)}`);
+  if (recurringOnCard.length > 0)
+    lines.push(`⚠️ ${recurringOnCard.length} linha(s) "mensal + cartão" puladas — recorrência no cartão entra pela fatura`);
   let msg = `✅ ${entries.length} despesas processadas\n${lines.join("\n")}`;
   if (failedLines.length > 0) {
     const shown = failedLines.slice(0, 5).map((l) => `• ${l}`);
@@ -297,6 +315,28 @@ async function handleSingleText(chatId: number, text: string) {
 
   const amountCents = Math.round(parsed.amountReais * 100);
   const defaultMonth = await resolveDefaultMonth();
+
+  if (parsed.recurring) {
+    if (parsed.cardHint) {
+      await reply(
+        chatId,
+        "Recorrência no cartão não precisa ser provisionada — ela entra todo mês pela fatura (CSV ou compartilhamento). Lance sem o nome do cartão para criar uma conta fixa.",
+      );
+      return;
+    }
+    const { count, months } = await createRecurrence({
+      name: parsed.description,
+      amount: parsed.amountReais,
+      startMonth: defaultMonth,
+      dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+    });
+    revalidateAll();
+    await reply(
+      chatId,
+      `🔁 Recorrência mensal criada: ${parsed.description} — ${formatCents(amountCents)}/mês de ${fmtMonth(months[0])} a ${fmtMonth(months[count - 1])}.\nEdite valor/reajuste anual em Itens.`,
+    );
+    return;
+  }
 
   if (parsed.cardHint) {
     const card = await findCardByHint(parsed.cardHint);

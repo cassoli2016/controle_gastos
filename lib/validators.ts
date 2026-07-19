@@ -53,6 +53,8 @@ export const purchaseSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   installments: z.coerce.number().int().min(1).max(120),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+  // Checkbox "recorrência mensal": presente no FormData ("on") quando marcado.
+  recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
 });
 
 export const applyRangeSchema = z

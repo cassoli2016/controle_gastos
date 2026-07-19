@@ -103,6 +103,7 @@ function EntryRow({
       label={row.itemName}
       installmentId={row.installmentId}
       plannedCents={row.plannedCents}
+      canRecur={row.itemId === null && row.cardId === null}
     />
   );
 

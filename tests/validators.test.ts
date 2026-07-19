@@ -44,16 +44,28 @@ describe("validators", () => {
   });
 
   it("purchaseSchema aceita compra válida", () => {
-    expect(
-      purchaseSchema.safeParse({
-        cardId: "c1",
-        description: "Notebook",
-        categoryId: "cat1",
-        amount: 3500,
-        installments: 10,
-        startMonth: "2026-08",
-      }).success,
-    ).toBe(true);
+    const parsed = purchaseSchema.safeParse({
+      cardId: "c1",
+      description: "Notebook",
+      categoryId: "cat1",
+      amount: 3500,
+      installments: 10,
+      date: "2026-08-15",
+      recurring: null, // checkbox desmarcado: ausente do FormData
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurring).toBe(false);
+  });
+  it("purchaseSchema: checkbox 'on' vira recurring true", () => {
+    const parsed = purchaseSchema.safeParse({
+      description: "Academia",
+      amount: 99.9,
+      installments: 1,
+      date: "2026-08-01",
+      recurring: "on",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurring).toBe(true);
   });
   it("purchaseSchema rejeita amount 0", () => {
     expect(

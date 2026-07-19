@@ -1,6 +1,6 @@
 "use client";
 import { useActionState, useState } from "react";
-import { deleteEntry, type ActionState } from "./actions";
+import { deleteEntry, makeRecurring, type ActionState } from "./actions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { InstallmentDialog } from "./InstallmentDialog";
-import { X } from "lucide-react";
+import { X, Repeat } from "lucide-react";
 
 /**
  * Ações por linha da tela do Mês: excluir o lançamento (qualquer linha —
@@ -28,11 +28,14 @@ export function EntryActions({
   label,
   installmentId,
   plannedCents,
+  canRecur = false,
 }: {
   entryId: string;
   label: string;
   installmentId: string | null;
   plannedCents: number;
+  /** Avulso sem cartão e sem item: pode virar recorrência mensal (conta fixa). */
+  canRecur?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(deleteEntry, {});
   useActionToast(state, { success: "Lançamento excluído." });
@@ -45,8 +48,46 @@ export function EntryActions({
     if (state.ok) setOpen(false);
   }
 
+  const [recurState, recurAction, recurPending] = useActionState<ActionState, FormData>(makeRecurring, {});
+  useActionToast(recurState, {
+    success: (st) => `Recorrência criada (${st.count ?? 0} meses). Edite em Itens.`,
+  });
+  const [recurOpen, setRecurOpen] = useState(false);
+  const [seenRecurState, setSeenRecurState] = useState(recurState);
+  if (recurState !== seenRecurState) {
+    setSeenRecurState(recurState);
+    if (recurState.ok) setRecurOpen(false);
+  }
+
   return (
     <div className="flex items-center justify-end gap-1">
+      {canRecur && (
+        <AlertDialog open={recurOpen} onOpenChange={setRecurOpen}>
+          <AlertDialogTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Tornar recorrente">
+              <Repeat />
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Tornar recorrência mensal?</AlertDialogTitle>
+              <AlertDialogDescription>
+                &quot;{label}&quot; vira uma conta fixa com o mesmo valor, provisionada nos
+                próximos 12 meses (ajuste valor e reajuste anual em Itens).
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <form action={recurAction}>
+              <input type="hidden" name="entryId" value={entryId} />
+              <AlertDialogFooter>
+                <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+                <AlertDialogAction type="submit" disabled={recurPending}>
+                  Tornar recorrente
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </form>
+          </AlertDialogContent>
+        </AlertDialog>
+      )}
       {installmentId && (
         <InstallmentDialog installmentId={installmentId} plannedCents={plannedCents} label={label} />
       )}
