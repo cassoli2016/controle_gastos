@@ -4,7 +4,8 @@ import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components
 import { Badge } from "@/components/ui/badge";
 import { MonthNav } from "@/components/MonthNav";
 import { StatCard } from "@/components/StatCard";
-import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { monthToDate } from "@/lib/dates";
+import { resolveDefaultMonth } from "@/lib/default-month";
 import { decimalToCents, sumCents, formatCents } from "@/lib/money";
 import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
@@ -25,7 +26,7 @@ export default async function CartoesPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { month: qMonth } = await searchParams;
-  const month = qMonth ?? monthStringFromDate(new Date());
+  const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
   const [cards, monthEntries, categories] = await Promise.all([

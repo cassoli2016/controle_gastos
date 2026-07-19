@@ -1,6 +1,7 @@
 import { TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { monthToDate, monthStringFromDate, formatCompetencia } from "@/lib/dates";
+import { monthToDate, formatCompetencia } from "@/lib/dates";
+import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
@@ -13,7 +14,7 @@ import { RankingBars } from "@/components/charts/RankingBars";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
-  const month = qMonth ?? monthStringFromDate(new Date());
+  const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
   const rows = await prisma.monthlyEntry.findMany({
