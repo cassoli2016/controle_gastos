@@ -10,6 +10,8 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
 import { createWeekdayRecurrence } from "@/lib/recurrence";
+import { calcPortfolio, formatPct } from "@/lib/investments";
+import { decimalToCents } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
@@ -38,6 +40,7 @@ const HELP =
   '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
   '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
+  '• "carteira": resumo dos investimentos\n' +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
 async function reply(chatId: number, text: string) {
@@ -595,6 +598,34 @@ export async function POST(req: Request) {
 
   if (text === "/start" || text === "/help" || /^ajuda$/i.test(text)) {
     await reply(chatId, HELP);
+    return NextResponse.json({ ok: true });
+  }
+
+  // Resumo da carteira de investimentos.
+  if (/^carteira$/i.test(text)) {
+    const assets = await prisma.investmentAsset.findMany({
+      where: { active: true, quantity: { gt: 0 } },
+      orderBy: { ticker: "asc" },
+    });
+    if (assets.length === 0) {
+      await reply(chatId, "Carteira vazia — cadastre posições em Investimentos.");
+      return NextResponse.json({ ok: true });
+    }
+    const totals = calcPortfolio(
+      assets.map((a) => ({
+        quantity: a.quantity,
+        avgPriceCents: Number(a.avgPrice) * 100,
+        lastPriceCents: a.lastPrice !== null ? Math.round(Number(a.lastPrice) * 100) : null,
+      })),
+    );
+    const pendings = await prisma.dividend.findMany({ where: { received: false }, include: { asset: true } });
+    const pendingCents = pendings.reduce((acc, d) => acc + decimalToCents(String(d.net)), 0);
+    const lines = [
+      `📈 Carteira: ${formatCents(totals.valueCents)} (${formatPct(totals.resultPct)})`,
+      `Custo: ${formatCents(totals.costCents)} · Resultado: ${formatCents(totals.resultCents)}`,
+      `Proventos a receber: ${formatCents(pendingCents)} (${pendings.length})`,
+    ];
+    await reply(chatId, lines.join("\n"));
     return NextResponse.json({ ok: true });
   }
 

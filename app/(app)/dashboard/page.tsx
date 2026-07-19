@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves } from "@/lib/planning";
@@ -34,7 +35,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hasExpenses = ranking.length > 0;
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
-  const [negativeMonths, reserves] = await Promise.all([getNegativeMonths(), getReserves()]);
+  const [negativeMonths, reserves, investAssets] = await Promise.all([
+    getNegativeMonths(),
+    getReserves(),
+    prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
+  ]);
+  const portfolio = calcPortfolio(
+    investAssets.map((a) => ({
+      quantity: a.quantity,
+      avgPriceCents: Number(a.avgPrice) * 100,
+      lastPriceCents: a.lastPrice !== null ? Math.round(Number(a.lastPrice) * 100) : null,
+    })),
+  );
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
 
@@ -76,7 +88,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader className="flex items-center justify-between gap-2">
             <CardTitle>Meses no vermelho</CardTitle>
@@ -110,6 +122,26 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 </ul>
               </>
             )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Investimentos</CardTitle>
+            <TrendingUp className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <div className="text-2xl font-bold tabular-nums">{formatCents(portfolio.valueCents)}</div>
+              <p className="text-xs text-muted-foreground">
+                {investAssets.length === 0
+                  ? "Nenhuma posição ainda"
+                  : `${investAssets.length} ativos · resultado ${formatCents(portfolio.resultCents)} (${formatPct(portfolio.resultPct)})`}
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/investimentos">Ver carteira</Link>
+            </Button>
           </CardContent>
         </Card>
 

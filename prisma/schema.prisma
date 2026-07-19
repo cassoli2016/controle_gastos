@@ -139,3 +139,43 @@ model ReserveBox {
   amount    Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now())
 }
+
+// ============ INVESTIMENTOS (v1: Ações B3 + Dividendos) ============
+
+// Posição na carteira: cotas + preço médio; cotação cacheada via brapi.dev.
+model InvestmentAsset {
+  id        String     @id @default(cuid())
+  ticker    String     @unique // "BBSE3"
+  name      String? // nome da empresa (vem da brapi)
+  segment   String? // "SEGUROS" (organização do usuário)
+  class     String     @default("STOCK") // v2: FII, CRYPTO…
+  quantity  Int        @default(0)
+  avgPrice  Decimal    @default(0) @db.Decimal(12, 4)
+  lastPrice Decimal?   @db.Decimal(12, 4)
+  priceAt   DateTime?
+  active    Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  dividends Dividend[]
+}
+
+// Evento de provento (dividendo/JSCP): agenda + recebimento. Ao marcar
+// recebido vira um MonthlyEntry (categoria Dividendos, INCOME) — entryId
+// evita duplicar.
+model Dividend {
+  id        String          @id @default(cuid())
+  asset     InvestmentAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+  type      String // "Dividendos" | "JSCP" | "Rendimento"
+  exDate    DateTime?       @db.Date
+  payDate   DateTime        @db.Date
+  quantity  Int
+  unitValue Decimal         @db.Decimal(12, 6)
+  gross     Decimal         @db.Decimal(12, 2)
+  net       Decimal         @db.Decimal(12, 2)
+  received  Boolean         @default(false)
+  entryId   String?
+  createdAt DateTime        @default(now())
+
+  @@index([assetId, payDate])
+  @@index([received, payDate])
+}
