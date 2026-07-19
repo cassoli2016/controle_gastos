@@ -47,10 +47,13 @@ function EntryRow({
   row,
   month,
   variant,
+  income,
 }: {
   row: DisplayRow;
   month: string;
   variant: "desktop" | "mobile";
+  /** Grupo de receita: PayCell e labels usam "Receber/Recebido". */
+  income: boolean;
 }) {
   // Item fixo: edição inline via PlannedCell. Lançamento avulso/parcela (sem
   // itemId): mostra o valor; a edição desse valor acontece via "editar
@@ -68,6 +71,7 @@ function EntryRow({
       paid={row.paid}
       paidCents={row.paidCents}
       paidDate={row.paidDate}
+      income={income}
     />
   );
   // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
@@ -126,7 +130,7 @@ function EntryRow({
           {planned}
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="text-xs text-muted-foreground">Pago</span>
+          <span className="text-xs text-muted-foreground">{income ? "Recebido" : "Pago"}</span>
           {pay}
         </div>
       </div>
@@ -236,13 +240,15 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Item</th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia venc</th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Previsto</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Pago</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">
+                            {g.categoryType === "INCOME" ? "Recebido" : "Pago"}
+                          </th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Ações</th>
                         </tr>
                       </thead>
                       <tbody>
                         {g.rows.map((row) => (
-                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" />
+                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} />
                         ))}
                       </tbody>
                     </table>
@@ -251,7 +257,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                   {/* Mobile: mini-cards empilhados */}
                   <div className="md:hidden divide-y">
                     {g.rows.map((row) => (
-                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" />
+                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} />
                     ))}
                   </div>
                 </CardContent>

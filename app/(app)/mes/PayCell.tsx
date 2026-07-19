@@ -27,15 +27,18 @@ export function PayCell({
   paid,
   paidCents,
   paidDate,
+  income = false,
 }: {
   entryId: string;
   plannedCents: number;
   paid: boolean;
   paidCents: number | null;
   paidDate: Date | null;
+  /** Receita (categoria INCOME): vocabulário "Receber/Recebido" em vez de "Pagar/Pago". */
+  income?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(markPaid, {});
-  useActionToast(state, { success: "Pagamento atualizado." });
+  useActionToast(state, { success: income ? "Recebimento atualizado." : "Pagamento atualizado." });
 
   const [open, setOpen] = useState(false);
   // Fecha o popover assim que a action retorna sucesso (padrão "adjust state
@@ -66,7 +69,7 @@ export function PayCell({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button type="button" size="sm">
-          Pagar
+          {income ? "Receber" : "Pagar"}
         </Button>
       </PopoverTrigger>
       <PopoverContent>
@@ -75,13 +78,13 @@ export function PayCell({
           <input type="hidden" name="paid" value="true" />
           <div className="flex flex-col gap-1">
             <label htmlFor={`paidAmount-${entryId}`} className="text-xs text-muted-foreground">
-              Valor pago
+              {income ? "Valor recebido" : "Valor pago"}
             </label>
             <CurrencyInput id={`paidAmount-${entryId}`} name="paidAmount" defaultCents={plannedCents} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor={`paidDate-${entryId}`} className="text-xs text-muted-foreground">
-              Data do pagamento
+              {income ? "Data do recebimento" : "Data do pagamento"}
             </label>
             <Input id={`paidDate-${entryId}`} type="date" name="paidDate" defaultValue={todayISO()} required />
           </div>
