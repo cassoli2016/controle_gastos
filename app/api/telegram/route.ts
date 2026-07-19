@@ -8,6 +8,7 @@ import { createPurchaseCore, createPurchasesBatch } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
+import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -30,7 +31,7 @@ const HELP =
   "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
   '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
   '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
-  "• Fatura: envie o .csv do banco com o cartão na legenda (substitui o total do mês)\n" +
+  "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
 async function reply(chatId: number, text: string) {
@@ -112,15 +113,33 @@ async function handleCsvDocument(
     await reply(chatId, "Arquivo muito grande (máx. 1 MB).");
     return;
   }
+  // Cartão da fatura: legenda (se o cliente permitir) → nome do arquivo →
+  // cartão único cadastrado. Ambíguo/nenhum: orienta a renomear o arquivo.
+  let card: CardRef | null = null;
   const hint = caption?.trim().toLowerCase();
-  if (!hint) {
-    await reply(chatId, "Escreva o nome do cartão na LEGENDA do arquivo (ex.: nubank) para eu saber de qual fatura se trata.");
-    return;
-  }
-  const card = await findCardByHint(hint);
-  if (!card) {
-    await reply(chatId, CARD_NOT_FOUND(hint));
-    return;
+  if (hint) {
+    card = await findCardByHint(hint);
+    if (!card) {
+      await reply(chatId, CARD_NOT_FOUND(hint));
+      return;
+    }
+  } else {
+    const activeCards = await prisma.creditCard.findMany({ where: { active: true } });
+    const matches = matchCardsByFileName(doc.file_name, activeCards);
+    if (matches.length === 1) {
+      card = { id: matches[0].id, name: matches[0].name, closingDay: matches[0].closingDay };
+    } else if (matches.length === 0 && activeCards.length === 1) {
+      card = { id: activeCards[0].id, name: activeCards[0].name, closingDay: activeCards[0].closingDay };
+    } else {
+      const names = activeCards.map((c) => c.name).join(", ");
+      await reply(
+        chatId,
+        matches.length > 1
+          ? `O nome do arquivo casa com mais de um cartão (${matches.map((m) => m.name).join(", ")}). Renomeie o arquivo com o nome exato de um deles.`
+          : `Não identifiquei o cartão desta fatura. Renomeie o arquivo para conter o nome do cartão (ex.: "nubank.csv") ou envie com o nome na legenda.\nCartões cadastrados: ${names}.`,
+      );
+      return;
+    }
   }
 
   const content = await downloadTelegramFile(doc.file_id);
