@@ -7,6 +7,7 @@ import { monthToDate, monthRange } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
 import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
+import { createPurchaseCore, resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -17,9 +18,6 @@ const updateInstallmentSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
 });
 const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
-
-/** Nome/cor da categoria padrão usada quando uma compra avulsa não informa categoria. */
-const DEFAULT_PURCHASE_CATEGORY = { name: "Cartão/Compras", type: "EXPENSE" as const, color: "#64748b" };
 
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
 export type ActionState = { error?: string; ok?: boolean; count?: number };
@@ -131,18 +129,6 @@ export async function copyPreviousMonthAction(_prevState: ActionState, formData:
 }
 
 /**
- * Busca a categoria padrão "Cartão/Compras"; cria se ainda não existir.
- * Find-or-create simples (Category.name não tem constraint única no schema,
- * então usamos findFirst + create em vez de upsert).
- */
-async function resolveDefaultPurchaseCategoryId(): Promise<string> {
-  const existing = await prisma.category.findFirst({ where: { name: DEFAULT_PURCHASE_CATEGORY.name } });
-  if (existing) return existing.id;
-  const created = await prisma.category.create({ data: DEFAULT_PURCHASE_CATEGORY });
-  return created.id;
-}
-
-/**
  * Lança uma compra (avulsa ou parcelada): valida o formulário, resolve
  * cartão/categoria opcionais e cria 1 MonthlyEntry por parcela numa única
  * transação, todas ligadas pelo mesmo installmentId.
@@ -169,25 +155,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
       ? parsed.data.categoryId
       : await resolveDefaultPurchaseCategoryId();
 
-  const months = installmentMonths(startMonth, installments);
-  const installmentId = crypto.randomUUID();
-
-  await prisma.$transaction(async (tx) => {
-    for (let seq = 0; seq < months.length; seq++) {
-      await tx.monthlyEntry.create({
-        data: {
-          installmentId,
-          installmentSeq: seq + 1,
-          installmentCount: installments,
-          description,
-          categoryId,
-          cardId,
-          month: monthToDate(months[seq]),
-          plannedAmount: amount,
-        },
-      });
-    }
-  });
+  await createPurchaseCore({ description, amount, installments, startMonth, cardId, categoryId });
 
   revalidatePath("/mes");
   revalidatePath("/cartoes");

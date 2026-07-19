@@ -21,7 +21,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
           </SheetTrigger>
           <SheetContent side="left" className="w-64">
             <SheetTitle className="flex items-center gap-2 px-2 py-3">
-              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <span className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-violet-600 text-white">
                 <Wallet className="size-4" />
               </span>
               Grana
@@ -44,7 +44,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
         </Sheet>
       </div>
       <Link href="/dashboard" className="flex items-center gap-2.5">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 text-white shadow-sm">
           <Wallet className="size-4.5" />
         </span>
         <span className="text-[15px] font-semibold tracking-tight">Grana</span>
