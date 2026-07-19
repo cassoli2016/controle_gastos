@@ -14,6 +14,7 @@ export const itemSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   categoryId: z.string().min(1, "Categoria obrigatória"),
   dueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  renewalMonth: z.coerce.number().int().min(1).max(12).nullable().optional(),
   active: z.boolean().default(true),
   notes: z.string().trim().optional(),
 });

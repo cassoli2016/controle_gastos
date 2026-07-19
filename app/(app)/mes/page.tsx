@@ -30,6 +30,7 @@ type DisplayRow = EntryView & {
   entryId: string;
   itemId: string | null;
   dueDay: number | null;
+  renewsThisMonth: boolean;
   purchaseDate: Date | null;
   paidDate: Date | null;
   cardId: string | null;
@@ -88,12 +89,17 @@ function EntryRow({
   // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
   // parcelado em mais de 1 vez (count=1 não exibe "1/1", só o badge do cartão).
   const isMultiInstallment = (row.installmentCount ?? 0) > 1;
-  const badges = (row.cardName || isMultiInstallment) && (
+  const badges = (row.cardName || isMultiInstallment || row.renewsThisMonth) && (
     <span className="flex items-center gap-1 flex-wrap">
       {row.cardName && <Badge variant="outline">{row.cardName}</Badge>}
       {isMultiInstallment && (
         <Badge variant="secondary">
           {row.installmentSeq}/{row.installmentCount}
+        </Badge>
+      )}
+      {row.renewsThisMonth && (
+        <Badge variant="outline" className="border-amber-500/50 text-amber-600 dark:text-amber-400">
+          Renovação ⚠️
         </Badge>
       )}
     </span>
@@ -173,6 +179,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     entryId: r.id,
     itemId: r.itemId,
     dueDay: r.item?.dueDay ?? null,
+    renewsThisMonth: r.item?.renewalMonth === monthDate.getUTCMonth() + 1,
     purchaseDate: r.purchaseDate,
     paidDate: r.paidDate,
     cardId: r.cardId,

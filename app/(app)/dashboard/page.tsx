@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { upcomingRenewals, renewalLabel, MONTH_NAMES } from "@/lib/renewals";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
-import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank, BellRing } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves } from "@/lib/planning";
 import { Button } from "@/components/ui/button";
@@ -35,11 +37,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hasExpenses = ranking.length > 0;
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
-  const [negativeMonths, reserves, investAssets] = await Promise.all([
+  const [negativeMonths, reserves, investAssets, renewalItems] = await Promise.all([
     getNegativeMonths(),
     getReserves(),
     prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
+    prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
   ]);
+  const renewals = upcomingRenewals(
+    renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
+    Number(todayISOInSaoPaulo().slice(5, 7)),
+  );
   const portfolio = calcPortfolio(
     investAssets.map((a) => ({
       quantity: a.quantity,
@@ -88,7 +95,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex items-center justify-between gap-2">
             <CardTitle>Meses no vermelho</CardTitle>
@@ -177,6 +184,41 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             )}
             <Button asChild variant="outline" size="sm">
               <Link href="/reservas">Gerenciar caixinhas</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Renovações</CardTitle>
+            <BellRing className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {renewals.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma renovação nos próximos 3 meses.
+                {renewalItems.length === 0 && " Configure o mês de renovação nos Itens (ex.: seguro)."}
+              </p>
+            ) : (
+              <ul className="space-y-1.5">
+                {renewals.map((r) => (
+                  <li key={r.name} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="font-medium">{r.name}</span>
+                    <span
+                      className={
+                        r.monthsAway === 0
+                          ? "text-amber-600 dark:text-amber-400 font-medium"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {r.monthsAway === 0 ? "este mês ⚠️" : MONTH_NAMES[r.renewalMonth - 1]}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/itens">Configurar itens</Link>
             </Button>
           </CardContent>
         </Card>

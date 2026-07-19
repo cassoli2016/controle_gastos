@@ -36,8 +36,14 @@ type Item = {
   name: string;
   categoryId: string;
   dueDay: number | null;
+  renewalMonth: number | null;
   active: boolean;
 };
+
+const MONTH_OPTIONS = [
+  "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+  "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+];
 
 export function ItemRow({
   item,
@@ -204,6 +210,25 @@ export function ItemRow({
                 defaultValue={item.dueDay ?? undefined}
                 placeholder="Opcional"
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-item-renewal-${item.id}`}>Mês de renovação anual</Label>
+              <Select name="renewalMonth" defaultValue={item.renewalMonth ? String(item.renewalMonth) : "none"}>
+                <SelectTrigger id={`edit-item-renewal-${item.id}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sem renovação</SelectItem>
+                  {MONTH_OPTIONS.map((m, i) => (
+                    <SelectItem key={m} value={String(i + 1)}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Seguro/anuidade: gera alertas no Dashboard e no Telegram.
+              </p>
             </div>
             {/* IMPORTANTE (bug histórico: item nascer/virar arquivado sem
                 querer): parseItem() em actions.ts calcula `active` pela

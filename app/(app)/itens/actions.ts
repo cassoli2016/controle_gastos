@@ -12,10 +12,13 @@ export type ActionState = { error?: string; ok?: boolean; count?: number };
 
 function parseItem(formData: FormData) {
   const rawDue = formData.get("dueDay");
+  const rawRenewal = formData.get("renewalMonth");
   return itemSchema.safeParse({
     name: formData.get("name"),
     categoryId: formData.get("categoryId"),
     dueDay: rawDue === "" || rawDue === null ? null : rawDue,
+    // Select usa "none" como sentinel de "sem renovação".
+    renewalMonth: rawRenewal === "" || rawRenewal === null || rawRenewal === "none" ? null : rawRenewal,
     active: formData.get("active") !== null,
     notes: formData.get("notes") ?? undefined,
   });

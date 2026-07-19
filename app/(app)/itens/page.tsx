@@ -37,7 +37,7 @@ export default async function ItensPage() {
               {items.map((i) => (
                 <ItemRow
                   key={i.id}
-                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, active: i.active }}
+                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, renewalMonth: i.renewalMonth, active: i.active }}
                   categoryName={i.category.name}
               categoryColor={i.category.color}
                   categories={categoryOptions}

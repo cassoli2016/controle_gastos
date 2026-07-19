@@ -27,6 +27,9 @@ model Item {
   category   Category       @relation(fields: [categoryId], references: [id])
   categoryId String
   dueDay     Int?
+  // Mês (1-12) em que a conta RENOVA/vence anualmente (seguro, anuidade…):
+  // gera alertas no Dashboard, na tela do Mês e no Telegram.
+  renewalMonth  Int?
   // Reajuste anual: no mês adjustMonth (1-12), o valor sobe adjustPercent %
   // OU adjustAmount reais (um dos dois), composto a cada aniversário.
   adjustMonth   Int?
