@@ -175,19 +175,24 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
-        <div className="flex items-center gap-3">
+      {/* Header em duas linhas no mobile: título+mês em cima, ações embaixo
+          com quebra de linha — evita estourar a largura da tela (overflow
+          horizontal que cortava os cards). */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
           <MonthNav month={month} basePath="/mes" />
-          <TransferDialog
-            entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
-          />
-          <CopyPreviousMonthButton month={month} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <PurchaseDialog
             cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}
             defaultMonth={month}
           />
+          <TransferDialog
+            entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+          />
+          <CopyPreviousMonthButton month={month} />
         </div>
       </div>
 

@@ -21,7 +21,7 @@ export default async function LoginPage({
             <Wallet className="size-7" />
           </span>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Gastos</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Grana</h1>
             <p className="text-sm text-muted-foreground">Seu controle financeiro pessoal</p>
           </div>
         </div>
@@ -50,6 +50,16 @@ export default async function LoginPage({
               }}
               className="flex flex-col gap-4"
             >
+              {/* Campo de usuário oculto: dá contexto ao gerenciador de senhas
+                  do navegador/iPhone para OFERECER salvar e preencher a senha. */}
+              <input
+                type="text"
+                name="username"
+                autoComplete="username"
+                defaultValue="grana"
+                hidden
+                readOnly
+              />
               <div className="flex flex-col gap-2">
                 <Label htmlFor="password">Senha</Label>
                 <Input
@@ -59,6 +69,7 @@ export default async function LoginPage({
                   required
                   placeholder="••••••••"
                   autoFocus
+                  autoComplete="current-password"
                 />
                 {error && <p className="text-sm text-destructive">Senha incorreta.</p>}
               </div>

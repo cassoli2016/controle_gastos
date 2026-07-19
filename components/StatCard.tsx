@@ -35,17 +35,18 @@ export function StatCard({
   const t = TONES[tone];
   return (
     <Card>
-      <CardContent className="flex items-center gap-3 p-4">
+      <CardContent className="flex items-center gap-2.5 p-3 md:gap-3 md:p-4">
         {Icon && (
-          <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-lg", t.chip)}>
-            <Icon className="size-4.5" />
+          <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg md:size-9", t.chip)}>
+            <Icon className="size-4 md:size-4.5" />
           </div>
         )}
         <div className="min-w-0">
-          <div className="truncate text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">
             {label}
           </div>
-          <div className={cn("truncate text-xl font-bold tabular-nums", t.value)}>{value}</div>
+          {/* text-base no mobile: "R$ 25.000,00" cabe inteiro num card de meia largura */}
+          <div className={cn("truncate text-base font-bold tabular-nums md:text-xl", t.value)}>{value}</div>
         </div>
       </CardContent>
     </Card>

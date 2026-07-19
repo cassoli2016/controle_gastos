@@ -39,6 +39,7 @@ export default async function ItensPage() {
                   key={i.id}
                   item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, active: i.active }}
                   categoryName={i.category.name}
+              categoryColor={i.category.color}
                   categories={categoryOptions}
                   adjust={{
                     month: i.adjustMonth,

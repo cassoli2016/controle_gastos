@@ -33,7 +33,7 @@ export function Sidebar() {
         })}
       </nav>
       <div className="mt-auto border-t p-4 text-[11px] text-muted-foreground">
-        Gastos · cassolitech
+        Grana · cassolitech
       </div>
     </aside>
   );

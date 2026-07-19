@@ -42,11 +42,13 @@ type Item = {
 export function ItemRow({
   item,
   categoryName,
+  categoryColor,
   categories,
   adjust,
 }: {
   item: Item;
   categoryName: string;
+  categoryColor?: string;
   categories: { id: string; name: string }[];
   adjust: AdjustInfo;
 }) {
@@ -83,7 +85,18 @@ export function ItemRow({
     </div>
   );
 
-  const categoryBadge = <Badge variant="outline">{categoryName}</Badge>;
+  const categoryBadge = (
+    <Badge variant="outline" className="gap-1.5">
+      {categoryColor && (
+        <span
+          className="size-2 shrink-0 rounded-full ring-1 ring-foreground/10"
+          style={{ background: categoryColor }}
+          aria-hidden
+        />
+      )}
+      {categoryName}
+    </Badge>
+  );
 
   const statusBadge = (
     <Badge variant={item.active ? "default" : "outline"}>{item.active ? "Ativo" : "Arquivado"}</Badge>

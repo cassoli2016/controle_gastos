@@ -15,12 +15,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gastos · Controle Financeiro",
+  title: "Grana · Controle Financeiro",
   description: "Controle financeiro pessoal — contas, cartões e parcelamentos.",
-  applicationName: "Gastos",
+  applicationName: "Grana",
   // iOS "Adicionar à Tela de Início": abre standalone (sem chrome do Safari),
   // com nome e ícone próprios — comportamento de app nativo.
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Gastos" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Grana" },
   icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
 };
 

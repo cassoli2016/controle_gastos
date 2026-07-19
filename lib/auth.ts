@@ -32,5 +32,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   // sem isto, a validação de sessão falha com UntrustedHost e as páginas logadas quebram.
   trustHost: true,
   pages: { signIn: "/login" },
-  session: { strategy: "jwt" },
+  // Sessão longa (180 dias): entrou uma vez, fica logado — sem redigitar a
+  // senha toda hora (especialmente no PWA do celular).
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 * 180 },
 });

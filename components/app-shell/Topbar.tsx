@@ -24,7 +24,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
               <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Wallet className="size-4" />
               </span>
-              Gastos
+              Grana
             </SheetTitle>
             <SheetDescription className="sr-only">Navegação principal</SheetDescription>
             <nav className="flex flex-col gap-1">
@@ -47,7 +47,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
         <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
           <Wallet className="size-4.5" />
         </span>
-        <span className="text-[15px] font-semibold tracking-tight">Gastos</span>
+        <span className="text-[15px] font-semibold tracking-tight">Grana</span>
       </Link>
       <div className="ml-auto flex items-center gap-1">
         <ThemeToggle />

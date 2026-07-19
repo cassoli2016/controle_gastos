@@ -16,7 +16,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <Topbar signOutAction={doSignOut} />
       <div className="flex flex-1">
         <Sidebar />
-        <main className="flex-1 p-4 pb-20 md:pb-4">{children}</main>
+        {/* min-w-0 + overflow-x-clip: nenhum conteúdo largo pode estourar a
+            largura da tela no mobile (proteção além dos fixes por página). */}
+        <main className="flex-1 min-w-0 overflow-x-clip p-4 pb-20 md:pb-4">{children}</main>
       </div>
       <MobileNav />
     </div>
