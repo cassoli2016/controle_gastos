@@ -2,21 +2,44 @@ import { describe, it, expect } from "vitest";
 import { parseCardCsv } from "@/lib/csv-import";
 
 describe("parseCardCsv", () => {
-  it("formato Nubank (date,title,amount) com decimais de ponto", () => {
+  it("formato Nubank (date,title,amount) com decimais de ponto e data ISO", () => {
     const csv = "date,title,amount\n2026-07-04,Ifood,54.9\n2026-07-05,Uber,23.4\n2026-07-06,Pagamento recebido,-1200.00\n";
     const result = parseCardCsv(csv);
     expect(result.rows).toEqual([
-      { description: "Ifood", amountReais: 54.9 },
-      { description: "Uber", amountReais: 23.4 },
+      { description: "Ifood", amountReais: 54.9, date: "2026-07-04" },
+      { description: "Uber", amountReais: 23.4, date: "2026-07-05" },
     ]);
-    expect(result.ignored).toBe(1); // pagamento (negativo)
+    expect(result.ignored).toBe(1); // "Pagamento recebido" (fatura anterior)
     expect(result.failed).toBe(0);
+  });
+
+  it("estorno (negativo que NÃO é pagamento) entra e abate o total", () => {
+    const csv =
+      "date,title,amount\n2026-07-04,Ifood,54.9\n2026-07-08,Estorno Ifood,-54.9\n2026-07-06,Pagamento recebido,-1200.00\n";
+    const result = parseCardCsv(csv);
+    expect(result.rows).toEqual([
+      { description: "Ifood", amountReais: 54.9, date: "2026-07-04" },
+      { description: "Estorno Ifood", amountReais: -54.9, date: "2026-07-08" },
+    ]);
+    expect(result.ignored).toBe(1); // só o pagamento
+  });
+
+  it("data em formato BR (DD/MM/YYYY) é normalizada para ISO", () => {
+    const csv = "data;descrição;valor\n19/07/2026;Mercado;312,75\n";
+    const result = parseCardCsv(csv);
+    expect(result.rows).toEqual([{ description: "Mercado", amountReais: 312.75, date: "2026-07-19" }]);
+  });
+
+  it("sem coluna de data, rows saem sem date", () => {
+    const csv = "Mercado;312,75\n";
+    const result = parseCardCsv(csv);
+    expect(result.rows).toEqual([{ description: "Mercado", amountReais: 312.75 }]);
   });
 
   it("título com vírgula entre aspas", () => {
     const csv = 'date,title,amount\n2026-07-04,"Mercado Livre, SP",312.75\n';
     const result = parseCardCsv(csv);
-    expect(result.rows).toEqual([{ description: "Mercado Livre, SP", amountReais: 312.75 }]);
+    expect(result.rows).toEqual([{ description: "Mercado Livre, SP", amountReais: 312.75, date: "2026-07-04" }]);
   });
 
   it("formato genérico descrição;valor com decimais pt-BR e cabeçalho", () => {

@@ -1,16 +1,38 @@
-export type CsvRow = { description: string; amountReais: number };
+export type CsvRow = {
+  description: string;
+  amountReais: number;
+  /** Data da compra (YYYY-MM-DD), quando o CSV tem coluna de data. */
+  date?: string;
+};
 
 export type CsvParseResult = {
   rows: CsvRow[];
-  /** Linhas com valor ≤ 0 (pagamentos/estornos da fatura) — puladas de propósito. */
+  /**
+   * Linhas puladas de propósito: pagamento da fatura anterior ("Pagamento
+   * recebido", negativo) e valores zero. Estornos NÃO entram aqui — são
+   * incluídos em rows com valor negativo para abater o total da fatura.
+   */
   ignored: number;
   /** Linhas que não puderam ser interpretadas (valor/descrição inválidos). */
   failed: number;
 };
 
+/** Pagamento da fatura anterior — não é despesa nem estorno de compra. */
+const PAYMENT_RE = /pagamento/i;
+
 // Nomes de coluna reconhecidos (comparados sem acento e em minúsculas).
 const DESCRIPTION_COLUMNS = ["title", "titulo", "descricao", "description", "estabelecimento", "lancamento"];
 const AMOUNT_COLUMNS = ["amount", "valor", "value"];
+const DATE_COLUMNS = ["date", "data"];
+
+/** "2026-07-04" ou "19/07/2026" → "YYYY-MM-DD"; outros formatos → undefined. */
+function parseDateCell(cell: string): string | undefined {
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(cell);
+  if (iso) return cell;
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(cell);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return undefined;
+}
 
 function normalizeHeader(cell: string): string {
   return cell
@@ -76,6 +98,7 @@ export function parseCardCsv(content: string): CsvParseResult {
   // Cabeçalho presente se alguma célula da primeira linha é um nome conhecido.
   const descIdx = headerCells.findIndex((c) => DESCRIPTION_COLUMNS.includes(c));
   const amountIdx = headerCells.findIndex((c) => AMOUNT_COLUMNS.includes(c));
+  const dateIdx = headerCells.findIndex((c) => DATE_COLUMNS.includes(c));
   const hasHeader = descIdx >= 0 || amountIdx >= 0;
 
   const dataLines = hasHeader ? lines.slice(1) : lines;
@@ -91,11 +114,16 @@ export function parseCardCsv(content: string): CsvParseResult {
       result.failed++;
       continue;
     }
-    if (amount <= 0) {
+    // Zero não diz nada; negativo de "pagamento" é a fatura anterior sendo
+    // paga. Estornos (outros negativos) ENTRAM e abatem o total.
+    if (amount === 0 || (amount < 0 && PAYMENT_RE.test(description))) {
       result.ignored++;
       continue;
     }
-    result.rows.push({ description, amountReais: Math.round(amount * 100) / 100 });
+    const date = hasHeader && dateIdx >= 0 && cells[dateIdx] ? parseDateCell(cells[dateIdx]) : undefined;
+    const row: CsvRow = { description, amountReais: Math.round(amount * 100) / 100 };
+    if (date) row.date = date;
+    result.rows.push(row);
   }
   return result;
 }

@@ -32,6 +32,7 @@ type Card = {
   id: string;
   name: string;
   color: string;
+  closingDay: number | null;
   active: boolean;
 };
 
@@ -61,7 +62,14 @@ export function CardRow({ card }: { card: Card }) {
   }
 
   const statusBadge = (
-    <Badge variant={card.active ? "default" : "outline"}>{card.active ? "Ativo" : "Arquivado"}</Badge>
+    <div className="flex items-center gap-1.5">
+      {card.closingDay !== null && (
+        <Badge variant="outline" className="font-normal text-muted-foreground">
+          Fecha dia {card.closingDay}
+        </Badge>
+      )}
+      <Badge variant={card.active ? "default" : "outline"}>{card.active ? "Ativo" : "Arquivado"}</Badge>
+    </div>
   );
 
   const colorChip = (
@@ -153,6 +161,22 @@ export function CardRow({ card }: { card: Card }) {
                 defaultValue={card.color}
                 className="h-9 w-16 p-1"
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-card-closing-${card.id}`}>Dia de fechamento da fatura (opcional)</Label>
+              <Input
+                id={`edit-card-closing-${card.id}`}
+                name="closingDay"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="ex.: 5"
+                defaultValue={card.closingDay ?? ""}
+                className="w-24"
+              />
+              <p className="text-xs text-muted-foreground">
+                Compra após o fechamento entra na fatura do mês seguinte.
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={updatePending}>

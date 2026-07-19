@@ -10,6 +10,7 @@ export async function createCard(_prevState: ActionState, formData: FormData): P
   const parsed = cardSchema.safeParse({
     name: formData.get("name"),
     color: formData.get("color"),
+    closingDay: formData.get("closingDay"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.create({ data: parsed.data });
@@ -23,6 +24,7 @@ export async function updateCard(_prevState: ActionState, formData: FormData): P
   const parsed = cardSchema.safeParse({
     name: formData.get("name"),
     color: formData.get("color"),
+    closingDay: formData.get("closingDay"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.update({ where: { id }, data: parsed.data });

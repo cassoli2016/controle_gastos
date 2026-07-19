@@ -50,6 +50,21 @@ export function NewCardForm() {
             <Label htmlFor="new-card-color">Cor</Label>
             <Input id="new-card-color" name="color" type="color" defaultValue="#3b82f6" className="h-9 w-16 p-1" />
           </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-card-closing">Dia de fechamento da fatura (opcional)</Label>
+            <Input
+              id="new-card-closing"
+              name="closingDay"
+              type="number"
+              min={1}
+              max={31}
+              placeholder="ex.: 5"
+              className="w-24"
+            />
+            <p className="text-xs text-muted-foreground">
+              Compra após o fechamento entra na fatura do mês seguinte.
+            </p>
+          </div>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Criar

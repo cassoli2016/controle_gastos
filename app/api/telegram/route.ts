@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { parseExpenseMessage, parseExpenseLines } from "@/lib/telegram-parse";
+import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
+import { parseNubankShares, isNubankShareFormat } from "@/lib/nubank-share";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch } from "@/lib/purchases";
+import { addPurchaseToCard, cardTargetMonth, upsertCardEntry, type CardRef } from "@/lib/card-entry";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -22,11 +24,11 @@ type TelegramUpdate = {
 };
 
 const HELP =
-  "Formato: descrição valor [cartão] [Nx]\n" +
-  'Ex.: "almoço 42,50 nubank" ou "geladeira 300 nubank 3x"\n' +
-  "Em lote: mande várias linhas numa mensagem só, uma despesa por linha.\n" +
-  "Fatura: envie o arquivo .csv exportado do banco (legenda = nome do cartão).\n" +
-  "Os lançamentos entram no primeiro mês em aberto do Grana.";
+  "Jeitos de lançar:\n" +
+  "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
+  '• Texto: "descrição valor [cartão] [Nx]" — uma ou várias linhas\n' +
+  "• Fatura: envie o .csv do banco com o cartão na legenda (substitui o total do mês)\n" +
+  "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
 async function reply(chatId: number, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -42,10 +44,11 @@ async function reply(chatId: number, text: string) {
   }
 }
 
-async function findCardByHint(hint: string) {
-  return prisma.creditCard.findFirst({
+async function findCardByHint(hint: string): Promise<CardRef | null> {
+  const card = await prisma.creditCard.findFirst({
     where: { active: true, name: { contains: hint, mode: "insensitive" } },
   });
+  return card ? { id: card.id, name: card.name, closingDay: card.closingDay } : null;
 }
 
 /** Baixa o conteúdo (texto) de um arquivo enviado ao bot via getFile. */
@@ -76,7 +79,23 @@ function revalidateAll() {
   revalidatePath("/dashboard");
 }
 
-/** Importa o CSV de fatura enviado como documento; legenda = nome do cartão. */
+function fmtMonth(month: string): string {
+  return formatCompetencia(monthToDate(month));
+}
+
+function fmtMonthSpan(months: string[]): string {
+  if (months.length === 1) return fmtMonth(months[0]);
+  return `${fmtMonth(months[0])} a ${fmtMonth(months[months.length - 1])}`;
+}
+
+const CARD_NOT_FOUND = (hint: string) =>
+  `Cartão "${hint}" não encontrado — nada foi importado. Confira o nome ou cadastre em Cartões.`;
+
+/**
+ * Fatura em CSV: cada compra é roteada pela data para a fatura certa (dia de
+ * fechamento do cartão) e o TOTAL de cada mês substitui o valor do lançamento
+ * consolidado — reimportar a mesma fatura atualiza em vez de duplicar.
+ */
 async function handleCsvDocument(
   chatId: number,
   doc: NonNullable<TelegramUpdate["message"]>["document"] & { file_id: string },
@@ -90,6 +109,17 @@ async function handleCsvDocument(
     await reply(chatId, "Arquivo muito grande (máx. 1 MB).");
     return;
   }
+  const hint = caption?.trim().toLowerCase();
+  if (!hint) {
+    await reply(chatId, "Escreva o nome do cartão na LEGENDA do arquivo (ex.: nubank) para eu saber de qual fatura se trata.");
+    return;
+  }
+  const card = await findCardByHint(hint);
+  if (!card) {
+    await reply(chatId, CARD_NOT_FOUND(hint));
+    return;
+  }
+
   const content = await downloadTelegramFile(doc.file_id);
   if (content === null) {
     await reply(chatId, "Não consegui baixar o arquivo. Tente enviar de novo.");
@@ -105,34 +135,85 @@ async function handleCsvDocument(
     return;
   }
 
-  let cardId: string | null = null;
-  let cardName: string | null = null;
-  const hint = caption?.trim().toLowerCase();
-  if (hint) {
-    const card = await findCardByHint(hint);
-    if (!card) {
-      await reply(chatId, `Cartão "${hint}" não encontrado — nada foi importado. Confira o nome ou cadastre em Cartões.`);
-      return;
-    }
-    cardId = card.id;
-    cardName = card.name;
+  const defaultMonth = await resolveDefaultMonth();
+  const centsByMonth = new Map<string, { cents: number; count: number }>();
+  for (const row of rows) {
+    const month = cardTargetMonth(card, row.date, defaultMonth);
+    const acc = centsByMonth.get(month) ?? { cents: 0, count: 0 };
+    acc.cents += Math.round(row.amountReais * 100);
+    acc.count++;
+    centsByMonth.set(month, acc);
   }
 
-  const startMonth = await resolveDefaultMonth();
-  const { purchases, totalCents } = await createPurchasesBatch(
-    rows.map((r) => ({ description: r.description, amount: r.amountReais, installments: 1, cardId })),
-    startMonth,
-  );
+  const months = [...centsByMonth.keys()].sort();
+  for (const month of months) {
+    await upsertCardEntry({ card, month, amountCents: centsByMonth.get(month)!.cents, mode: "set" });
+  }
   revalidateAll();
 
-  const mes = formatCompetencia(monthToDate(startMonth));
-  let msg = `✅ Fatura importada: ${purchases} lançamentos — ${formatCents(totalCents)}${cardName ? ` no ${cardName}` : ""} · ${mes}`;
-  if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s)/estorno(s) ignorado(s).`;
+  const parts = months.map((m) => {
+    const { cents, count } = centsByMonth.get(m)!;
+    return `${fmtMonth(m)} — ${formatCents(cents)} (${count} lançamentos)`;
+  });
+  const estornos = rows.filter((r) => r.amountReais < 0).length;
+  let msg = `✅ Fatura ${card.name} atualizada:\n${parts.map((p) => `• ${p}`).join("\n")}`;
+  if (estornos > 0) msg += `\n↩️ ${estornos} estorno(s) abatido(s) do total.`;
+  if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s) de fatura ignorado(s).`;
   if (failed > 0) msg += `\n⚠️ ${failed} linha(s) não entendida(s).`;
   await reply(chatId, msg);
 }
 
-/** Importa uma mensagem multi-linha (uma despesa por linha). */
+/** Compartilhamentos de notificação do Nubank (1+ blocos na mensagem). */
+async function handleShareText(chatId: number, text: string) {
+  const { purchases, failedLines } = parseNubankShares(text);
+  if (purchases.length === 0) {
+    await reply(chatId, `Não entendi 🤔\n${HELP}`);
+    return;
+  }
+
+  // Resolve os cartões citados; qualquer desconhecido aborta tudo.
+  const cardByHint = new Map<string, CardRef>();
+  for (const p of purchases) {
+    if (!p.cardHint || cardByHint.has(p.cardHint)) continue;
+    const card = await findCardByHint(p.cardHint);
+    if (!card) {
+      await reply(chatId, CARD_NOT_FOUND(p.cardHint));
+      return;
+    }
+    cardByHint.set(p.cardHint, card);
+  }
+
+  const defaultMonth = await resolveDefaultMonth();
+  const lines: string[] = [];
+  for (const p of purchases) {
+    const amountCents = Math.round(p.amountReais * 100);
+    const card = p.cardHint ? cardByHint.get(p.cardHint)! : null;
+    if (card) {
+      const startMonth = cardTargetMonth(card, p.date, defaultMonth);
+      const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, p.installments);
+      const valor = p.installments > 1 ? `${p.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
+      lines.push(
+        `✅ ${p.description} — ${valor} no ${card.name} · ${fmtMonthSpan(months)} (fatura ${fmtMonth(months[0])}: ${formatCents(firstMonthTotalCents)})`,
+      );
+    } else {
+      await createPurchaseCore({
+        description: p.description,
+        amount: p.amountReais,
+        installments: p.installments,
+        startMonth: defaultMonth,
+        cardId: null,
+      });
+      lines.push(`✅ ${p.description} — ${formatCents(amountCents)} · ${fmtMonth(defaultMonth)}`);
+    }
+  }
+  revalidateAll();
+
+  let msg = lines.join("\n");
+  if (failedLines.length > 0) msg += `\n⚠️ Ignorei: ${failedLines.slice(0, 3).join(" · ")}`;
+  await reply(chatId, msg);
+}
+
+/** Lote compacto multi-linha: linhas com cartão somam no consolidado; sem cartão viram lançamentos avulsos. */
 async function handleBatchText(chatId: number, text: string) {
   const { entries, failedLines } = parseExpenseLines(text);
   if (entries.length === 0) {
@@ -140,34 +221,57 @@ async function handleBatchText(chatId: number, text: string) {
     return;
   }
 
-  // Resolve cada cartão citado UMA vez; qualquer cartão desconhecido aborta
-  // a importação inteira (evita lote pela metade).
   const hints = [...new Set(entries.map((e) => e.cardHint).filter((h): h is string => h !== null))];
-  const cardByHint = new Map<string, { id: string; name: string }>();
+  const cardByHint = new Map<string, CardRef>();
   for (const hint of hints) {
     const card = await findCardByHint(hint);
     if (!card) {
-      await reply(chatId, `Cartão "${hint}" não encontrado — nada foi importado. Confira o nome ou cadastre em Cartões.`);
+      await reply(chatId, CARD_NOT_FOUND(hint));
       return;
     }
     cardByHint.set(hint, card);
   }
 
-  const startMonth = await resolveDefaultMonth();
-  const { purchases, entries: created, totalCents } = await createPurchasesBatch(
-    entries.map((e) => ({
-      description: e.description,
-      amount: e.amountReais,
-      installments: e.installments,
-      cardId: e.cardHint ? cardByHint.get(e.cardHint)!.id : null,
-    })),
-    startMonth,
-  );
+  const defaultMonth = await resolveDefaultMonth();
+
+  // Linhas com cartão: acumula centavos por (cartão, mês) — parcelas Nx
+  // espalham o valor POR parcela nos meses seguintes.
+  const cardLines = entries.filter((e) => e.cardHint !== null);
+  const plainLines = entries.filter((e) => e.cardHint === null);
+
+  const perCard = new Map<string, { card: CardRef; cents: number; months: Set<string> }>();
+  for (const e of cardLines) {
+    const card = cardByHint.get(e.cardHint!)!;
+    const startMonth = cardTargetMonth(card, undefined, defaultMonth);
+    const { months } = await addPurchaseToCard(card, startMonth, Math.round(e.amountReais * 100), e.installments);
+    const acc = perCard.get(card.id) ?? { card, cents: 0, months: new Set<string>() };
+    acc.cents += Math.round(e.amountReais * 100) * e.installments;
+    months.forEach((m) => acc.months.add(m));
+    perCard.set(card.id, acc);
+  }
+
+  let plainSummary = "";
+  if (plainLines.length > 0) {
+    const { purchases, totalCents } = await createPurchasesBatch(
+      plainLines.map((e: ParsedExpense) => ({
+        description: e.description,
+        amount: e.amountReais,
+        installments: e.installments,
+        cardId: null,
+      })),
+      defaultMonth,
+    );
+    plainSummary = `📄 ${purchases} lançamento(s) sem cartão — ${formatCents(totalCents)} · ${fmtMonth(defaultMonth)}`;
+  }
   revalidateAll();
 
-  const mes = formatCompetencia(monthToDate(startMonth));
-  let msg = `✅ ${purchases} lançamentos importados — ${formatCents(totalCents)} · ${mes}`;
-  if (created > purchases) msg = `✅ ${purchases} compras importadas (${created} lançamentos com parcelas) — ${formatCents(totalCents)} · ${mes}`;
+  const lines: string[] = [];
+  for (const { card, cents, months } of perCard.values()) {
+    const sorted = [...months].sort();
+    lines.push(`💳 ${card.name}: +${formatCents(cents)} · ${fmtMonthSpan(sorted)}`);
+  }
+  if (plainSummary) lines.push(plainSummary);
+  let msg = `✅ ${entries.length} despesas processadas\n${lines.join("\n")}`;
   if (failedLines.length > 0) {
     const shown = failedLines.slice(0, 5).map((l) => `• ${l}`);
     msg += `\n⚠️ ${failedLines.length} linha(s) não entendida(s):\n${shown.join("\n")}${failedLines.length > 5 ? "\n…" : ""}`;
@@ -175,9 +279,52 @@ async function handleBatchText(chatId: number, text: string) {
   await reply(chatId, msg);
 }
 
+/** Despesa única no formato compacto ("almoço 42,50 nubank 3x"). */
+async function handleSingleText(chatId: number, text: string) {
+  const parsed = parseExpenseMessage(text);
+  if (!parsed) {
+    await reply(chatId, `Não entendi 🤔\n${HELP}`);
+    return;
+  }
+
+  const amountCents = Math.round(parsed.amountReais * 100);
+  const defaultMonth = await resolveDefaultMonth();
+
+  if (parsed.cardHint) {
+    const card = await findCardByHint(parsed.cardHint);
+    if (!card) {
+      await reply(chatId, `Cartão "${parsed.cardHint}" não encontrado. Confira o nome ou cadastre em Cartões.`);
+      return;
+    }
+    const startMonth = cardTargetMonth(card, undefined, defaultMonth);
+    const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, parsed.installments);
+    revalidateAll();
+    const valor =
+      parsed.installments > 1 ? `${parsed.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
+    await reply(
+      chatId,
+      `✅ ${parsed.description} — ${valor} no ${card.name} · ${fmtMonthSpan(months)} (fatura ${fmtMonth(months[0])}: ${formatCents(firstMonthTotalCents)})`,
+    );
+    return;
+  }
+
+  const { count } = await createPurchaseCore({
+    description: parsed.description,
+    amount: parsed.amountReais,
+    installments: parsed.installments,
+    startMonth: defaultMonth,
+    cardId: null,
+  });
+  revalidateAll();
+  await reply(
+    chatId,
+    `✅ ${parsed.description} — ${formatCents(amountCents)}${count > 1 ? ` em ${count}x` : ""} · ${fmtMonth(defaultMonth)}`,
+  );
+}
+
 /**
  * Webhook do bot do Telegram: mensagens num chat autorizado viram lançamentos.
- * Aceita despesa única, lote multi-linha e arquivo CSV de fatura.
+ * Cartão = 1 lançamento consolidado por mês (texto soma; CSV define o total).
  * Segurança: secret token no header (setWebhook) + allowlist de chat ids.
  */
 export async function POST(req: Request) {
@@ -225,45 +372,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  if (/\n/.test(text)) {
+  if (isNubankShareFormat(text)) {
+    await handleShareText(chatId, text);
+  } else if (/\n/.test(text)) {
     await handleBatchText(chatId, text);
-    return NextResponse.json({ ok: true });
+  } else {
+    await handleSingleText(chatId, text);
   }
-
-  const parsed = parseExpenseMessage(text);
-  if (!parsed) {
-    await reply(chatId, `Não entendi 🤔\n${HELP}`);
-    return NextResponse.json({ ok: true });
-  }
-
-  // Cartão (opcional): casa o texto após o valor com o nome de um cartão ativo.
-  let cardId: string | null = null;
-  let cardName: string | null = null;
-  if (parsed.cardHint) {
-    const card = await findCardByHint(parsed.cardHint);
-    if (!card) {
-      await reply(chatId, `Cartão "${parsed.cardHint}" não encontrado. Confira o nome ou cadastre em Cartões.`);
-      return NextResponse.json({ ok: true });
-    }
-    cardId = card.id;
-    cardName = card.name;
-  }
-
-  const startMonth = await resolveDefaultMonth();
-  const { count } = await createPurchaseCore({
-    description: parsed.description,
-    amount: parsed.amountReais,
-    installments: parsed.installments,
-    startMonth,
-    cardId,
-  });
-  revalidateAll();
-
-  const valor = formatCents(Math.round(parsed.amountReais * 100));
-  const mes = formatCompetencia(monthToDate(startMonth));
-  await reply(
-    chatId,
-    `✅ ${parsed.description} — ${valor}${cardName ? ` no ${cardName}` : ""}${count > 1 ? ` em ${count}x` : ""} · ${mes}`,
-  );
   return NextResponse.json({ ok: true });
 }

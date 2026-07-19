@@ -34,6 +34,16 @@ export const markPaidSchema = z.object({
 export const cardSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor deve ser hex #RRGGBB"),
+  // Dia de fechamento da fatura (opcional): campo vazio vira null.
+  closingDay: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce
+      .number()
+      .int("Dia de fechamento deve ser inteiro")
+      .min(1, "Dia de fechamento entre 1 e 31")
+      .max(31, "Dia de fechamento entre 1 e 31")
+      .nullable(),
+  ),
 });
 
 export const purchaseSchema = z.object({

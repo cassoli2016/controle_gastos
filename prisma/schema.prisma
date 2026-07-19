@@ -44,6 +44,10 @@ model CreditCard {
   id        String         @id @default(cuid())
   name      String
   color     String
+  // Dia de fechamento da fatura (1-31). Compra APÓS o fechamento cai na
+  // fatura do mês seguinte — usado pela importação de CSV para rotear cada
+  // compra pela data. null = importar tudo no primeiro mês em aberto.
+  closingDay Int?
   active    Boolean        @default(true)
   createdAt DateTime       @default(now())
   entries   MonthlyEntry[]
