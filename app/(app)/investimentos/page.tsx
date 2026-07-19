@@ -6,6 +6,7 @@ import { StatCard } from "@/components/StatCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RefreshQuotesButton } from "./RefreshQuotesButton";
+import { ImportB3Dialog } from "./ImportB3Dialog";
 import { AssetForm } from "./AssetForm";
 import { DividendReceiveButton, DividendDeleteButton, NewDividendForm } from "./DividendControls";
 
@@ -56,6 +57,7 @@ export default async function InvestimentosPage() {
         <h1 className="text-2xl font-bold tracking-tight">Investimentos</h1>
         <div className="flex flex-wrap items-center gap-2">
           <RefreshQuotesButton />
+          <ImportB3Dialog />
           <AssetForm />
         </div>
       </div>

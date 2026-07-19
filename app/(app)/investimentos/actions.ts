@@ -3,8 +3,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { fetchQuotes } from "@/lib/brapi";
-import { monthToDate } from "@/lib/dates";
-import { monthStringFromDate } from "@/lib/dates";
+import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
+import { parseB3Report } from "@/lib/b3-report";
+import { applyB3Trades, applyB3Incomes } from "@/lib/b3-import";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado pelas Server Actions (useActionState). */
@@ -74,16 +75,6 @@ export async function refreshQuotes(_prevState: ActionState, _formData: FormData
   return { ok: true, count };
 }
 
-/** Categoria dos dividendos no fluxo mensal (find-or-create, INCOME). */
-async function resolveDividendCategoryId(): Promise<string> {
-  const existing = await prisma.category.findFirst({ where: { name: "Dividendos" } });
-  if (existing) return existing.id;
-  const created = await prisma.category.create({
-    data: { name: "Dividendos", type: "INCOME", color: "#059669" },
-  });
-  return created.id;
-}
-
 /**
  * Marca um provento como recebido e lança no fluxo do mês (categoria
  * Dividendos, INCOME, já pago). entryId evita duplicar; desmarcar remove o
@@ -96,22 +87,8 @@ export async function toggleDividendReceived(_prevState: ActionState, formData: 
   if (!dividend) return { error: "Provento não encontrado." };
 
   if (!dividend.received) {
-    const categoryId = await resolveDividendCategoryId();
-    const netCents = decimalToCents(String(dividend.net));
-    const month = monthStringFromDate(dividend.payDate);
-    const entry = await prisma.monthlyEntry.create({
-      data: {
-        description: `${dividend.type} ${dividend.asset.ticker}`,
-        categoryId,
-        month: monthToDate(month),
-        plannedAmount: centsToNumber(netCents),
-        purchaseDate: dividend.payDate,
-        paid: true,
-        paidAmount: centsToNumber(netCents),
-        paidDate: new Date(),
-      },
-    });
-    await prisma.dividend.update({ where: { id }, data: { received: true, entryId: entry.id } });
+    const entryId = await createDividendMonthlyEntry(dividend);
+    await prisma.dividend.update({ where: { id }, data: { received: true, entryId } });
   } else {
     if (dividend.entryId) {
       await prisma.monthlyEntry.deleteMany({ where: { id: dividend.entryId } });
@@ -173,4 +150,30 @@ export async function deleteDividend(_prevState: ActionState, formData: FormData
   revalidatePath("/investimentos");
   revalidatePath("/mes");
   return { ok: true };
+}
+
+/** Importa um relatório .xlsx da Área do Investidor B3 (Negociação ou Movimentação). */
+export async function importB3Report(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecione o arquivo .xlsx do relatório." };
+  if (file.size > 5_000_000) return { error: "Arquivo muito grande (máx. 5 MB)." };
+  const parsed = parseB3Report(Buffer.from(await file.arrayBuffer()));
+  if (parsed.kind === "unknown")
+    return { error: "Formato não reconhecido — use os relatórios de Negociação ou Movimentação da Área do Investidor B3." };
+
+  if (parsed.kind === "negociacao") {
+    const r = await applyB3Trades(parsed.trades);
+    revalidatePath("/investimentos");
+    revalidatePath("/dashboard");
+    if (r.applied === 0 && r.duplicated > 0) return { error: "Nenhum negócio novo — este relatório já foi importado." };
+    return { ok: true, count: r.applied };
+  }
+
+  const r = await applyB3Incomes(parsed.incomes);
+  revalidatePath("/investimentos");
+  revalidatePath("/mes");
+  revalidatePath("/dashboard");
+  if (r.matched + r.created === 0 && r.duplicated > 0)
+    return { error: "Nenhum provento novo — este relatório já foi importado." };
+  return { ok: true, count: r.matched + r.created };
 }

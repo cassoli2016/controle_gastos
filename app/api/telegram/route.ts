@@ -11,6 +11,8 @@ import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
 import { createWeekdayRecurrence } from "@/lib/recurrence";
 import { calcPortfolio, formatPct } from "@/lib/investments";
+import { parseB3Report } from "@/lib/b3-report";
+import { applyB3Trades, applyB3Incomes } from "@/lib/b3-import";
 import { decimalToCents } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
@@ -41,6 +43,7 @@ const HELP =
   '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   '• "carteira": resumo dos investimentos\n' +
+  "• Relatórios da B3 (.xlsx de Negociação/Movimentação): envie o arquivo aqui\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
 async function reply(chatId: number, text: string) {
@@ -62,6 +65,28 @@ async function findCardByHint(hint: string): Promise<CardRef | null> {
     where: { active: true, name: { contains: hint, mode: "insensitive" } },
   });
   return card ? { id: card.id, name: card.name, closingDay: card.closingDay } : null;
+}
+
+/** Baixa o conteúdo BINÁRIO de um arquivo enviado ao bot via getFile. */
+async function downloadTelegramFileBinary(fileId: string): Promise<Buffer | null> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/getFile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_id: fileId }),
+    });
+    const data = (await res.json()) as { ok?: boolean; result?: { file_path?: string } };
+    const filePath = data.ok ? data.result?.file_path : undefined;
+    if (!filePath) return null;
+    const fileRes = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`);
+    if (!fileRes.ok) return null;
+    return Buffer.from(await fileRes.arrayBuffer());
+  } catch (e) {
+    console.error("telegram getFile falhou:", (e as Error).message);
+    return null;
+  }
 }
 
 /** Baixa o conteúdo (texto) de um arquivo enviado ao bot via getFile. */
@@ -105,6 +130,48 @@ const WEEKDAY_LABELS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 const CARD_NOT_FOUND = (hint: string) =>
   `Cartão "${hint}" não encontrado — nada foi importado. Confira o nome ou cadastre em Cartões.`;
+
+/** Relatório .xlsx da Área do Investidor B3 (Negociação ou Movimentação). */
+async function handleB3Document(
+  chatId: number,
+  doc: NonNullable<TelegramUpdate["message"]>["document"] & { file_id: string },
+) {
+  if ((doc.file_size ?? 0) > 5_000_000) {
+    await reply(chatId, "Arquivo muito grande (máx. 5 MB).");
+    return;
+  }
+  const buffer = await downloadTelegramFileBinary(doc.file_id);
+  if (!buffer) {
+    await reply(chatId, "Não consegui baixar o arquivo. Tente enviar de novo.");
+    return;
+  }
+  const parsed = parseB3Report(buffer);
+  if (parsed.kind === "unknown") {
+    await reply(chatId, "Não reconheci o formato — envie os relatórios de Negociação ou Movimentação da Área do Investidor B3 (.xlsx).");
+    return;
+  }
+
+  if (parsed.kind === "negociacao") {
+    const r = await applyB3Trades(parsed.trades);
+    revalidateAll();
+    let msg = `📈 Negociação B3: ${r.applied} negócios aplicados (${r.buys} compras, ${r.sells} vendas)`;
+    if (r.tickers.length > 0) msg += `\nAtivos: ${r.tickers.join(", ")} — cotas e PM recalculados`;
+    if (r.duplicated > 0) msg += `\n♻️ ${r.duplicated} já importados (ignorados)`;
+    if (r.skippedOld > 0) msg += `\nℹ️ ${r.skippedOld} anteriores à carga inicial (já no PM)`;
+    await reply(chatId, msg);
+    return;
+  }
+
+  const r = await applyB3Incomes(parsed.incomes);
+  revalidateAll();
+  let msg = `💰 Movimentação B3: ${r.matched + r.created} proventos — ${formatCents(r.totalCents)}`;
+  if (r.matched > 0) msg += `\n✅ ${r.matched} casados com a agenda (marcados recebidos)`;
+  if (r.created > 0) msg += `\n➕ ${r.created} novos registrados`;
+  if (r.monthEntries > 0) msg += `\n📅 ${r.monthEntries} lançados no fluxo do mês`;
+  if (r.duplicated > 0) msg += `\n♻️ ${r.duplicated} já importados (ignorados)`;
+  if (r.skippedOld > 0) msg += `\nℹ️ ${r.skippedOld} anteriores à carga inicial (ignorados)`;
+  await reply(chatId, msg);
+}
 
 /**
  * Fatura em CSV: cada compra é roteada pela data para a fatura certa (dia de
@@ -590,7 +657,11 @@ export async function POST(req: Request) {
   if (!allowed.includes(String(chatId))) return NextResponse.json({ ok: true }); // silencioso p/ desconhecidos
 
   if (doc?.file_id) {
-    await handleCsvDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
+    if (/\.xlsx$/i.test(doc.file_name ?? "")) {
+      await handleB3Document(chatId, { ...doc, file_id: doc.file_id });
+    } else {
+      await handleCsvDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
+    }
     return NextResponse.json({ ok: true });
   }
 

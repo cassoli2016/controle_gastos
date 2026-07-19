@@ -156,6 +156,25 @@ model InvestmentAsset {
   active    Boolean    @default(true)
   createdAt DateTime   @default(now())
   dividends Dividend[]
+  transactions InvestmentTransaction[]
+}
+
+// Negócio importado do relatório de Negociação da B3 (compra/venda).
+// hash único = dedup: reimportar o mesmo relatório não duplica nem
+// reaplica o efeito em cotas/PM.
+model InvestmentTransaction {
+  id        String          @id @default(cuid())
+  asset     InvestmentAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetId   String
+  date      DateTime        @db.Date
+  side      String // BUY | SELL
+  quantity  Int
+  price     Decimal         @db.Decimal(12, 4)
+  value     Decimal         @db.Decimal(12, 2)
+  hash      String          @unique
+  createdAt DateTime        @default(now())
+
+  @@index([assetId, date])
 }
 
 // Evento de provento (dividendo/JSCP): agenda + recebimento. Ao marcar
