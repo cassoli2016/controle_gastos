@@ -5,7 +5,7 @@ import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/li
 import { parseNubankShares, isNubankShareFormat } from "@/lib/nubank-share";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
-import { addPurchaseToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
+import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
 import { matchCardsByFileName } from "@/lib/card-match";
@@ -32,6 +32,7 @@ const HELP =
   '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
   '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
   '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
+  '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -368,6 +369,33 @@ async function handleSingleText(chatId: number, text: string) {
 
   const amountCents = Math.round(parsed.amountReais * 100);
   const defaultMonth = await resolveDefaultMonth();
+
+  if (parsed.prepayment) {
+    // Cartão: pelo nome; sem nome, usa o único ativo.
+    let card: CardRef | null = null;
+    if (parsed.cardHint) {
+      card = await findCardByHint(parsed.cardHint);
+      if (!card) {
+        await reply(chatId, CARD_NOT_FOUND(parsed.cardHint));
+        return;
+      }
+    } else {
+      const actives = await prisma.creditCard.findMany({ where: { active: true } });
+      if (actives.length === 1) {
+        card = { id: actives[0].id, name: actives[0].name, closingDay: actives[0].closingDay };
+      } else {
+        await reply(chatId, `De qual cartão? Ex.: "antecipei ${parsed.amountReais} nubank". Cartões: ${actives.map((c) => c.name).join(", ")}.`);
+        return;
+      }
+    }
+    const { month, totalCents } = await addPrepaymentToCard(card, todayISOInSaoPaulo(), amountCents);
+    revalidateAll();
+    await reply(
+      chatId,
+      `💸 Pagamento antecipado — ${formatCents(amountCents)} no ${card.name}\nFatura ${fmtMonth(month)} agora: ${formatCents(totalCents)}`,
+    );
+    return;
+  }
 
   if (parsed.income) {
     if (parsed.cardHint) {

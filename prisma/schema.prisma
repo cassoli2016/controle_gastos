@@ -67,6 +67,10 @@ model CardTransaction {
   purchaseDate     DateTime?  @db.Date
   installmentSeq   Int?
   installmentCount Int?
+  // Pagamento antecipado da fatura (valor negativo, lançado manualmente):
+  // preservado quando o CSV substitui o mês (no CSV ele vira "Pagamento
+  // recebido", que é ignorado — sem a flag o reimport apagaria o abatimento).
+  prepayment       Boolean    @default(false)
   createdAt        DateTime   @default(now())
 
   @@index([cardId, month])

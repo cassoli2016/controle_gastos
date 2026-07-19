@@ -10,6 +10,7 @@ describe("parseExpenseMessage", () => {
       cardHint: null,
       recurring: false,
       income: false,
+      prepayment: false,
     });
   });
   it("descrição + valor + cartão", () => {
@@ -20,6 +21,7 @@ describe("parseExpenseMessage", () => {
       cardHint: "nubank",
       recurring: false,
       income: false,
+      prepayment: false,
     });
   });
   it("parcelado + cartão (ordem livre depois do valor)", () => {
@@ -30,6 +32,7 @@ describe("parseExpenseMessage", () => {
       cardHint: "nubank",
       recurring: false,
       income: false,
+      prepayment: false,
     });
     expect(parseExpenseMessage("geladeira 1.299,90 3x amazon")).toEqual({
       description: "geladeira",
@@ -38,6 +41,7 @@ describe("parseExpenseMessage", () => {
       cardHint: "amazon",
       recurring: false,
       income: false,
+      prepayment: false,
     });
   });
   it("descrição com várias palavras", () => {
@@ -48,6 +52,7 @@ describe("parseExpenseMessage", () => {
       cardHint: null,
       recurring: false,
       income: false,
+      prepayment: false,
     });
   });
   it("inválidos retornam null", () => {
@@ -67,6 +72,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       cardHint: null,
       recurring: true,
       income: false,
+      prepayment: false,
     });
   });
   it("'recorrente' também funciona, combinado com outras palavras de cartão", () => {
@@ -77,6 +83,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       cardHint: null,
       recurring: true,
       income: false,
+      prepayment: false,
     });
     // keyword + cartão: recorrente é extraído e o resto vira cardHint
     expect(parseExpenseMessage("spotify 21,90 nubank mensal")).toEqual({
@@ -86,6 +93,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       cardHint: "nubank",
       recurring: true,
       income: false,
+      prepayment: false,
     });
   });
 });
@@ -99,6 +107,7 @@ describe("recebimentos", () => {
       cardHint: null,
       recurring: false,
       income: true,
+      prepayment: false,
     });
   });
   it("sufixo 'receita'/'recebimento' também marca income", () => {
@@ -109,6 +118,7 @@ describe("recebimentos", () => {
       cardHint: null,
       recurring: false,
       income: true,
+      prepayment: false,
     });
     expect(parseExpenseMessage("dividendos 320,55 recebimento")).toMatchObject({ income: true });
   });
@@ -120,6 +130,33 @@ describe("recebimentos", () => {
       cardHint: null,
       recurring: true,
       income: true,
+      prepayment: false,
+    });
+  });
+});
+
+describe("pagamento antecipado", () => {
+  it("'antecipei 500 nubank' dispensa descrição", () => {
+    expect(parseExpenseMessage("antecipei 500 nubank")).toEqual({
+      description: "Pagamento antecipado",
+      amountReais: 500,
+      installments: 1,
+      cardHint: "nubank",
+      recurring: false,
+      income: false,
+      prepayment: true,
+    });
+  });
+  it("variações do prefixo e sem cartão", () => {
+    expect(parseExpenseMessage("antecipado 1.000,00")).toMatchObject({
+      prepayment: true,
+      amountReais: 1000,
+      cardHint: null,
+    });
+    expect(parseExpenseMessage("antecipação fatura 250 itau")).toMatchObject({
+      prepayment: true,
+      description: "fatura",
+      cardHint: "itau",
     });
   });
 });
@@ -138,6 +175,7 @@ describe("parseExpenseLines", () => {
       cardHint: "nubank",
       recurring: false,
       income: false,
+      prepayment: false,
     });
     expect(entries[2].cardHint).toBeNull();
   });

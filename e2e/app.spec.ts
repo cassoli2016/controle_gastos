@@ -45,16 +45,19 @@ test.describe.serial("caminho crítico", () => {
     await page.getByRole("button", { name: "Lançar", exact: true }).click();
     await expect(page.getByText(/Compra em 3 parcela\(s\) lançada\./)).toBeVisible();
 
-    // Extrato do mês mostra a compra com 1/3 e a fatura consolidada
+    // Extrato fica num MODAL: abre "Ver extrato" e confere a compra com 1/3
+    await page.getByRole("button", { name: /Ver extrato/ }).first().click();
     await expect(page.getByText("Geladeira").first()).toBeVisible();
     await expect(page.getByText("1/3").first()).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // /mes mostra o lançamento CONSOLIDADO com o nome do cartão
     await page.goto(`/mes?month=${MONTH}`);
     await expect(page.getByText("Cartão Teste").first()).toBeVisible();
 
-    // Mês seguinte: extrato tem a parcela 2/3
+    // Mês seguinte: extrato (modal) tem a parcela 2/3
     await page.goto(`/cartoes?month=${NEXT_MONTH}`);
+    await page.getByRole("button", { name: /Ver extrato/ }).first().click();
     await expect(page.getByText("Geladeira").first()).toBeVisible();
     await expect(page.getByText("2/3").first()).toBeVisible();
   });

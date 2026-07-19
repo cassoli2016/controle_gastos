@@ -9,18 +9,12 @@ import { resolveDefaultMonth } from "@/lib/default-month";
 import { decimalToCents, sumCents, formatCents } from "@/lib/money";
 import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
+import { StatementDialog, type StatementRowView } from "./StatementDialog";
+import { PrepaymentDialog } from "./PrepaymentDialog";
+import { formatCompetencia } from "@/lib/dates";
 import { PurchaseDialog } from "../mes/PurchaseDialog";
 
-// Linha do EXTRATO do cartão (CardTransaction): cada compra/estorno que
-// compõe o lançamento consolidado do mês. Negativo = estorno.
-type StatementRow = {
-  id: string;
-  description: string;
-  amountCents: number;
-  purchaseDate: Date | null;
-  installmentSeq: number | null;
-  installmentCount: number | null;
-};
+
 
 export default async function CartoesPage({
   searchParams,
@@ -53,15 +47,19 @@ export default async function CartoesPage({
     const entries = monthEntries.filter((e) => e.cardId === card.id);
     const totalCents = sumCents(entries.map((e) => decimalToCents(String(e.plannedAmount))));
     const paid = entries.length > 0 && entries.every((e) => e.paid);
-    const rows: StatementRow[] = transactions
+    // Linhas do extrato já serializáveis p/ o client (modal).
+    const rows: StatementRowView[] = transactions
       .filter((t) => t.cardId === card.id)
       .map((t) => ({
         id: t.id,
         description: t.description,
         amountCents: decimalToCents(String(t.amount)),
-        purchaseDate: t.purchaseDate,
+        dateLabel: t.purchaseDate
+          ? `${String(t.purchaseDate.getUTCDate()).padStart(2, "0")}/${String(t.purchaseDate.getUTCMonth() + 1).padStart(2, "0")}`
+          : null,
         installmentSeq: t.installmentSeq,
         installmentCount: t.installmentCount,
+        prepayment: t.prepayment,
       }));
     return { card, rows, totalCents, paid, hasEntry: entries.length > 0 };
   });
@@ -109,38 +107,21 @@ export default async function CartoesPage({
                     <Badge variant={paid ? "default" : "outline"}>{paid ? "Paga" : "Em aberto"}</Badge>
                   )}
                 </div>
-                {rows.length === 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <StatementDialog
+                    cardName={card.name}
+                    monthLabel={formatCompetencia(monthDate)}
+                    totalCents={totalCents}
+                    rows={rows}
+                  />
+                  <PrepaymentDialog cardId={card.id} cardName={card.name} />
+                </div>
+                {rows.length === 0 && (
                   <p className="text-sm text-muted-foreground">
                     {hasEntry
                       ? "Sem extrato detalhado — lance pelo bot ou reenvie o CSV da fatura para detalhar."
                       : "Sem compras neste mês."}
                   </p>
-                ) : (
-                  <ul className="divide-y">
-                    {rows.map((row) => (
-                      <li key={row.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          {row.purchaseDate && (
-                            <span className="text-xs text-muted-foreground tabular-nums">
-                              {String(row.purchaseDate.getUTCDate()).padStart(2, "0")}/
-                              {String(row.purchaseDate.getUTCMonth() + 1).padStart(2, "0")}
-                            </span>
-                          )}
-                          <span>{row.description}</span>
-                          {(row.installmentCount ?? 0) > 1 && (
-                            <Badge variant="secondary">
-                              {row.installmentSeq}/{row.installmentCount}
-                            </Badge>
-                          )}
-                        </span>
-                        <span
-                          className={`tabular-nums shrink-0 ${row.amountCents < 0 ? "text-emerald-600 dark:text-emerald-400" : ""}`}
-                        >
-                          {formatCents(row.amountCents)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
                 )}
               </CardContent>
             </Card>

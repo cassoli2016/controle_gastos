@@ -8,12 +8,15 @@ export type ParsedExpense = {
   recurring: boolean;
   /** Prefixo "recebi" ou sufixo "receita"/"recebimento": entrada (INCOME), não despesa. */
   income: boolean;
+  /** Prefixo "antecipei"/"antecipado": pagamento antecipado de fatura (abate o cartão). */
+  prepayment: boolean;
 };
 
 const AMOUNT_RE = /^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:[.,]\d{1,2})?$/;
 const INSTALLMENTS_RE = /^(\d{1,3})x$/i;
 const RECURRING_RE = /^(mensal|recorrente)$/i;
 const INCOME_PREFIX_RE = /^recebi$/i;
+const PREPAYMENT_PREFIX_RE = /^antecip\S*$/i; // antecipei, antecipado, antecipação… (\S: \w não casa ç/ã)
 const INCOME_SUFFIX_RE = /^(receita|recebimento)$/i;
 
 function parseAmount(token: string): number {
@@ -39,14 +42,24 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     if (tokens.length < 2) return null;
   }
 
+  // Prefixo "antecipei"/"antecipado"/…: pagamento antecipado de fatura.
+  // Dispensa descrição ("antecipei 500 nubank") — ela é fixa no lançamento.
+  let prepayment = false;
+  if (tokens.length > 0 && PREPAYMENT_PREFIX_RE.test(tokens[0])) {
+    prepayment = true;
+    tokens = tokens.slice(1);
+    if (tokens.length < 1) return null;
+  }
+
   // O valor é o PRIMEIRO token numérico (a descrição vem antes dele).
   const amountIdx = tokens.findIndex((t) => AMOUNT_RE.test(t));
-  if (amountIdx <= 0) return null; // sem valor, ou sem descrição antes dele
+  if (amountIdx < 0) return null; // sem valor
+  if (amountIdx === 0 && !prepayment) return null; // sem descrição antes do valor
 
   const amountReais = parseAmount(tokens[amountIdx]);
   if (!Number.isFinite(amountReais) || amountReais <= 0) return null;
 
-  const description = tokens.slice(0, amountIdx).join(" ");
+  const description = amountIdx === 0 ? "Pagamento antecipado" : tokens.slice(0, amountIdx).join(" ");
 
   let installments = 1;
   let recurring = false;
@@ -66,6 +79,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     cardHint: cardWords.length > 0 ? cardWords.join(" ").toLowerCase() : null,
     recurring,
     income,
+    prepayment,
   };
 }
 

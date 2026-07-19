@@ -92,6 +92,31 @@ export async function addPurchaseToCard(
   return { months, firstMonthTotalCents };
 }
 
+/**
+ * Pagamento antecipado da fatura: abate o consolidado do mês-alvo (data +
+ * fechamento) e registra linha negativa no extrato com prepayment=true —
+ * preservada quando o CSV substitui o mês.
+ */
+export async function addPrepaymentToCard(
+  card: CardRef,
+  dateISO: string,
+  amountCents: number,
+): Promise<{ month: string; totalCents: number }> {
+  const month = cardTargetMonth(card, dateISO, dateISO.slice(0, 7));
+  const { totalCents } = await upsertCardEntry({ card, month, amountCents: -amountCents, mode: "add" });
+  await prisma.cardTransaction.create({
+    data: {
+      cardId: card.id,
+      month: monthToDate(month),
+      description: "Pagamento antecipado",
+      amount: centsToNumber(-amountCents),
+      purchaseDate: new Date(dateISO + "T00:00:00Z"),
+      prepayment: true,
+    },
+  });
+  return { month, totalCents };
+}
+
 export type CardMonthRow = {
   description: string;
   /** Negativo = estorno. */
@@ -106,7 +131,11 @@ export type CardMonthRow = {
  */
 export async function replaceCardMonth(card: CardRef, month: string, rows: CardMonthRow[]): Promise<{ totalCents: number }> {
   const monthDate = monthToDate(month);
-  await prisma.cardTransaction.deleteMany({ where: { cardId: card.id, month: monthDate } });
+  // Antecipações manuais são preservadas: no CSV elas viram "Pagamento
+  // recebido" (ignorado), então apagá-las perderia o abatimento.
+  await prisma.cardTransaction.deleteMany({
+    where: { cardId: card.id, month: monthDate, prepayment: false },
+  });
   if (rows.length > 0) {
     await prisma.cardTransaction.createMany({
       data: rows.map((r) => ({
@@ -118,6 +147,11 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
       })),
     });
   }
-  const totalCents = rows.reduce((acc, r) => acc + r.amountCents, 0);
+  const kept = await prisma.cardTransaction.aggregate({
+    where: { cardId: card.id, month: monthDate, prepayment: true },
+    _sum: { amount: true },
+  });
+  const keptCents = kept._sum.amount ? decimalToCents(String(kept._sum.amount)) : 0;
+  const totalCents = rows.reduce((acc, r) => acc + r.amountCents, 0) + keptCents;
   return upsertCardEntry({ card, month, amountCents: totalCents, mode: "set" });
 }
