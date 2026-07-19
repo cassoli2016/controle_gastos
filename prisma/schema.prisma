@@ -27,6 +27,11 @@ model Item {
   category   Category       @relation(fields: [categoryId], references: [id])
   categoryId String
   dueDay     Int?
+  // Reajuste anual: no mês adjustMonth (1-12), o valor sobe adjustPercent %
+  // OU adjustAmount reais (um dos dois), composto a cada aniversário.
+  adjustMonth   Int?
+  adjustPercent Decimal? @db.Decimal(5, 2)
+  adjustAmount  Decimal? @db.Decimal(12, 2)
   active     Boolean        @default(true)
   notes      String?
   createdAt  DateTime       @default(now())

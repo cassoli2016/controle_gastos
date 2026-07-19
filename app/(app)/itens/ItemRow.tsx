@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useState } from "react";
 import { updateItem, archiveItem, type ActionState } from "./actions";
+import { AdjustDialog, adjustSummary, type AdjustInfo } from "./AdjustDialog";
 
 type Item = {
   id: string;
@@ -14,10 +15,12 @@ export function ItemRow({
   item,
   categoryName,
   categories,
+  adjust,
 }: {
   item: Item;
   categoryName: string;
   categories: { id: string; name: string }[];
+  adjust: AdjustInfo;
 }) {
   const [editing, setEditing] = useState(false);
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateItem, {});
@@ -72,14 +75,22 @@ export function ItemRow({
     );
   }
 
+  const summary = adjustSummary(adjust);
+
   return (
     <tr className="border-b">
-      <td>{item.name}</td>
+      <td>
+        {item.name}
+        {summary && (
+          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{summary}</span>
+        )}
+      </td>
       <td>{categoryName}</td>
       <td>{item.dueDay ?? "—"}</td>
       <td>{item.active ? "Ativo" : "Arquivado"}</td>
       <td className="text-right">
         <div className="flex items-center justify-end gap-3">
+          <AdjustDialog itemId={item.id} itemName={item.name} adjust={adjust} />
           <button type="button" onClick={() => setEditing(true)} className="text-sm text-blue-600">
             Editar
           </button>

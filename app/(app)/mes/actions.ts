@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema } from "@/lib/validators";
 import { monthToDate, monthRange } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
+import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
@@ -88,15 +89,30 @@ export async function applyRange(_prevState: ActionState, formData: FormData): P
 export async function copyPreviousMonth(month: string) {
   const target = monthToDate(month);
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
-  const prevEntries = await prisma.monthlyEntry.findMany({ where: { month: prev } });
+  const prevEntries = await prisma.monthlyEntry.findMany({
+    where: { month: prev },
+    include: { item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true } } },
+  });
+  const targetMonthNum = target.getUTCMonth() + 1;
   let copied = 0;
   await prisma.$transaction(async (tx) => {
     for (const e of prevEntries) {
       // Só copia contas fixas (item recorrente); avulsos/parcelas de cartão não são "copiados".
       if (e.itemId === null) continue;
+      // Reajuste anual: se o mês de destino é o aniversário do item, o valor
+      // copiado já sobe conforme a regra (% composto ou valor fixo).
+      let plannedAmount: number | typeof e.plannedAmount = e.plannedAmount;
+      const rule = e.item;
+      if (rule?.adjustMonth === targetMonthNum && (rule.adjustPercent || rule.adjustAmount)) {
+        const cents = adjustedCents(decimalToCents(String(e.plannedAmount)), 1, {
+          percent: rule.adjustPercent === null ? null : Number(rule.adjustPercent),
+          amountCents: rule.adjustAmount === null ? null : decimalToCents(String(rule.adjustAmount)),
+        });
+        plannedAmount = centsToNumber(cents);
+      }
       await tx.monthlyEntry.upsert({
         where: { itemId_month: { itemId: e.itemId, month: target } },
-        create: { itemId: e.itemId, month: target, plannedAmount: e.plannedAmount },
+        create: { itemId: e.itemId, month: target, plannedAmount },
         update: {},
       });
       copied++;

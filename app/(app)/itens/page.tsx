@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decimalToCents } from "@/lib/money";
 import { NewItemForm } from "./NewItemForm";
 import { ItemRow } from "./ItemRow";
 
@@ -32,6 +33,11 @@ export default async function ItensPage() {
               item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, active: i.active }}
               categoryName={i.category.name}
               categories={categoryOptions}
+              adjust={{
+                month: i.adjustMonth,
+                percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
+                amountCents: i.adjustAmount === null ? null : decimalToCents(String(i.adjustAmount)),
+              }}
             />
           ))}
         </tbody>

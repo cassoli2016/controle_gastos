@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -17,6 +17,18 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Gastos · Controle Financeiro",
   description: "Controle financeiro pessoal — contas, cartões e parcelamentos.",
+  applicationName: "Gastos",
+  // iOS "Adicionar à Tela de Início": abre standalone (sem chrome do Safari),
+  // com nome e ícone próprios — comportamento de app nativo.
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Gastos" },
+  icons: { icon: "/icon-192.png", apple: "/apple-touch-icon.png" },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f6f7f9" },
+    { media: "(prefers-color-scheme: dark)", color: "#101216" },
+  ],
 };
 
 export default function RootLayout({
