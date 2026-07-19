@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseExpenseMessage } from "@/lib/telegram-parse";
+import { parseExpenseMessage, parseExpenseLines } from "@/lib/telegram-parse";
 
 describe("parseExpenseMessage", () => {
   it("descrição + valor", () => {
@@ -45,5 +45,35 @@ describe("parseExpenseMessage", () => {
     expect(parseExpenseMessage("42,50")).toBeNull(); // sem descrição
     expect(parseExpenseMessage("")).toBeNull();
     expect(parseExpenseMessage("almoço 0")).toBeNull(); // valor zero
+  });
+});
+
+describe("parseExpenseLines", () => {
+  it("várias linhas viram várias despesas", () => {
+    const { entries, failedLines } = parseExpenseLines(
+      "ifood 54,90 nubank\nuber 23,40 nubank\nmercado 312,75",
+    );
+    expect(failedLines).toEqual([]);
+    expect(entries).toHaveLength(3);
+    expect(entries[0]).toEqual({
+      description: "ifood",
+      amountReais: 54.9,
+      installments: 1,
+      cardHint: "nubank",
+    });
+    expect(entries[2].cardHint).toBeNull();
+  });
+  it("linhas vazias são ignoradas; inválidas vão para failedLines", () => {
+    const { entries, failedLines } = parseExpenseLines(
+      "ifood 54,90\n\n   \nlinha sem valor\ngeladeira 300 nubank 3x\n",
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries[1].installments).toBe(3);
+    expect(failedLines).toEqual(["linha sem valor"]);
+  });
+  it("mensagem de uma linha só também funciona", () => {
+    const { entries, failedLines } = parseExpenseLines("almoço 42,50");
+    expect(entries).toHaveLength(1);
+    expect(failedLines).toEqual([]);
   });
 });

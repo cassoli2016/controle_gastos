@@ -59,3 +59,42 @@ export async function createPurchaseCore(input: PurchaseInput): Promise<{ count:
 
   return { count: input.installments };
 }
+
+export type BatchPurchaseRow = {
+  description: string;
+  /** Valor POR parcela, em reais. */
+  amount: number;
+  installments: number;
+  cardId?: string | null;
+};
+
+/**
+ * Importa várias compras de uma vez (lote do bot: mensagem multi-linha ou CSV
+ * de fatura) num único createMany — ou importa tudo, ou nada. Compras
+ * parceladas viram N MonthlyEntry ligados pelo mesmo installmentId.
+ */
+export async function createPurchasesBatch(
+  rows: BatchPurchaseRow[],
+  startMonth: string,
+  categoryId?: string | null,
+): Promise<{ purchases: number; entries: number; totalCents: number }> {
+  const catId = categoryId ?? (await resolveDefaultPurchaseCategoryId());
+  let totalCents = 0;
+  const data = rows.flatMap((row) => {
+    const months = installmentMonths(startMonth, row.installments);
+    const installmentId = crypto.randomUUID();
+    totalCents += Math.round(row.amount * 100) * row.installments;
+    return months.map((month, i) => ({
+      installmentId,
+      installmentSeq: i + 1,
+      installmentCount: row.installments,
+      description: row.description,
+      categoryId: catId,
+      cardId: row.cardId ?? null,
+      month: monthToDate(month),
+      plannedAmount: row.amount,
+    }));
+  });
+  await prisma.monthlyEntry.createMany({ data });
+  return { purchases: rows.length, entries: data.length, totalCents };
+}

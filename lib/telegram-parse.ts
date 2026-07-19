@@ -48,3 +48,27 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     cardHint: cardWords.length > 0 ? cardWords.join(" ").toLowerCase() : null,
   };
 }
+
+export type BatchParseResult = {
+  entries: ParsedExpense[];
+  /** Linhas não vazias que não puderam ser interpretadas. */
+  failedLines: string[];
+};
+
+/**
+ * Interpreta uma mensagem com VÁRIAS despesas, uma por linha (importação em
+ * lote pelo bot). Linhas em branco são ignoradas; as demais passam pelo
+ * parseExpenseMessage e as que falham vão para failedLines.
+ */
+export function parseExpenseLines(text: string): BatchParseResult {
+  const entries: ParsedExpense[] = [];
+  const failedLines: string[] = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const parsed = parseExpenseMessage(line);
+    if (parsed) entries.push(parsed);
+    else failedLines.push(line);
+  }
+  return { entries, failedLines };
+}
