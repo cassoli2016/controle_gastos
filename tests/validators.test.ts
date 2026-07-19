@@ -106,3 +106,17 @@ describe("validators", () => {
     ).toBe(false);
   });
 });
+
+describe("purchaseSchema com recorrência", () => {
+  it("parcelas ausentes (input desabilitado) viram 1", () => {
+    const parsed = purchaseSchema.safeParse({
+      description: "Academia",
+      amount: 99.9,
+      installments: null,
+      date: "2026-08-01",
+      recurring: "on",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.installments).toBe(1);
+  });
+});

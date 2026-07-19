@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
 import { parseNubankShares, isNubankShareFormat } from "@/lib/nubank-share";
 import { parseCardCsv } from "@/lib/csv-import";
-import { createPurchaseCore, createPurchasesBatch } from "@/lib/purchases";
+import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
@@ -31,6 +31,7 @@ const HELP =
   "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
   '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
   '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
+  '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
 
@@ -262,9 +263,11 @@ async function handleBatchText(chatId: number, text: string) {
 
   // Recorrências ("mensal") viram contas fixas; as demais seguem o fluxo
   // normal (cartão consolida, sem cartão vira avulso).
-  const recurringLines = entries.filter((e) => e.recurring && e.cardHint === null);
-  const recurringOnCard = entries.filter((e) => e.recurring && e.cardHint !== null);
-  const normal = entries.filter((e) => !e.recurring);
+  const incomeLines = entries.filter((e) => e.income && e.cardHint === null);
+  const nonIncome = entries.filter((e) => !e.income || e.cardHint !== null);
+  const recurringLines = nonIncome.filter((e) => e.recurring && e.cardHint === null);
+  const recurringOnCard = nonIncome.filter((e) => e.recurring && e.cardHint !== null);
+  const normal = nonIncome.filter((e) => !e.recurring);
   const cardLines = normal.filter((e) => e.cardHint !== null);
   const plainLines = normal.filter((e) => e.cardHint === null);
 
@@ -275,6 +278,36 @@ async function handleBatchText(chatId: number, text: string) {
       startMonth: defaultMonth,
       dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
     });
+  }
+
+  // Recebimentos do lote: categoria INCOME; "mensal" vira recorrência.
+  let incomeSummary = "";
+  if (incomeLines.length > 0) {
+    const categoryId = await resolveIncomeCategoryId();
+    let incomeCents = 0;
+    for (const e of incomeLines) {
+      incomeCents += Math.round(e.amountReais * 100);
+      if (e.recurring) {
+        await createRecurrence({
+          name: e.description,
+          amount: e.amountReais,
+          startMonth: defaultMonth,
+          categoryId,
+          dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+        });
+      } else {
+        await createPurchaseCore({
+          description: e.description,
+          amount: e.amountReais,
+          installments: 1,
+          startMonth: defaultMonth,
+          cardId: null,
+          categoryId,
+          purchaseDateISO: todayISOInSaoPaulo(),
+        });
+      }
+    }
+    incomeSummary = `💰 ${incomeLines.length} recebimento(s) — ${formatCents(incomeCents)}`;
   }
 
   const perCard = new Map<string, { card: CardRef; cents: number; months: Set<string> }>();
@@ -312,6 +345,7 @@ async function handleBatchText(chatId: number, text: string) {
     lines.push(`💳 ${card.name}: +${formatCents(cents)} · ${fmtMonthSpan(sorted)}`);
   }
   if (plainSummary) lines.push(plainSummary);
+  if (incomeSummary) lines.push(incomeSummary);
   if (recurringLines.length > 0)
     lines.push(`🔁 ${recurringLines.length} recorrência(s) mensal(is) criada(s) a partir de ${fmtMonth(defaultMonth)}`);
   if (recurringOnCard.length > 0)
@@ -334,6 +368,41 @@ async function handleSingleText(chatId: number, text: string) {
 
   const amountCents = Math.round(parsed.amountReais * 100);
   const defaultMonth = await resolveDefaultMonth();
+
+  if (parsed.income) {
+    if (parsed.cardHint) {
+      await reply(chatId, "Recebimento não entra em cartão — estornos da fatura vêm pelo CSV. Lance sem o nome do cartão.");
+      return;
+    }
+    const categoryId = await resolveIncomeCategoryId();
+    if (parsed.recurring) {
+      const { count, months } = await createRecurrence({
+        name: parsed.description,
+        amount: parsed.amountReais,
+        startMonth: defaultMonth,
+        categoryId,
+        dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+      });
+      revalidateAll();
+      await reply(
+        chatId,
+        `💰🔁 Recebimento mensal criado: ${parsed.description} — ${formatCents(amountCents)}/mês de ${fmtMonth(months[0])} a ${fmtMonth(months[count - 1])}.`,
+      );
+      return;
+    }
+    await createPurchaseCore({
+      description: parsed.description,
+      amount: parsed.amountReais,
+      installments: 1,
+      startMonth: defaultMonth,
+      cardId: null,
+      categoryId,
+      purchaseDateISO: todayISOInSaoPaulo(),
+    });
+    revalidateAll();
+    await reply(chatId, `💰 ${parsed.description} — ${formatCents(amountCents)} · ${fmtMonth(defaultMonth)} (recebimento)`);
+    return;
+  }
 
   if (parsed.recurring) {
     if (parsed.cardHint) {

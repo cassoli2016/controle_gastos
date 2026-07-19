@@ -6,11 +6,15 @@ export type ParsedExpense = {
   cardHint: string | null;
   /** "mensal"/"recorrente" após o valor: recorrência mensal (vira conta fixa). */
   recurring: boolean;
+  /** Prefixo "recebi" ou sufixo "receita"/"recebimento": entrada (INCOME), não despesa. */
+  income: boolean;
 };
 
 const AMOUNT_RE = /^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:[.,]\d{1,2})?$/;
 const INSTALLMENTS_RE = /^(\d{1,3})x$/i;
 const RECURRING_RE = /^(mensal|recorrente)$/i;
+const INCOME_PREFIX_RE = /^recebi$/i;
+const INCOME_SUFFIX_RE = /^(receita|recebimento)$/i;
 
 function parseAmount(token: string): number {
   // "1.299,90" (pt-BR) ou "512.30"/"300" (decimal com ponto)
@@ -24,8 +28,16 @@ function parseAmount(token: string): number {
  * depois do valor. Retorna null se não houver descrição ou valor válido.
  */
 export function parseExpenseMessage(text: string): ParsedExpense | null {
-  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  let tokens = text.trim().split(/\s+/).filter(Boolean);
   if (tokens.length < 2) return null;
+
+  // Prefixo "recebi": marca entrada e sai da descrição.
+  let income = false;
+  if (INCOME_PREFIX_RE.test(tokens[0])) {
+    income = true;
+    tokens = tokens.slice(1);
+    if (tokens.length < 2) return null;
+  }
 
   // O valor é o PRIMEIRO token numérico (a descrição vem antes dele).
   const amountIdx = tokens.findIndex((t) => AMOUNT_RE.test(t));
@@ -43,6 +55,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     const m = INSTALLMENTS_RE.exec(t);
     if (m) installments = Math.max(1, parseInt(m[1], 10));
     else if (RECURRING_RE.test(t)) recurring = true;
+    else if (INCOME_SUFFIX_RE.test(t)) income = true;
     else cardWords.push(t);
   }
 
@@ -52,6 +65,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     installments,
     cardHint: cardWords.length > 0 ? cardWords.join(" ").toLowerCase() : null,
     recurring,
+    income,
   };
 }
 

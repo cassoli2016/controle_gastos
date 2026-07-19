@@ -20,6 +20,18 @@ export async function resolveDefaultPurchaseCategoryId(): Promise<string> {
   return created.id;
 }
 
+/** Categoria padrão de recebimentos (find-or-create; prefere a existente "Recebimentos"). */
+export async function resolveIncomeCategoryId(): Promise<string> {
+  const byName = await prisma.category.findFirst({ where: { name: "Recebimentos" } });
+  if (byName) return byName.id;
+  const anyIncome = await prisma.category.findFirst({ where: { type: "INCOME" } });
+  if (anyIncome) return anyIncome.id;
+  const created = await prisma.category.create({
+    data: { name: "Recebimentos", type: "INCOME", color: "#10b981" },
+  });
+  return created.id;
+}
+
 export type PurchaseInput = {
   description: string;
   /** Valor POR parcela, em reais. */

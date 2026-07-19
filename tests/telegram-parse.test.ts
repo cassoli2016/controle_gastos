@@ -9,6 +9,7 @@ describe("parseExpenseMessage", () => {
       installments: 1,
       cardHint: null,
       recurring: false,
+      income: false,
     });
   });
   it("descrição + valor + cartão", () => {
@@ -18,6 +19,7 @@ describe("parseExpenseMessage", () => {
       installments: 1,
       cardHint: "nubank",
       recurring: false,
+      income: false,
     });
   });
   it("parcelado + cartão (ordem livre depois do valor)", () => {
@@ -27,6 +29,7 @@ describe("parseExpenseMessage", () => {
       installments: 3,
       cardHint: "nubank",
       recurring: false,
+      income: false,
     });
     expect(parseExpenseMessage("geladeira 1.299,90 3x amazon")).toEqual({
       description: "geladeira",
@@ -34,6 +37,7 @@ describe("parseExpenseMessage", () => {
       installments: 3,
       cardHint: "amazon",
       recurring: false,
+      income: false,
     });
   });
   it("descrição com várias palavras", () => {
@@ -43,6 +47,7 @@ describe("parseExpenseMessage", () => {
       installments: 1,
       cardHint: null,
       recurring: false,
+      income: false,
     });
   });
   it("inválidos retornam null", () => {
@@ -61,6 +66,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       installments: 1,
       cardHint: null,
       recurring: true,
+      income: false,
     });
   });
   it("'recorrente' também funciona, combinado com outras palavras de cartão", () => {
@@ -70,6 +76,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       installments: 1,
       cardHint: null,
       recurring: true,
+      income: false,
     });
     // keyword + cartão: recorrente é extraído e o resto vira cardHint
     expect(parseExpenseMessage("spotify 21,90 nubank mensal")).toEqual({
@@ -78,6 +85,41 @@ describe("recorrência mensal (palavra-chave)", () => {
       installments: 1,
       cardHint: "nubank",
       recurring: true,
+      income: false,
+    });
+  });
+});
+
+describe("recebimentos", () => {
+  it("prefixo 'recebi' marca income e sai da descrição", () => {
+    expect(parseExpenseMessage("recebi freela 500")).toEqual({
+      description: "freela",
+      amountReais: 500,
+      installments: 1,
+      cardHint: null,
+      recurring: false,
+      income: true,
+    });
+  });
+  it("sufixo 'receita'/'recebimento' também marca income", () => {
+    expect(parseExpenseMessage("aluguel kitnet 800 receita")).toEqual({
+      description: "aluguel kitnet",
+      amountReais: 800,
+      installments: 1,
+      cardHint: null,
+      recurring: false,
+      income: true,
+    });
+    expect(parseExpenseMessage("dividendos 320,55 recebimento")).toMatchObject({ income: true });
+  });
+  it("recebimento recorrente (salário)", () => {
+    expect(parseExpenseMessage("recebi gobrax 25000 mensal")).toEqual({
+      description: "gobrax",
+      amountReais: 25000,
+      installments: 1,
+      cardHint: null,
+      recurring: true,
+      income: true,
     });
   });
 });
@@ -95,6 +137,7 @@ describe("parseExpenseLines", () => {
       installments: 1,
       cardHint: "nubank",
       recurring: false,
+      income: false,
     });
     expect(entries[2].cardHint).toBeNull();
   });
