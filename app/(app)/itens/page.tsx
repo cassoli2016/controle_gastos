@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { Card, CardContent } from "@/components/ui/card";
+import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components/ui/table";
 import { decimalToCents } from "@/lib/money";
 import { NewItemForm } from "./NewItemForm";
 import { ItemRow } from "./ItemRow";
@@ -12,36 +14,43 @@ export default async function ItensPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">Itens</h1>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <h1 className="text-2xl font-bold tracking-tight">Itens</h1>
+        <NewItemForm categories={categoryOptions} />
+      </div>
 
-      <NewItemForm categories={categoryOptions} />
-
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left border-b">
-            <th>Item</th>
-            <th>Categoria</th>
-            <th>Dia</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((i) => (
-            <ItemRow
-              key={i.id}
-              item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, active: i.active }}
-              categoryName={i.category.name}
-              categories={categoryOptions}
-              adjust={{
-                month: i.adjustMonth,
-                percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
-                amountCents: i.adjustAmount === null ? null : decimalToCents(String(i.adjustAmount)),
-              }}
-            />
-          ))}
-        </tbody>
-      </table>
+      <Card>
+        <CardContent className="px-0">
+          <Table>
+            {/* Cabeçalho só faz sentido no layout de colunas do desktop; no
+                mobile cada item vira um mini-card empilhado. */}
+            <TableHeader className="hidden md:table-header-group">
+              <TableRow>
+                <TableHead>Item</TableHead>
+                <TableHead>Categoria</TableHead>
+                <TableHead>Dia venc.</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Ações</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((i) => (
+                <ItemRow
+                  key={i.id}
+                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, active: i.active }}
+                  categoryName={i.category.name}
+                  categories={categoryOptions}
+                  adjust={{
+                    month: i.adjustMonth,
+                    percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
+                    amountCents: i.adjustAmount === null ? null : decimalToCents(String(i.adjustAmount)),
+                  }}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }

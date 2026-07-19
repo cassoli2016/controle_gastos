@@ -2,6 +2,34 @@
 import { useActionState, useState } from "react";
 import { updateItem, archiveItem, type ActionState } from "./actions";
 import { AdjustDialog, adjustSummary, type AdjustInfo } from "./AdjustDialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { TableRow, TableCell } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useActionToast } from "@/hooks/use-action-toast";
 
 type Item = {
   id: string;
@@ -22,88 +50,206 @@ export function ItemRow({
   categories: { id: string; name: string }[];
   adjust: AdjustInfo;
 }) {
-  const [editing, setEditing] = useState(false);
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateItem, {});
-  const [archiveState, archiveAction, archivePending] = useActionState<ActionState, FormData>(archiveItem, {});
+  useActionToast(updateState, { success: "Item atualizado." });
 
-  // Fecha o formulário de edição após sucesso, sem efeito colateral em useEffect
-  // (padrão recomendado: ajustar estado durante a renderização comparando a
-  // referência anterior do estado retornado pela Server Action).
-  const [handledUpdateState, setHandledUpdateState] = useState(updateState);
-  if (updateState !== handledUpdateState) {
-    setHandledUpdateState(updateState);
-    if (updateState.ok && editing) setEditing(false);
+  const [archiveState, archiveAction, archivePending] = useActionState<ActionState, FormData>(archiveItem, {});
+  useActionToast(archiveState, { success: "Status do item atualizado." });
+
+  const [editOpen, setEditOpen] = useState(false);
+  // Fecha o dialog de edição assim que a action retorna sucesso (mesmo
+  // padrão do CardRow/CategoryRow: ajustar estado durante a renderização,
+  // sem useEffect).
+  const [seenUpdateState, setSeenUpdateState] = useState(updateState);
+  if (updateState !== seenUpdateState) {
+    setSeenUpdateState(updateState);
+    if (updateState.ok) setEditOpen(false);
   }
 
-  if (editing) {
-    return (
-      <tr className="border-b">
-        <td colSpan={5} className="py-2">
-          <form action={updateAction} className="flex flex-wrap items-end gap-3">
-            <input type="hidden" name="id" value={item.id} />
-            <input name="name" defaultValue={item.name} required className="border rounded px-2 py-1" />
-            <select name="categoryId" defaultValue={item.categoryId} required className="border rounded px-2 py-1">
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <input
-              name="dueDay"
-              type="number"
-              min={1}
-              max={31}
-              defaultValue={item.dueDay ?? undefined}
-              placeholder="Dia pgto"
-              className="border rounded px-2 py-1 w-24"
-            />
-            <label className="flex items-center gap-1 text-sm">
-              <input type="checkbox" name="active" defaultChecked={item.active} />
-              Ativo
-            </label>
-            <button type="submit" disabled={updatePending} className="border rounded px-3 py-1 text-sm">
-              Salvar
-            </button>
-            <button type="button" onClick={() => setEditing(false)} className="text-sm">
-              Cancelar
-            </button>
-            {updateState.error && <span className="text-sm text-red-600 basis-full">{updateState.error}</span>}
-          </form>
-        </td>
-      </tr>
-    );
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  // Mesmo padrão: fecha o AlertDialog de confirmação ao suceder.
+  const [seenArchiveState, setSeenArchiveState] = useState(archiveState);
+  if (archiveState !== seenArchiveState) {
+    setSeenArchiveState(archiveState);
+    if (archiveState.ok) setArchiveOpen(false);
   }
 
   const summary = adjustSummary(adjust);
 
+  const nameCell = (
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="font-medium">{item.name}</span>
+      {summary && <Badge variant="secondary">{summary}</Badge>}
+    </div>
+  );
+
+  const categoryBadge = <Badge variant="outline">{categoryName}</Badge>;
+
+  const statusBadge = (
+    <Badge variant={item.active ? "default" : "outline"}>{item.active ? "Ativo" : "Arquivado"}</Badge>
+  );
+
+  const archiveActionLabel = item.active ? "Arquivar" : "Reativar";
+
+  // Um único par Dialog/AlertDialog (estado controlado, single instance) para
+  // Editar/Arquivar, com DOIS gatilhos cada (linha desktop + mini-card
+  // mobile) — mesmo padrão do CardRow/CategoryRow. O AdjustDialog é um
+  // componente autocontido que gerencia seu próprio Dialog internamente, então
+  // aparece como duas instâncias independentes (uma por breakpoint), assim
+  // como os próprios botões de Editar/Arquivar são duplicados nas duas linhas
+  // antes de compartilhar o Dialog/AlertDialog acima.
   return (
-    <tr className="border-b">
-      <td>
-        {item.name}
-        {summary && (
-          <span className="ml-2 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{summary}</span>
-        )}
-      </td>
-      <td>{categoryName}</td>
-      <td>{item.dueDay ?? "—"}</td>
-      <td>{item.active ? "Ativo" : "Arquivado"}</td>
-      <td className="text-right">
-        <div className="flex items-center justify-end gap-3">
-          <AdjustDialog itemId={item.id} itemName={item.name} adjust={adjust} />
-          <button type="button" onClick={() => setEditing(true)} className="text-sm text-blue-600">
-            Editar
-          </button>
+    <Dialog open={editOpen} onOpenChange={setEditOpen}>
+      <AlertDialog open={archiveOpen} onOpenChange={setArchiveOpen}>
+        {/* Desktop: linha de tabela (shadcn Table) */}
+        <TableRow className="hidden md:table-row">
+          <TableCell>{nameCell}</TableCell>
+          <TableCell>{categoryBadge}</TableCell>
+          <TableCell>{item.dueDay ?? "—"}</TableCell>
+          <TableCell>{statusBadge}</TableCell>
+          <TableCell>
+            <div className="flex items-center justify-end gap-2">
+              <AdjustDialog itemId={item.id} itemName={item.name} adjust={adjust} />
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  Editar
+                </Button>
+              </DialogTrigger>
+              <AlertDialogTrigger asChild>
+                <Button type="button" variant={item.active ? "destructive" : "outline"} size="sm">
+                  {archiveActionLabel}
+                </Button>
+              </AlertDialogTrigger>
+            </div>
+          </TableCell>
+        </TableRow>
+
+        {/* Mobile: mini-card empilhado numa única célula */}
+        <TableRow className="md:hidden">
+          <TableCell colSpan={5} className="p-0">
+            <div className="flex flex-col gap-2 p-3 whitespace-normal">
+              <div className="flex items-center justify-between gap-2">
+                {nameCell}
+                {statusBadge}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+                {categoryBadge}
+                <span>Dia venc.: {item.dueDay ?? "—"}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <AdjustDialog itemId={item.id} itemName={item.name} adjust={adjust} />
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    Editar
+                  </Button>
+                </DialogTrigger>
+                <AlertDialogTrigger asChild>
+                  <Button type="button" variant={item.active ? "destructive" : "outline"} size="sm">
+                    {archiveActionLabel}
+                  </Button>
+                </AlertDialogTrigger>
+              </div>
+            </div>
+          </TableCell>
+        </TableRow>
+
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar item</DialogTitle>
+            <DialogDescription>Altere nome, categoria, dia de vencimento ou status do item.</DialogDescription>
+          </DialogHeader>
+
+          <form action={updateAction} className="flex flex-col gap-3">
+            <input type="hidden" name="id" value={item.id} />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-item-name-${item.id}`}>Nome</Label>
+              <Input id={`edit-item-name-${item.id}`} name="name" defaultValue={item.name} required />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-item-category-${item.id}`}>Categoria</Label>
+              <Select name="categoryId" required defaultValue={item.categoryId}>
+                <SelectTrigger id={`edit-item-category-${item.id}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-item-due-day-${item.id}`}>Dia de vencimento</Label>
+              <Input
+                id={`edit-item-due-day-${item.id}`}
+                name="dueDay"
+                type="number"
+                min={1}
+                max={31}
+                defaultValue={item.dueDay ?? undefined}
+                placeholder="Opcional"
+              />
+            </div>
+            {/* IMPORTANTE (bug histórico: item nascer/virar arquivado sem
+                querer): parseItem() em actions.ts calcula `active` pela
+                PRESENÇA da chave "active" no FormData, não pelo valor
+                (`formData.get("active") !== null`). O Switch do shadcn
+                (Radix) renderiza um <input type="checkbox"> oculto (bubble
+                input) que segue a MESMA convenção nativa de checkbox: entra
+                no FormData quando marcado, é omitido quando desmarcado. Por
+                isso basta name="active" + defaultChecked aqui — nunca trocar
+                por um input hidden sempre presente com value="true"/"false"
+                (isso faria o formData sempre conter a chave "active" e o item
+                seria salvo sempre ativo, mesmo desmarcado), e nunca remover o
+                name (o item seria salvo sempre arquivado). */}
+            <div className="flex items-center gap-2">
+              <Switch id={`edit-item-active-${item.id}`} name="active" defaultChecked={item.active} />
+              <Label htmlFor={`edit-item-active-${item.id}`}>Ativo</Label>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updatePending}>
+                Salvar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{item.active ? "Arquivar item?" : "Reativar item?"}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {item.active ? (
+                <>
+                  O item &quot;{item.name}&quot; será arquivado e deixará de aparecer como opção para novos
+                  lançamentos. Lançamentos existentes não são afetados.
+                </>
+              ) : (
+                <>O item &quot;{item.name}&quot; voltará a ficar disponível para novos lançamentos.</>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
           <form action={archiveAction}>
             <input type="hidden" name="id" value={item.id} />
+            {/* Aqui é archiveItem(), que lê o VALOR literal ("true"/"false"),
+                diferente do parseItem() usado no form de edição acima — por
+                isso este campo hidden fica sempre presente com valor
+                explícito. */}
             <input type="hidden" name="active" value={(!item.active).toString()} />
-            <button type="submit" disabled={archivePending} className="text-sm text-blue-600">
-              {item.active ? "Arquivar" : "Reativar"}
-            </button>
+            <AlertDialogFooter>
+              <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                type="submit"
+                variant={item.active ? "destructive" : "default"}
+                disabled={archivePending}
+              >
+                {archiveActionLabel}
+              </AlertDialogAction>
+            </AlertDialogFooter>
           </form>
-        </div>
-        {archiveState.error && <div className="text-xs text-red-600">{archiveState.error}</div>}
-      </td>
-    </tr>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Dialog>
   );
 }

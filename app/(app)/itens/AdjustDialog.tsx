@@ -73,9 +73,9 @@ export function AdjustDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button type="button" className="text-sm text-blue-600" aria-label={`Reajuste anual de ${itemName}`}>
-          Reajuste
-        </button>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={`Reajuste anual de ${itemName}`}>
+          <TrendingUp className="size-4" />
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
