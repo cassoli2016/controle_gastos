@@ -7,6 +7,7 @@ import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { anniversariesBetween, adjustedCents } from "@/lib/adjustment";
 import { nthBusinessDay } from "@/lib/fatura";
 import { ensureRenewalProvision } from "@/lib/renewal-provision";
+import { findActiveItemByName } from "@/lib/recurrence";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
@@ -38,6 +39,8 @@ function parseItem(formData: FormData) {
 export async function createItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = parseItem(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const dup = await findActiveItemByName(parsed.data.name);
+  if (dup) return { error: `Já existe o item ativo "${dup.name}".` };
   await prisma.item.create({ data: parsed.data });
   revalidatePath("/itens");
   return { ok: true };

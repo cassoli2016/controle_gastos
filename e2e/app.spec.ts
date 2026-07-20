@@ -80,7 +80,9 @@ test.describe.serial("caminho crítico", () => {
     await page.locator("#new-reserve-amount").fill("100000"); // R$ 1.000,00
     await page.getByRole("button", { name: "Criar" }).click();
     await expect(page.getByText("Caixinha criada.")).toBeVisible();
-    await expect(page.getByText("Emergência")).toBeVisible();
+    // exact: o texto "Emergência" também aparece no exemplo da descrição do
+    // dialog (race: toast chega antes do dialog fechar) — strict violation.
+    await expect(page.getByText("Emergência", { exact: true })).toBeVisible();
     await expect(page.getByText(/R\$\s?1\.000,00/).first()).toBeVisible();
   });
 
