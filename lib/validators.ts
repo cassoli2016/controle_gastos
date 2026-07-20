@@ -64,9 +64,10 @@ export const purchaseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
   // Checkbox "recorrência mensal": presente no FormData ("on") quando marcado.
   recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  // 0 = recorrência SEMANAL (dias da semana escolhidos à parte).
   intervalMonths: z.preprocess(
     (v) => (v === "" || v === null || v === undefined ? 1 : v),
-    z.coerce.number().int().min(1).max(12),
+    z.coerce.number().int().min(0).max(12),
   ),
 });
 

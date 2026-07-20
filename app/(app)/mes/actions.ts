@@ -9,7 +9,7 @@ import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay } from "@/lib/fatura";
-import { createRecurrence, convertEntryToRecurring, findActiveItemByName } from "@/lib/recurrence";
+import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence } from "@/lib/recurrence";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -199,6 +199,30 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
 
   // Recorrência mensal: vira conta fixa (Item) provisionada nos próximos
   // meses. Não se aplica a cartão — assinatura no cartão entra pela fatura.
+  // Recorrência SEMANAL (frequência 0): um lançamento por dia escolhido.
+  if (recurring && parsed.data.intervalMonths === 0) {
+    if (cardId)
+      return { error: "Recorrência semanal não combina com cartão — lance sem cartão." };
+    const weekdays = formData
+      .getAll("weekdays")
+      .map((v) => Number(v))
+      .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+    if (weekdays.length === 0) return { error: "Escolha pelo menos um dia da semana." };
+    const categoryId =
+      parsed.data.categoryId && parsed.data.categoryId !== "default"
+        ? parsed.data.categoryId
+        : await resolveDefaultPurchaseCategoryId();
+    const { count } = await createWeekdayRecurrence({
+      description,
+      amount,
+      weekdays,
+      startISO: date,
+      categoryId,
+    });
+    revalidatePath("/mes");
+    return { ok: true, count };
+  }
+
   if (recurring) {
     if (cardId)
       return { error: "Recorrência no cartão não é provisionada — ela entra todo mês pela fatura importada." };

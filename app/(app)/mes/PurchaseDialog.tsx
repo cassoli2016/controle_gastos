@@ -31,12 +31,24 @@ export function PurchaseDialog({
   useActionToast(state, {
     success: (s) =>
       recurring
-        ? `Recorrência mensal criada (${s.count ?? 0} meses provisionados).`
+        ? frequency === "0"
+          ? `Recorrência semanal criada (${s.count ?? 0} lançamentos).`
+          : `Recorrência criada (${s.count ?? 0} ocorrências provisionadas).`
         : `Compra em ${s.count ?? 0} parcela(s) lançada.`,
   });
 
   const [open, setOpen] = useState(false);
   const [recurring, setRecurring] = useState(false);
+  const [frequency, setFrequency] = useState("1");
+  const WEEKDAYS = [
+    { value: 1, label: "Seg" },
+    { value: 2, label: "Ter" },
+    { value: 3, label: "Qua" },
+    { value: 4, label: "Qui" },
+    { value: 5, label: "Sex" },
+    { value: 6, label: "Sáb" },
+    { value: 0, label: "Dom" },
+  ];
   // Mesmo padrão do AddEntryForm/BulkApplyForm: fecha o dialog ao detectar
   // sucesso durante a renderização; reabrir remonta o formulário "zerado".
   const [seenState, setSeenState] = useState(state);
@@ -135,9 +147,10 @@ export function PurchaseDialog({
             Recorrência (vira conta fixa provisionada — escolha a frequência)
           </label>
           {recurring && (
+            <>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="purchase-interval">Frequência</Label>
-                <Select name="intervalMonths" defaultValue="1">
+                <Select name="intervalMonths" value={frequency} onValueChange={setFrequency}>
                   <SelectTrigger id="purchase-interval" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -147,9 +160,31 @@ export function PurchaseDialog({
                     <SelectItem value="3">Trimestral (a cada 3 meses)</SelectItem>
                     <SelectItem value="6">Semestral (a cada 6 meses)</SelectItem>
                     <SelectItem value="12">Anual</SelectItem>
+                    <SelectItem value="0">Semanal (escolher dias)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              {frequency === "0" && (
+                <div className="flex flex-col gap-1.5">
+                  <Label>Dias da semana</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {WEEKDAYS.map((d) => (
+                      <label
+                        key={d.value}
+                        className="flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/10 has-[:checked]:text-primary"
+                      >
+                        <input type="checkbox" name="weekdays" value={d.value} className="sr-only" />
+                        {d.label}
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Um lançamento por ocorrência (com a data de cada dia), a partir da data da
+                    compra, pelos próximos 12 meses.
+                  </p>
+                </div>
+              )}
+            </>
           )}
 
           <div className="flex flex-col gap-1.5">
