@@ -122,6 +122,7 @@ export default async function CartoesPage({
                   <StatementDialog
                     cardName={card.name}
                     monthLabel={formatCompetencia(monthDate)}
+                    monthISO={month}
                     totalCents={totalCents}
                     rows={rows}
                   />

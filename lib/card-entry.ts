@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { monthToDate } from "@/lib/dates";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { installmentMonths } from "@/lib/installments";
@@ -181,4 +181,48 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
   const keptCents = kept._sum.amount ? decimalToCents(String(kept._sum.amount)) : 0;
   const totalCents = rows.reduce((acc, r) => acc + r.amountCents, 0) + keptCents;
   return upsertCardEntry({ card, month, amountCents: totalCents, mode: "set" });
+}
+
+/**
+ * Edita uma linha do extrato ajustando os consolidados: subtrai o valor
+ * antigo da fatura antiga e soma o novo na fatura nova (pode MOVER de mês).
+ */
+export async function updateCardTransaction(opts: {
+  txId: string;
+  description: string;
+  amountCents: number;
+  monthISO: string; // fatura de destino (YYYY-MM)
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tx = await prisma.cardTransaction.findUnique({ where: { id: opts.txId }, include: { card: true } });
+  if (!tx) return { ok: false, error: "Lançamento não encontrado." };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  const oldMonth = monthStringFromDate(tx.month);
+  const oldCents = decimalToCents(String(tx.amount));
+
+  await upsertCardEntry({ card, month: oldMonth, amountCents: -oldCents, mode: "add" });
+  await upsertCardEntry({ card, month: opts.monthISO, amountCents: opts.amountCents, mode: "add" });
+  await prisma.cardTransaction.update({
+    where: { id: tx.id },
+    data: {
+      description: opts.description,
+      amount: centsToNumber(opts.amountCents),
+      month: monthToDate(opts.monthISO),
+    },
+  });
+  return { ok: true };
+}
+
+/** Exclui uma linha do extrato e abate o valor da fatura consolidada. */
+export async function deleteCardTransaction(txId: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const tx = await prisma.cardTransaction.findUnique({ where: { id: txId }, include: { card: true } });
+  if (!tx) return { ok: false, error: "Lançamento não encontrado." };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  await upsertCardEntry({
+    card,
+    month: monthStringFromDate(tx.month),
+    amountCents: -decimalToCents(String(tx.amount)),
+    mode: "add",
+  });
+  await prisma.cardTransaction.delete({ where: { id: tx.id } });
+  return { ok: true };
 }

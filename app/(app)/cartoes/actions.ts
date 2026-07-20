@@ -3,7 +3,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
-import { addPrepaymentToCard, cardTargetMonth } from "@/lib/card-entry";
+import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction } from "@/lib/card-entry";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 
@@ -128,5 +128,46 @@ export async function archiveCard(_prevState: ActionState, formData: FormData): 
   const active = formData.get("active") === "true";
   await prisma.creditCard.update({ where: { id }, data: { active } });
   revalidatePath("/cartoes");
+  return { ok: true };
+}
+
+const statementLineSchema = z.object({
+  txId: z.string().min(1),
+  description: z.string().trim().min(1, "Descrição obrigatória"),
+  amount: z.coerce.number().refine((v) => v !== 0, "Valor não pode ser zero"),
+  month: z.string().regex(/^\d{4}-\d{2}$/, "Fatura YYYY-MM"),
+});
+
+/** Edita uma linha do extrato (descrição/valor/fatura) ajustando o consolidado. */
+export async function updateStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = statementLineSchema.safeParse({
+    txId: formData.get("txId"),
+    description: formData.get("description"),
+    amount: formData.get("amount"),
+    month: formData.get("month"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const r = await updateCardTransaction({
+    txId: parsed.data.txId,
+    description: parsed.data.description,
+    amountCents: Math.round(parsed.data.amount * 100),
+    monthISO: parsed.data.month,
+  });
+  if (!r.ok) return { error: r.error };
+  revalidatePath("/cartoes");
+  revalidatePath("/mes");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+/** Exclui uma linha do extrato abatendo o valor da fatura. */
+export async function deleteStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const txId = formData.get("txId");
+  if (typeof txId !== "string" || !txId) return { error: "Lançamento inválido." };
+  const r = await deleteCardTransaction(txId);
+  if (!r.ok) return { error: r.error };
+  revalidatePath("/cartoes");
+  revalidatePath("/mes");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
