@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
-import { parseNubankShares, isNubankShareFormat } from "@/lib/nubank-share";
+import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@/lib/nubank-share";
+import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
@@ -35,6 +36,7 @@ type TelegramUpdate = {
 const HELP =
   "Jeitos de lançar:\n" +
   "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
+  '• Cole o SMS do Bradesco ("CARTAO X: COMPRA APROVADA…") — cartão, data e parcelas saem dele\n' +
   '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
   '• "mensal"/"bimestral"/"trimestral"/"anual"/"a cada N meses" = recorrência\n' +
   '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
@@ -276,9 +278,9 @@ async function handleCsvDocument(
   await reply(chatId, msg);
 }
 
-/** Compartilhamentos de notificação do Nubank (1+ blocos na mensagem). */
-async function handleShareText(chatId: number, text: string) {
-  const { purchases, failedLines } = parseNubankShares(text);
+/** Compras parseadas de notificações (share do Nubank ou SMS do Bradesco). */
+async function handleShareText(chatId: number, parsed: ShareParseResult) {
+  const { purchases, failedLines } = parsed;
   if (purchases.length === 0) {
     await reply(chatId, `Não entendi 🤔\n${HELP}`);
     return;
@@ -785,7 +787,9 @@ export async function POST(req: Request) {
   }
 
   if (isNubankShareFormat(text)) {
-    await handleShareText(chatId, text);
+    await handleShareText(chatId, parseNubankShares(text));
+  } else if (isBradescoSmsFormat(text)) {
+    await handleShareText(chatId, parseBradescoSms(text));
   } else if (/\n/.test(text)) {
     await handleBatchText(chatId, text);
   } else {
