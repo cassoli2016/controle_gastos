@@ -1,5 +1,5 @@
 /**
- * Visão planilha: matriz linhas (contas) × colunas (meses), com seções por
+ * Visão Panorama (estilo planilha): matriz linhas (contas) × colunas (meses), com seções por
  * categoria e totais por mês — espelho da planilha original do usuário.
  */
 

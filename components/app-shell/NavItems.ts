@@ -2,7 +2,7 @@ import { LayoutDashboard, CalendarDays, ListChecks, Tags, CreditCard, PiggyBank,
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/mes", label: "Mês", icon: CalendarDays },
-  { href: "/planilha", label: "Planilha", icon: Grid3x3 },
+  { href: "/panorama", label: "Panorama", icon: Grid3x3 },
   { href: "/cartoes", label: "Cartões", icon: CreditCard },
   { href: "/investimentos", label: "Invest", icon: ChartCandlestick },
   { href: "/reservas", label: "Reservas", icon: PiggyBank },

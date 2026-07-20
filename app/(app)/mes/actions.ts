@@ -483,7 +483,7 @@ const entryIdsSchema = z.object({
 });
 
 /**
- * Dá baixa (ou desfaz) em um conjunto de lançamentos — usado pela Planilha
+ * Dá baixa (ou desfaz) em um conjunto de lançamentos — usado pelo Panorama
  * (célula pode agregar várias ocorrências, ex.: diarista). Pagar usa o
  * previsto de cada um como valor pago.
  */
@@ -505,7 +505,7 @@ export async function setEntriesPaid(_prevState: ActionState, formData: FormData
       }),
     ),
   );
-  revalidatePath("/planilha");
+  revalidatePath("/panorama");
   revalidatePath("/mes");
   revalidatePath("/dashboard");
   return { ok: true, count: entries.length };
@@ -516,7 +516,7 @@ const entryValueSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
 });
 
-/** Edita o previsto de UM lançamento (célula simples da Planilha). */
+/** Edita o previsto de UM lançamento (célula simples do Panorama). */
 export async function updateEntryValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryValueSchema.safeParse({
     entryId: formData.get("entryId"),
@@ -527,7 +527,7 @@ export async function updateEntryValue(_prevState: ActionState, formData: FormDa
     where: { id: parsed.data.entryId },
     data: { plannedAmount: parsed.data.amount },
   });
-  revalidatePath("/planilha");
+  revalidatePath("/panorama");
   revalidatePath("/mes");
   revalidatePath("/dashboard");
   return { ok: true };

@@ -15,7 +15,7 @@ function fmt(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default async function PlanilhaPage() {
+export default async function PanoramaPage() {
   const rows = await prisma.monthlyEntry.findMany({
     include: { item: { include: { category: true } }, category: true, card: true },
   });
@@ -52,7 +52,7 @@ export default async function PlanilhaPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Planilha</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Panorama</h1>
         <p className="text-sm text-muted-foreground">
           Todos os meses lado a lado · verde = pago · clique no valor para editar ou dar baixa
         </p>

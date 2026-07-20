@@ -11,7 +11,7 @@ import { useActionToast } from "@/hooks/use-action-toast";
 export type CellEntry = { id: string; cents: number; paid: boolean };
 
 /**
- * Célula interativa da Planilha: clique abre popover para editar o previsto
+ * Célula interativa do Panorama: clique abre popover para editar o previsto
  * (célula simples) e dar baixa/desfazer (uma ou todas as ocorrências).
  */
 export function CellAction({
