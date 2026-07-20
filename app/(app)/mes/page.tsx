@@ -89,9 +89,11 @@ function EntryRow({
   // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
   // parcelado em mais de 1 vez (count=1 não exibe "1/1", só o badge do cartão).
   const isMultiInstallment = (row.installmentCount ?? 0) > 1;
-  const badges = (row.cardName || isMultiInstallment || row.renewsThisMonth) && (
+  // Consolidado do cartão: o nome da linha JÁ é o cartão — badge repetido é ruído.
+  const showCardBadge = row.cardName !== null && row.cardName !== row.itemName;
+  const badges = (showCardBadge || isMultiInstallment || row.renewsThisMonth) && (
     <span className="flex items-center gap-1 flex-wrap">
-      {row.cardName && <Badge variant="outline">{row.cardName}</Badge>}
+      {showCardBadge && <Badge variant="outline">{row.cardName}</Badge>}
       {isMultiInstallment && (
         <Badge variant="secondary">
           {row.installmentSeq}/{row.installmentCount}
@@ -120,12 +122,14 @@ function EntryRow({
       <tr className="border-b last:border-b-0">
         <td className="px-3 py-1.5">
           <span className="flex items-center gap-1.5 flex-wrap">
-            <span>{row.itemName}</span>
+            <span className="truncate">{row.itemName}</span>
             {badges}
           </span>
         </td>
         <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{dayLabel ?? "—"}</td>
-        <td className="px-3 py-1.5">{planned}</td>
+        <td className="px-3 py-1.5 text-right">
+          <span className="inline-flex justify-end">{planned}</span>
+        </td>
         <td className="px-3 py-1.5">{pay}</td>
         <td className="px-3 py-1.5">{actions}</td>
       </tr>
@@ -255,12 +259,22 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                 <CardContent className="px-0">
                   {/* Desktop: tabela */}
                   <div className="hidden md:block overflow-x-auto">
-                    <table className="w-full text-sm">
+                    {/* table-fixed + colgroup: as MESMAS larguras em todos os
+                        cards de categoria — colunas alinhadas verticalmente
+                        na página inteira. */}
+                    <table className="w-full table-fixed text-sm">
+                      <colgroup>
+                        <col className="w-[34%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[16%]" />
+                        <col className="w-[26%]" />
+                        <col className="w-[14%]" />
+                      </colgroup>
                       <thead>
                         <tr className="text-left border-b">
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">Item</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia venc</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Previsto</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia</th>
+                          <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Previsto</th>
                           <th className="px-3 py-1.5 font-medium text-muted-foreground">
                             {g.categoryType === "INCOME" ? "Recebido" : "Pago"}
                           </th>
