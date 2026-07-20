@@ -84,13 +84,14 @@ export async function createSubscription(_prevState: ActionState, formData: Form
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const card = await prisma.creditCard.findUnique({ where: { id: parsed.data.cardId } });
   if (!card) return { error: "Cartão não encontrado." };
-  await createCardSubscription({
+  const created = await createCardSubscription({
     card: { id: card.id, name: card.name, closingDay: card.closingDay },
     description: parsed.data.description,
     amount: parsed.data.amount,
     chargeDay: parsed.data.chargeDay,
     months: parsed.data.months,
   });
+  if ("error" in created) return { error: created.error };
   revalidatePath("/cartoes");
   revalidatePath("/mes");
   revalidatePath("/itens");

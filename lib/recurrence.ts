@@ -7,6 +7,13 @@ import { nthBusinessDay } from "@/lib/fatura";
 /** Horizonte padrão de provisionamento de uma recorrência (mês inicial incluso). */
 export const RECURRENCE_MONTHS = 12;
 
+/** Item ATIVO com o mesmo nome (sem caixa) — usado para barrar duplicatas. */
+export async function findActiveItemByName(name: string) {
+  return prisma.item.findFirst({
+    where: { active: true, name: { equals: name.trim(), mode: "insensitive" } },
+  });
+}
+
 /**
  * Recorrência mensal = conta fixa: cria um Item (nome/categoria/dia) e
  * provisiona o valor nos próximos meses. Meses seguintes ao horizonte entram
@@ -109,6 +116,8 @@ export async function convertEntryToRecurring(
   if (entry.cardId) return { ok: false, error: "Lançamento de cartão não vira recorrência — a fatura já entra todo mês." };
   const name = entry.description?.trim();
   if (!name) return { ok: false, error: "Lançamento sem descrição." };
+  const existing = await findActiveItemByName(name);
+  if (existing) return { ok: false, error: `Já existe a conta recorrente "${existing.name}" — edite em Itens.` };
 
   const categoryId = entry.categoryId ?? (await resolveDefaultPurchaseCategoryId());
   const dueDay = entry.purchaseDate ? entry.purchaseDate.getUTCDate() : null;

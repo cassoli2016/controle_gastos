@@ -8,7 +8,7 @@ import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
-import { createRecurrence, convertEntryToRecurring } from "@/lib/recurrence";
+import { createRecurrence, convertEntryToRecurring, findActiveItemByName } from "@/lib/recurrence";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -162,6 +162,8 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
   if (recurring) {
     if (cardId)
       return { error: "Recorrência no cartão não é provisionada — ela entra todo mês pela fatura importada." };
+    const dup = await findActiveItemByName(description);
+    if (dup) return { error: `Já existe a conta recorrente "${dup.name}" — edite em Itens.` };
     const categoryId =
       parsed.data.categoryId && parsed.data.categoryId !== "default" ? parsed.data.categoryId : null;
     const { count } = await createRecurrence({
@@ -235,7 +237,9 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
   const { description, amount, date, recurring, fifthBusinessDay } = parsed.data;
   const categoryId = await resolveIncomeCategoryId();
 
-  if (recurring) {
+  if (recurring || fifthBusinessDay) {
+    const dup = await findActiveItemByName(description);
+    if (dup) return { error: `Já existe a conta recorrente "${dup.name}" — edite em Itens.` };
     const { count } = await createRecurrence({
       name: description,
       amount,

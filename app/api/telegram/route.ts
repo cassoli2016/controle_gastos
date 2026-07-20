@@ -9,7 +9,7 @@ import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMon
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
-import { createWeekdayRecurrence } from "@/lib/recurrence";
+import { createWeekdayRecurrence, findActiveItemByName } from "@/lib/recurrence";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { parseB3Report, type B3Trade } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
@@ -361,7 +361,12 @@ async function handleBatchText(chatId: number, text: string) {
   const cardLines = normal.filter((e) => e.cardHint !== null);
   const plainLines = normal.filter((e) => e.cardHint === null);
 
+  let skippedDup = 0;
   for (const e of recurringLines) {
+    if (await findActiveItemByName(e.description)) {
+      skippedDup++;
+      continue;
+    }
     await createRecurrence({
       name: e.description,
       amount: e.amountReais,
@@ -373,13 +378,14 @@ async function handleBatchText(chatId: number, text: string) {
   // Assinaturas de cartão do lote ("mensal" + cartão).
   for (const e of recurringOnCard) {
     const card = cardByHint.get(e.cardHint!)!;
-    await createCardSubscription({
+    const created = await createCardSubscription({
       card,
       description: e.description,
       amount: e.amountReais,
       chargeDay: Number(todayISOInSaoPaulo().slice(8, 10)),
       months: e.installments > 1 ? e.installments : undefined,
     });
+    if ("error" in created) skippedDup++;
   }
 
   // Recebimentos do lote: categoria INCOME; "mensal" vira recorrência.
@@ -390,6 +396,10 @@ async function handleBatchText(chatId: number, text: string) {
     for (const e of incomeLines) {
       incomeCents += Math.round(e.amountReais * 100);
       if (e.recurring) {
+        if (await findActiveItemByName(e.description)) {
+          skippedDup++;
+          continue;
+        }
         await createRecurrence({
           name: e.description,
           amount: e.amountReais,
@@ -452,6 +462,7 @@ async function handleBatchText(chatId: number, text: string) {
     lines.push(`🔁 ${recurringLines.length} recorrência(s) mensal(is) criada(s) a partir de ${fmtMonth(defaultMonth)}`);
   if (recurringOnCard.length > 0)
     lines.push(`🔁💳 ${recurringOnCard.length} assinatura(s) de cartão criada(s) e provisionada(s)`);
+  if (skippedDup > 0) lines.push(`♻️ ${skippedDup} recorrência(s)/assinatura(s) já existiam (puladas)`);
   let msg = `✅ ${entries.length} despesas processadas\n${lines.join("\n")}`;
   if (failedLines.length > 0) {
     const shown = failedLines.slice(0, 5).map((l) => `• ${l}`);
@@ -505,6 +516,11 @@ async function handleSingleText(chatId: number, text: string) {
     }
     const categoryId = await resolveIncomeCategoryId();
     if (parsed.recurring) {
+      const dupIncomeItem = await findActiveItemByName(parsed.description);
+      if (dupIncomeItem) {
+        await reply(chatId, `♻️ Já existe a conta recorrente "${dupIncomeItem.name}" — edite em Itens.`);
+        return;
+      }
       const { count, months } = await createRecurrence({
         name: parsed.description,
         amount: parsed.amountReais,
@@ -564,7 +580,7 @@ async function handleSingleText(chatId: number, text: string) {
         await reply(chatId, CARD_NOT_FOUND(parsed.cardHint));
         return;
       }
-      const { firstMonth, months } = await createCardSubscription({
+      const created = await createCardSubscription({
         card,
         description: parsed.description,
         amount: parsed.amountReais,
@@ -572,11 +588,20 @@ async function handleSingleText(chatId: number, text: string) {
         // "Nx" numa assinatura = duração em meses ("youtube 24,90 nubank mensal 8x").
         months: parsed.installments > 1 ? parsed.installments : undefined,
       });
+      if ("error" in created) {
+        await reply(chatId, `♻️ ${created.error}`);
+        return;
+      }
       revalidateAll();
       await reply(
         chatId,
-        `🔁💳 Assinatura ${parsed.description} — ${formatCents(amountCents)}/mês por ${months} meses (linha própria no mês, a partir de ${fmtMonth(firstMonth)}).\nQuando a cobrança chegar na fatura ela é marcada como paga automaticamente.`,
+        `🔁💳 Assinatura ${parsed.description} — ${formatCents(amountCents)}/mês por ${created.months} meses (linha própria no mês, a partir de ${fmtMonth(created.firstMonth)}).\nQuando a cobrança chegar na fatura ela é marcada como paga automaticamente.`,
       );
+      return;
+    }
+    const dupItem = await findActiveItemByName(parsed.description);
+    if (dupItem) {
+      await reply(chatId, `♻️ Já existe a conta recorrente "${dupItem.name}" — edite em Itens em vez de criar de novo.`);
       return;
     }
     const { count, months } = await createRecurrence({

@@ -20,6 +20,7 @@ import { TrendingUp } from "lucide-react";
 /** Lança um recebimento (salário, freela, dividendos…) — categoria Recebimentos. */
 export function IncomeDialog() {
   const [recurring, setRecurring] = useState(false);
+  const [fifthBusinessDay, setFifthBusinessDay] = useState(false);
   const [state, formAction, pending] = useActionState<ActionState, FormData>(createIncome, {});
   useActionToast(state, {
     success: (s) =>
@@ -76,17 +77,28 @@ export function IncomeDialog() {
               type="checkbox"
               name="recurring"
               checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
+              onChange={(e) => {
+                setRecurring(e.target.checked);
+                if (!e.target.checked) setFifthBusinessDay(false);
+              }}
               className="size-4 accent-primary"
             />
             Recorrência mensal (salário — provisiona os próximos 12 meses)
           </label>
-          {recurring && (
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" name="fifthBusinessDay" className="size-4 accent-primary" />
-              Recebo no 5º dia útil (a data varia mês a mês)
-            </label>
-          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="fifthBusinessDay"
+              checked={fifthBusinessDay}
+              onChange={(e) => {
+                setFifthBusinessDay(e.target.checked);
+                // 5º dia útil implica recorrência (a data varia mês a mês).
+                if (e.target.checked) setRecurring(true);
+              }}
+              className="size-4 accent-primary"
+            />
+            Recebo no 5º dia útil de cada mês
+          </label>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Lançar

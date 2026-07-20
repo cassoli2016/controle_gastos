@@ -3,7 +3,7 @@ import { monthToDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { cardTargetMonth, todayISOInSaoPaulo } from "@/lib/fatura";
 import { descriptionsMatch } from "@/lib/description-match";
-import { createRecurrence } from "@/lib/recurrence";
+import { createRecurrence, findActiveItemByName } from "@/lib/recurrence";
 
 export { normalizeDescription, descriptionsMatch } from "@/lib/description-match";
 
@@ -42,7 +42,14 @@ export async function createCardSubscription(opts: {
   amount: number; // reais/mês
   chargeDay: number;
   months?: number;
-}): Promise<{ firstMonth: string; months: number }> {
+}): Promise<{ firstMonth: string; months: number } | { error: string }> {
+  const dupSub = (
+    await prisma.cardSubscription.findMany({ where: { cardId: opts.card.id, active: true } })
+  ).find((s) => descriptionsMatch(s.description, opts.description));
+  if (dupSub) return { error: `Assinatura "${dupSub.description}" já existe neste cartão — cancele antes de recriar.` };
+  const dupItem = await findActiveItemByName(opts.description);
+  if (dupItem) return { error: `Já existe a conta recorrente "${dupItem.name}" — edite em Itens.` };
+
   const months = opts.months ?? SUBSCRIPTION_MONTHS;
   const categoryId = await resolveSubscriptionCategoryId();
   const firstMonth = firstChargeFaturaMonth(opts.card, opts.chargeDay, todayISOInSaoPaulo());
@@ -80,7 +87,14 @@ export async function cancelCardSubscription(subscriptionId: string, fromMonth: 
       where: { itemId: sub.itemId, month: { gte: monthToDate(fromMonth) }, paid: false },
     });
     removed = count;
-    await prisma.item.update({ where: { id: sub.itemId }, data: { active: false } });
+    // Sem histórico (nenhum lançamento restante): exclui o item — senão a
+    // tela de Itens acumula cascas de assinaturas canceladas.
+    const remaining = await prisma.monthlyEntry.count({ where: { itemId: sub.itemId } });
+    if (remaining === 0) {
+      await prisma.item.delete({ where: { id: sub.itemId } }); // sub.itemId → SetNull
+    } else {
+      await prisma.item.update({ where: { id: sub.itemId }, data: { active: false } });
+    }
   }
   await prisma.cardSubscription.update({ where: { id: subscriptionId }, data: { active: false } });
   return { removed };
