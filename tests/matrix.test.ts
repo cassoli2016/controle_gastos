@@ -3,12 +3,12 @@ import { buildMatrix, shortMonthLabel } from "@/lib/matrix";
 
 describe("buildMatrix", () => {
   const entries = [
-    { line: "Gobrax", categoryName: "Recebimentos", categoryType: "INCOME" as const, monthISO: "2026-08", cents: 2500000, paid: false },
-    { line: "Nubank", categoryName: "Cartão/Compras", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 1400000, paid: false },
-    { line: "Nubank", categoryName: "Cartão/Compras", categoryType: "EXPENSE" as const, monthISO: "2026-09", cents: 660000, paid: false },
+    { line: "Gobrax", categoryName: "Recebimentos", categoryType: "INCOME" as const, monthISO: "2026-08", cents: 2500000, paid: false, entryId: "e1", kind: "item" as const },
+    { line: "Nubank", categoryName: "Cartão/Compras", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 1400000, paid: false, entryId: "e2", kind: "card" as const },
+    { line: "Nubank", categoryName: "Cartão/Compras", categoryType: "EXPENSE" as const, monthISO: "2026-09", cents: 660000, paid: false, entryId: "e3", kind: "card" as const },
     // Diarista: duas ocorrências no mesmo mês somam na célula
-    { line: "Diarista", categoryName: "Moradia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 22000, paid: true },
-    { line: "Diarista", categoryName: "Moradia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 22000, paid: false },
+    { line: "Diarista", categoryName: "Moradia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 22000, paid: true, entryId: "e4", kind: "loose" as const },
+    { line: "Diarista", categoryName: "Moradia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 22000, paid: false, entryId: "e5", kind: "loose" as const },
   ];
   const m = buildMatrix(entries);
 
@@ -20,7 +20,8 @@ describe("buildMatrix", () => {
 
   it("células agregam ocorrências (soma + allPaid + count)", () => {
     const diarista = m.sections.find((s) => s.categoryName === "Moradia")!.rows[0];
-    expect(diarista.cells["2026-08"]).toEqual({ cents: 44000, allPaid: false, count: 2 });
+    expect(diarista.cells["2026-08"]).toMatchObject({ cents: 44000, allPaid: false, count: 2, kind: "loose" });
+    expect(diarista.cells["2026-08"].entries).toHaveLength(2);
     expect(diarista.totalCents).toBe(44000);
   });
 

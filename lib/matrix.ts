@@ -11,6 +11,10 @@ export type MatrixEntry = {
   monthISO: string; // YYYY-MM
   cents: number;
   paid: boolean;
+  /** Para as ações na célula (editar/dar baixa). */
+  entryId: string;
+  /** "card" = consolidado de cartão (valor vem do extrato — não edita aqui). */
+  kind: "item" | "card" | "loose";
 };
 
 export type MatrixCell = {
@@ -18,6 +22,8 @@ export type MatrixCell = {
   /** Todas as ocorrências da célula pagas (semanais somam várias). */
   allPaid: boolean;
   count: number;
+  entries: { id: string; cents: number; paid: boolean }[];
+  kind: "item" | "card" | "loose";
 };
 
 export type MatrixRow = {
@@ -56,10 +62,13 @@ export function buildMatrix(entries: MatrixEntry[]): Matrix {
       totalsByMonth: {},
     };
     const row = sec.rows.get(e.line) ?? { line: e.line, cells: {}, totalCents: 0 };
-    const cell = row.cells[e.monthISO] ?? { cents: 0, allPaid: true, count: 0 };
+    const cell =
+      row.cells[e.monthISO] ?? { cents: 0, allPaid: true, count: 0, entries: [], kind: e.kind };
     cell.cents += e.cents;
     cell.allPaid = cell.allPaid && e.paid;
     cell.count += 1;
+    cell.entries.push({ id: e.entryId, cents: e.cents, paid: e.paid });
+    if (e.kind === "card") cell.kind = "card";
     row.cells[e.monthISO] = cell;
     row.totalCents += e.cents;
     sec.rows.set(e.line, row);

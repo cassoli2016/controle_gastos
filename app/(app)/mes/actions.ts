@@ -192,6 +192,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     installments: formData.get("installments"),
     date: formData.get("date"),
     recurring: formData.get("recurring"),
+    intervalMonths: formData.get("intervalMonths"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { description, amount, installments, date, recurring } = parsed.data;
@@ -299,6 +300,7 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
     date: formData.get("date"),
     recurring: formData.get("recurring"),
     fifthBusinessDay: formData.get("fifthBusinessDay"),
+    intervalMonths: formData.get("intervalMonths"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { description, amount, date, recurring, fifthBusinessDay } = parsed.data;
@@ -462,6 +464,71 @@ export async function transferValue(_prevState: ActionState, formData: FormData)
 
   revalidatePath("/mes");
   revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+const entryIdsSchema = z.object({
+  entryIds: z.string().transform((v, ctx) => {
+    try {
+      const arr = JSON.parse(v);
+      if (!Array.isArray(arr) || arr.length === 0 || !arr.every((x) => typeof x === "string")) throw new Error();
+      return arr as string[];
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Lançamentos inválidos." });
+      return z.NEVER;
+    }
+  }),
+  paid: z.preprocess((v) => v === "true", z.boolean()),
+});
+
+/**
+ * Dá baixa (ou desfaz) em um conjunto de lançamentos — usado pela Planilha
+ * (célula pode agregar várias ocorrências, ex.: diarista). Pagar usa o
+ * previsto de cada um como valor pago.
+ */
+export async function setEntriesPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = entryIdsSchema.safeParse({
+    entryIds: formData.get("entryIds"),
+    paid: formData.get("paid"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { entryIds, paid } = parsed.data;
+  const entries = await prisma.monthlyEntry.findMany({ where: { id: { in: entryIds } } });
+  await prisma.$transaction(
+    entries.map((e) =>
+      prisma.monthlyEntry.update({
+        where: { id: e.id },
+        data: paid
+          ? { paid: true, paidAmount: e.plannedAmount, paidDate: new Date() }
+          : { paid: false, paidAmount: null, paidDate: null },
+      }),
+    ),
+  );
+  revalidatePath("/planilha");
+  revalidatePath("/mes");
+  revalidatePath("/dashboard");
+  return { ok: true, count: entries.length };
+}
+
+const entryValueSchema = z.object({
+  entryId: z.string().min(1),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+});
+
+/** Edita o previsto de UM lançamento (célula simples da Planilha). */
+export async function updateEntryValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = entryValueSchema.safeParse({
+    entryId: formData.get("entryId"),
+    amount: formData.get("amount"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await prisma.monthlyEntry.update({
+    where: { id: parsed.data.entryId },
+    data: { plannedAmount: parsed.data.amount },
+  });
+  revalidatePath("/planilha");
+  revalidatePath("/mes");
   revalidatePath("/dashboard");
   return { ok: true };
 }

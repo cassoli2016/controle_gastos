@@ -6,6 +6,7 @@ import { buildMatrix, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CellAction } from "./CellAction";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,8 @@ export default async function PlanilhaPage() {
       monthISO: monthStringFromDate(r.month),
       cents: decimalToCents(String(r.plannedAmount)),
       paid: r.paid,
+      entryId: r.id,
+      kind: r.cardId ? ("card" as const) : r.itemId ? ("item" as const) : ("loose" as const),
     };
   });
   const matrix = buildMatrix(entries);
@@ -51,7 +54,7 @@ export default async function PlanilhaPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Planilha</h1>
         <p className="text-sm text-muted-foreground">
-          Todos os meses lado a lado · verde = pago · clique no mês para abrir
+          Todos os meses lado a lado · verde = pago · clique no valor para editar ou dar baixa
         </p>
       </div>
 
@@ -159,14 +162,21 @@ function SectionRows({
           {months.map((m) => {
             const cell = row.cells[m];
             return (
-              <td
-                key={m}
-                className={`px-3 py-1.5 text-right tabular-nums ${m === currentMonth ? "bg-primary/5" : ""} ${
-                  cell?.allPaid ? "text-emerald-600 dark:text-emerald-400" : ""
-                }`}
-                title={cell && cell.count > 1 ? `${cell.count} ocorrências` : undefined}
-              >
-                {cell ? fmt(cell.cents) : <span className="text-muted-foreground/40">—</span>}
+              <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${m === currentMonth ? "bg-primary/5" : ""}`}>
+                {cell ? (
+                  <CellAction
+                    cents={cell.cents}
+                    allPaid={cell.allPaid}
+                    count={cell.count}
+                    entries={cell.entries}
+                    kind={cell.kind}
+                    income={section.categoryType === "INCOME"}
+                    monthLabel={shortMonthLabel(m)}
+                    line={row.line}
+                  />
+                ) : (
+                  <span className="px-1 text-muted-foreground/40">—</span>
+                )}
               </td>
             );
           })}

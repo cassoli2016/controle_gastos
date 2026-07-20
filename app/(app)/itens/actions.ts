@@ -66,9 +66,31 @@ export async function updateItem(_prevState: ActionState, formData: FormData): P
   // Regra de data mudou? Redata os lançamentos FUTUROS não pagos do item
   // (5º dia útil calcula por mês; regra removida limpa a data).
   const currentMonth = monthToDate(monthStringFromDate(new Date()));
-  const futureEntries = await prisma.monthlyEntry.findMany({
+  let futureEntries = await prisma.monthlyEntry.findMany({
     where: { itemId: id, paid: false, month: { gte: currentMonth } },
   });
+
+  // Frequência > mensal: reespaça os lançamentos futuros não pagos — mantém
+  // os meses na grade (1º lançamento do item + múltiplos do intervalo) e
+  // apaga os fora dela. Corrige recorrências criadas com a frequência errada.
+  const interval = parsed.data.intervalMonths ?? 1;
+  if (interval > 1) {
+    const first = await prisma.monthlyEntry.findFirst({
+      where: { itemId: id },
+      orderBy: { month: "asc" },
+    });
+    if (first) {
+      const monthsFromAnchor = (m: Date) =>
+        (m.getUTCFullYear() - first.month.getUTCFullYear()) * 12 +
+        (m.getUTCMonth() - first.month.getUTCMonth());
+      const offGrid = futureEntries.filter((e) => monthsFromAnchor(e.month) % interval !== 0);
+      if (offGrid.length > 0) {
+        await prisma.monthlyEntry.deleteMany({ where: { id: { in: offGrid.map((e) => e.id) } } });
+        futureEntries = futureEntries.filter((e) => monthsFromAnchor(e.month) % interval === 0);
+      }
+    }
+  }
+
   for (const e of futureEntries) {
     const purchaseDate = parsed.data.businessDay
       ? new Date(nthBusinessDay(monthStringFromDate(e.month), parsed.data.businessDay) + "T00:00:00Z")
