@@ -36,7 +36,7 @@ const HELP =
   "Jeitos de lançar:\n" +
   "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
   '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
-  '• "mensal" no fim = recorrência (conta fixa provisionada nos próximos meses)\n' +
+  '• "mensal"/"bimestral"/"trimestral"/"anual"/"a cada N meses" = recorrência\n' +
   '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
   '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
   '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
@@ -372,6 +372,7 @@ async function handleBatchText(chatId: number, text: string) {
       amount: e.amountReais,
       startMonth: defaultMonth,
       dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+      intervalMonths: e.intervalMonths,
     });
   }
 
@@ -406,6 +407,7 @@ async function handleBatchText(chatId: number, text: string) {
           startMonth: defaultMonth,
           categoryId,
           dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
+          intervalMonths: e.intervalMonths,
         });
       } else {
         await createPurchaseCore({
@@ -529,6 +531,7 @@ async function handleSingleText(chatId: number, text: string) {
         dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
         // "5du"/"quinto dia util": a data varia por mês (5º dia útil).
         businessDay: parsed.businessDay,
+        intervalMonths: parsed.intervalMonths,
       });
       revalidateAll();
       await reply(
@@ -610,12 +613,15 @@ async function handleSingleText(chatId: number, text: string) {
       startMonth: defaultMonth,
       dueDay: Number(todayISOInSaoPaulo().slice(8, 10)),
       businessDay: parsed.businessDay,
+      intervalMonths: parsed.intervalMonths,
       months: parsed.installments > 1 ? parsed.installments : undefined,
     });
     revalidateAll();
+    const cadencia =
+      parsed.intervalMonths && parsed.intervalMonths > 1 ? `a cada ${parsed.intervalMonths} meses` : "mensal";
     await reply(
       chatId,
-      `🔁 Recorrência mensal criada: ${parsed.description} — ${formatCents(amountCents)}/mês de ${fmtMonth(months[0])} a ${fmtMonth(months[count - 1])}.\nEdite valor/reajuste anual em Itens.`,
+      `🔁 Recorrência ${cadencia}: ${parsed.description} — ${formatCents(amountCents)} × ${count} (${fmtMonth(months[0])} a ${fmtMonth(months[count - 1])}).\nEdite valor/reajuste anual em Itens.`,
     );
     return;
   }

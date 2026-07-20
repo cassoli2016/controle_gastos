@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { TrendingUp } from "lucide-react";
 
@@ -85,6 +86,23 @@ export function IncomeDialog() {
             />
             Recorrência mensal (salário — provisiona os próximos 12 meses)
           </label>
+          {recurring && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="income-interval">Frequência</Label>
+                <Select name="intervalMonths" defaultValue="1">
+                  <SelectTrigger id="income-interval" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Mensal</SelectItem>
+                    <SelectItem value="2">Bimestral (a cada 2 meses)</SelectItem>
+                    <SelectItem value="3">Trimestral (a cada 3 meses)</SelectItem>
+                    <SelectItem value="6">Semestral (a cada 6 meses)</SelectItem>
+                    <SelectItem value="12">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+          )}
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"

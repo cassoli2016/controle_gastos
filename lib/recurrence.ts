@@ -26,19 +26,28 @@ export async function createRecurrence(opts: {
   startMonth: string; // YYYY-MM
   categoryId?: string | null;
   dueDay?: number | null;
+  /** Nº de OCORRÊNCIAS (não meses corridos). */
   months?: number;
+  /** Frequência em meses: 1=mensal (default), 2=bimestral, 3=trimestral… */
+  intervalMonths?: number | null;
   /** N-ésimo dia útil do mês (ex.: 5 = salário no 5º dia útil): a data varia
    * por mês e é gravada em purchaseDate de cada lançamento (dueDay ignorado). */
   businessDay?: number | null;
 }): Promise<{ itemId: string; count: number; months: string[] }> {
   const categoryId = opts.categoryId ?? (await resolveDefaultPurchaseCategoryId());
-  const months = installmentMonths(opts.startMonth, opts.months ?? RECURRENCE_MONTHS);
+  const interval = Math.max(1, opts.intervalMonths ?? 1);
+  // Default: ~12 meses de cobertura (mensal = 12 ocorrências; trimestral = 4…).
+  const occurrences = opts.months ?? Math.max(2, Math.round(RECURRENCE_MONTHS / interval));
+  const allMonths = installmentMonths(opts.startMonth, (occurrences - 1) * interval + 1);
+  const months = allMonths.filter((_, i) => i % interval === 0);
 
   const item = await prisma.item.create({
     data: {
       name: opts.name,
       categoryId,
       dueDay: opts.businessDay ? null : (opts.dueDay ?? null),
+      businessDay: opts.businessDay ?? null,
+      intervalMonths: interval,
       active: true,
     },
   });

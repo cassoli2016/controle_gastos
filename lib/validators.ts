@@ -15,6 +15,8 @@ export const itemSchema = z.object({
   categoryId: z.string().min(1, "Categoria obrigatória"),
   dueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
   renewalMonth: z.coerce.number().int().min(1).max(12).nullable().optional(),
+  businessDay: z.coerce.number().int().min(1).max(20).nullable().optional(),
+  intervalMonths: z.coerce.number().int().min(1).max(12).optional(),
   active: z.boolean().default(true),
   notes: z.string().trim().optional(),
 });
@@ -60,6 +62,10 @@ export const purchaseSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
   // Checkbox "recorrência mensal": presente no FormData ("on") quando marcado.
   recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  intervalMonths: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 1 : v),
+    z.coerce.number().int().min(1).max(12),
+  ),
 });
 
 export const applyRangeSchema = z

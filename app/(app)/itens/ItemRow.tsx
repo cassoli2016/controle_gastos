@@ -36,6 +36,8 @@ type Item = {
   name: string;
   categoryId: string;
   dueDay: number | null;
+  businessDay: number | null;
+  intervalMonths: number;
   renewalMonth: number | null;
   active: boolean;
 };
@@ -210,6 +212,30 @@ export function ItemRow({
                 defaultValue={item.dueDay ?? undefined}
                 placeholder="Opcional"
               />
+            </div>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                name="fifthBusinessDay"
+                defaultChecked={item.businessDay !== null}
+                className="size-4 accent-primary"
+              />
+              Vence/recebe no 5º dia útil (ignora o dia fixo; a data varia por mês)
+            </label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-item-interval-${item.id}`}>Frequência (meses)</Label>
+              <Input
+                id={`edit-item-interval-${item.id}`}
+                name="intervalMonths"
+                type="number"
+                min={1}
+                max={12}
+                defaultValue={item.intervalMonths}
+                className="w-24"
+              />
+              <p className="text-xs text-muted-foreground">
+                1 = mensal, 2 = bimestral, 3 = trimestral… vale para o &quot;Copiar mês anterior&quot;.
+              </p>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={`edit-item-renewal-${item.id}`}>Mês de renovação anual</Label>

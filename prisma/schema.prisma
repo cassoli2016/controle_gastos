@@ -27,6 +27,12 @@ model Item {
   category   Category       @relation(fields: [categoryId], references: [id])
   categoryId String
   dueDay     Int?
+  // Frequência da recorrência em meses (1=mensal, 2=bimestral, 3=trimestral…):
+  // o provisionamento e o "Copiar mês anterior" respeitam a cadência.
+  intervalMonths Int  @default(1)
+  // Regra de data por dia útil (ex.: 5 = 5º dia útil): a data varia por mês;
+  // quando setado, dueDay é ignorado e purchaseDate é calculada por mês.
+  businessDay   Int?
   // Mês (1-12) em que a conta RENOVA/vence anualmente (seguro, anuidade…):
   // gera alertas no Dashboard, na tela do Mês e no Telegram.
   renewalMonth  Int?

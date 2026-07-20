@@ -13,6 +13,7 @@ describe("parseExpenseMessage", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("descrição + valor + cartão", () => {
@@ -26,6 +27,7 @@ describe("parseExpenseMessage", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("parcelado + cartão (ordem livre depois do valor)", () => {
@@ -39,6 +41,7 @@ describe("parseExpenseMessage", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
     expect(parseExpenseMessage("geladeira 1.299,90 3x amazon")).toEqual({
       description: "geladeira",
@@ -50,6 +53,7 @@ describe("parseExpenseMessage", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("descrição com várias palavras", () => {
@@ -63,6 +67,7 @@ describe("parseExpenseMessage", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("inválidos retornam null", () => {
@@ -85,6 +90,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("'recorrente' também funciona, combinado com outras palavras de cartão", () => {
@@ -98,6 +104,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
     // keyword + cartão: recorrente é extraído e o resto vira cardHint
     expect(parseExpenseMessage("spotify 21,90 nubank mensal")).toEqual({
@@ -110,6 +117,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
 });
@@ -126,6 +134,7 @@ describe("recebimentos", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("sufixo 'receita'/'recebimento' também marca income", () => {
@@ -139,6 +148,7 @@ describe("recebimentos", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
     expect(parseExpenseMessage("dividendos 320,55 recebimento")).toMatchObject({ income: true });
   });
@@ -153,6 +163,7 @@ describe("recebimentos", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
 });
@@ -169,6 +180,7 @@ describe("pagamento antecipado", () => {
       prepayment: true,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("variações do prefixo e sem cartão", () => {
@@ -197,6 +209,7 @@ describe("recorrência semanal (dias da semana)", () => {
       prepayment: false,
       weekdays: [2, 5],
       businessDay: null,
+      intervalMonths: null,
     });
   });
   it("nomes por extenso e 6x como duração", () => {
@@ -227,6 +240,32 @@ describe("quinto dia útil", () => {
   });
 });
 
+describe("recorrência com frequência (a cada N meses)", () => {
+  it("'trimestral' marca recorrente com intervalo 3", () => {
+    expect(parseExpenseMessage("iptu 320 trimestral")).toMatchObject({
+      recurring: true,
+      intervalMonths: 3,
+      cardHint: null,
+    });
+  });
+  it("bimestral/semestral/anual", () => {
+    expect(parseExpenseMessage("taxa 100 bimestral")).toMatchObject({ recurring: true, intervalMonths: 2 });
+    expect(parseExpenseMessage("seguro 900 semestral")).toMatchObject({ recurring: true, intervalMonths: 6 });
+    expect(parseExpenseMessage("anuidade 550 anual")).toMatchObject({ recurring: true, intervalMonths: 12 });
+  });
+  it("frase 'a cada 2 meses' também funciona (e sai do cardHint)", () => {
+    expect(parseExpenseMessage("jardineiro 180 a cada 2 meses")).toMatchObject({
+      recurring: true,
+      intervalMonths: 2,
+      cardHint: null,
+    });
+    expect(parseExpenseMessage("dentista 250 cada 3 meses")).toMatchObject({
+      recurring: true,
+      intervalMonths: 3,
+    });
+  });
+});
+
 describe("parseExpenseLines", () => {
   it("várias linhas viram várias despesas", () => {
     const { entries, failedLines } = parseExpenseLines(
@@ -244,6 +283,7 @@ describe("parseExpenseLines", () => {
       prepayment: false,
       weekdays: null,
       businessDay: null,
+      intervalMonths: null,
     });
     expect(entries[2].cardHint).toBeNull();
   });

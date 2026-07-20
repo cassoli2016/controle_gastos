@@ -14,11 +14,20 @@ export type ParsedExpense = {
   weekdays: number[] | null;
   /** "5du" ou "quinto dia util": N-ésimo dia útil do mês (data varia por mês). */
   businessDay: number | null;
+  /** Frequência em meses ("bimestral"=2, "trimestral"=3, "a cada N meses"). */
+  intervalMonths: number | null;
 };
 
 const AMOUNT_RE = /^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:[.,]\d{1,2})?$/;
 const INSTALLMENTS_RE = /^(\d{1,3})x$/i;
 const RECURRING_RE = /^(mensal|recorrente)$/i;
+const INTERVAL_KEYWORDS: Record<string, number> = {
+  bimestral: 2,
+  trimestral: 3,
+  quadrimestral: 4,
+  semestral: 6,
+  anual: 12,
+};
 const INCOME_PREFIX_RE = /^recebi$/i;
 const PREPAYMENT_PREFIX_RE = /^antecip\S*$/i; // antecipei, antecipado, antecipação… (\S: \w não casa ç/ã)
 const INCOME_SUFFIX_RE = /^(receita|recebimento)$/i;
@@ -83,6 +92,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
   let installments = 1;
   let recurring = false;
   let businessDay: number | null = null;
+  let intervalMonths: number | null = null;
   const weekdaySet = new Set<number>();
   const cardWords: string[] = [];
   for (const t of tokens.slice(amountIdx + 1)) {
@@ -92,6 +102,10 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     if (m) installments = Math.max(1, parseInt(m[1], 10));
     else if (bd) businessDay = Math.max(1, parseInt(bd[1], 10));
     else if (RECURRING_RE.test(t)) recurring = true;
+    else if (norm in INTERVAL_KEYWORDS) {
+      recurring = true;
+      intervalMonths = INTERVAL_KEYWORDS[norm];
+    }
     else if (INCOME_SUFFIX_RE.test(t)) income = true;
     else if (norm in WEEKDAYS) weekdaySet.add(WEEKDAYS[norm]);
     else cardWords.push(t);
@@ -107,6 +121,16 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
       cardHint = rest.length > 0 ? rest : null;
     }
   }
+  if (cardHint) {
+    const normalized = stripAccents(cardHint).replace(/\s+/g, " ").trim();
+    const m = /\b(?:a )?cada (\d{1,2}) mes(?:es)?\b/.exec(normalized);
+    if (m) {
+      recurring = true;
+      intervalMonths = Math.max(1, parseInt(m[1], 10));
+      const rest = normalized.replace(m[0], " ").replace(/\s+/g, " ").trim();
+      cardHint = rest.length > 0 ? rest : null;
+    }
+  }
 
   return {
     description,
@@ -118,6 +142,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     prepayment,
     weekdays: weekdaySet.size > 0 ? [...weekdaySet].sort((a, b) => a - b) : null,
     businessDay,
+    intervalMonths,
   };
 }
 

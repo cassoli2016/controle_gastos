@@ -132,8 +132,25 @@ export function PurchaseDialog({
               onChange={(e) => setRecurring(e.target.checked)}
               className="size-4 accent-primary"
             />
-            Recorrência mensal (vira conta fixa provisionada nos próximos 12 meses)
+            Recorrência (vira conta fixa provisionada — escolha a frequência)
           </label>
+          {recurring && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="purchase-interval">Frequência</Label>
+                <Select name="intervalMonths" defaultValue="1">
+                  <SelectTrigger id="purchase-interval" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Mensal</SelectItem>
+                    <SelectItem value="2">Bimestral (a cada 2 meses)</SelectItem>
+                    <SelectItem value="3">Trimestral (a cada 3 meses)</SelectItem>
+                    <SelectItem value="6">Semestral (a cada 6 meses)</SelectItem>
+                    <SelectItem value="12">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="purchase-date">Data da compra</Label>

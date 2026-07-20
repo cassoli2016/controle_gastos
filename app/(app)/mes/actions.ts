@@ -8,6 +8,7 @@ import { adjustedCents } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
+import { nthBusinessDay } from "@/lib/fatura";
 import { createRecurrence, convertEntryToRecurring, findActiveItemByName } from "@/lib/recurrence";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
@@ -20,6 +21,10 @@ const incomeSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
   recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
   fifthBusinessDay: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  intervalMonths: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 1 : v),
+    z.coerce.number().int().min(1).max(12),
+  ),
 });
 const updateInstallmentSchema = z.object({
   installmentId: z.string().min(1),
@@ -97,14 +102,45 @@ export async function copyPreviousMonth(month: string) {
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
   const prevEntries = await prisma.monthlyEntry.findMany({
     where: { month: prev },
-    include: { item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true } } },
+    include: {
+      item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true, intervalMonths: true, businessDay: true } },
+    },
   });
+
+  // Itens com frequência > 1 (bimestral, trimestral…): a referência não é o
+  // mês anterior, e sim o mês (alvo - intervalo) — mantém a cadência.
+  const intervalItems = await prisma.item.findMany({
+    where: { active: true, intervalMonths: { gt: 1 } },
+    select: { id: true, intervalMonths: true, businessDay: true, adjustMonth: true, adjustPercent: true, adjustAmount: true },
+  });
+  const intervalEntries: typeof prevEntries = [];
+  for (const item of intervalItems) {
+    const ref = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - item.intervalMonths, 1));
+    const e = await prisma.monthlyEntry.findUnique({
+      where: { itemId_month: { itemId: item.id, month: ref } },
+    });
+    if (e) {
+      intervalEntries.push({
+        ...e,
+        item: {
+          adjustMonth: item.adjustMonth,
+          adjustPercent: item.adjustPercent,
+          adjustAmount: item.adjustAmount,
+          intervalMonths: item.intervalMonths,
+          businessDay: item.businessDay,
+        },
+      } as (typeof prevEntries)[number]);
+    }
+  }
   const targetMonthNum = target.getUTCMonth() + 1;
   let copied = 0;
   await prisma.$transaction(async (tx) => {
-    for (const e of prevEntries) {
+    for (const e of [...prevEntries, ...intervalEntries]) {
       // Só copia contas fixas (item recorrente); avulsos/parcelas de cartão não são "copiados".
       if (e.itemId === null) continue;
+      // Item com frequência > 1 vindo de prevEntries: fora de cadência, pula
+      // (a cópia correta dele veio em intervalEntries, do mês alvo-intervalo).
+      if ((e.item?.intervalMonths ?? 1) > 1 && e.month.getTime() === prev.getTime()) continue;
       // Reajuste anual: se o mês de destino é o aniversário do item, o valor
       // copiado já sobe conforme a regra (% composto ou valor fixo).
       let plannedAmount: number | typeof e.plannedAmount = e.plannedAmount;
@@ -116,9 +152,13 @@ export async function copyPreviousMonth(month: string) {
         });
         plannedAmount = centsToNumber(cents);
       }
+      // Regra de dia útil: a data varia por mês (ex.: 5º dia útil de cada mês).
+      const purchaseDate = e.item?.businessDay
+        ? new Date(nthBusinessDay(month, e.item.businessDay) + "T00:00:00Z")
+        : null;
       await tx.monthlyEntry.upsert({
         where: { itemId_month: { itemId: e.itemId, month: target } },
-        create: { itemId: e.itemId, month: target, plannedAmount },
+        create: { itemId: e.itemId, month: target, plannedAmount, purchaseDate },
         update: {},
       });
       copied++;
@@ -172,6 +212,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
       startMonth: date.slice(0, 7),
       categoryId,
       dueDay: Number(date.slice(8, 10)),
+      intervalMonths: parsed.data.intervalMonths,
     });
     revalidatePath("/mes");
     revalidatePath("/itens");
@@ -247,6 +288,7 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
       categoryId,
       dueDay: Number(date.slice(8, 10)),
       businessDay: fifthBusinessDay ? 5 : null,
+      intervalMonths: parsed.data.intervalMonths,
     });
     revalidatePath("/mes");
     revalidatePath("/itens");

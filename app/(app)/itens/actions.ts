@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { itemSchema } from "@/lib/validators";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { anniversariesBetween, adjustedCents } from "@/lib/adjustment";
+import { nthBusinessDay } from "@/lib/fatura";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
@@ -13,10 +14,15 @@ export type ActionState = { error?: string; ok?: boolean; count?: number };
 function parseItem(formData: FormData) {
   const rawDue = formData.get("dueDay");
   const rawRenewal = formData.get("renewalMonth");
+  const fifthBusinessDay = formData.get("fifthBusinessDay") !== null; // checkbox
+  const rawInterval = formData.get("intervalMonths");
   return itemSchema.safeParse({
     name: formData.get("name"),
     categoryId: formData.get("categoryId"),
-    dueDay: rawDue === "" || rawDue === null ? null : rawDue,
+    // 5º dia útil ignora o dia fixo de vencimento.
+    dueDay: fifthBusinessDay || rawDue === "" || rawDue === null ? null : rawDue,
+    businessDay: fifthBusinessDay ? 5 : null,
+    intervalMonths: rawInterval === "" || rawInterval === null ? 1 : rawInterval,
     // Select usa "none" como sentinel de "sem renovação".
     renewalMonth: rawRenewal === "" || rawRenewal === null || rawRenewal === "none" ? null : rawRenewal,
     active: formData.get("active") !== null,
@@ -38,7 +44,23 @@ export async function updateItem(_prevState: ActionState, formData: FormData): P
   const parsed = parseItem(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.item.update({ where: { id }, data: parsed.data });
+
+  // Regra de data mudou? Redata os lançamentos FUTUROS não pagos do item
+  // (5º dia útil calcula por mês; regra removida limpa a data).
+  const currentMonth = monthToDate(monthStringFromDate(new Date()));
+  const futureEntries = await prisma.monthlyEntry.findMany({
+    where: { itemId: id, paid: false, month: { gte: currentMonth } },
+  });
+  for (const e of futureEntries) {
+    const purchaseDate = parsed.data.businessDay
+      ? new Date(nthBusinessDay(monthStringFromDate(e.month), parsed.data.businessDay) + "T00:00:00Z")
+      : null;
+    if ((e.purchaseDate?.getTime() ?? null) !== (purchaseDate?.getTime() ?? null)) {
+      await prisma.monthlyEntry.update({ where: { id: e.id }, data: { purchaseDate } });
+    }
+  }
   revalidatePath("/itens");
+  revalidatePath("/mes");
   return { ok: true };
 }
 
