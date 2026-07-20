@@ -1,7 +1,8 @@
-import { LayoutDashboard, CalendarDays, ListChecks, Tags, CreditCard, PiggyBank, ChartCandlestick } from "lucide-react";
+import { LayoutDashboard, CalendarDays, ListChecks, Tags, CreditCard, PiggyBank, ChartCandlestick, Grid3x3 } from "lucide-react";
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/mes", label: "Mês", icon: CalendarDays },
+  { href: "/planilha", label: "Planilha", icon: Grid3x3 },
   { href: "/cartoes", label: "Cartões", icon: CreditCard },
   { href: "/investimentos", label: "Invest", icon: ChartCandlestick },
   { href: "/reservas", label: "Reservas", icon: PiggyBank },
