@@ -39,6 +39,8 @@ type Item = {
   businessDay: number | null;
   intervalMonths: number;
   renewalMonth: number | null;
+  renewalAmount: number | null;
+  renewalInstallments: number | null;
   active: boolean;
 };
 
@@ -256,6 +258,36 @@ export function ItemRow({
                 Seguro/anuidade: gera alertas no Dashboard e no Telegram.
               </p>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`edit-item-renewal-amount-${item.id}`}>Valor total da renovação (R$)</Label>
+                <Input
+                  id={`edit-item-renewal-amount-${item.id}`}
+                  name="renewalAmount"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  placeholder="ex.: 2250.00"
+                  defaultValue={item.renewalAmount ?? ""}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`edit-item-renewal-inst-${item.id}`}>Parcelas</Label>
+                <Input
+                  id={`edit-item-renewal-inst-${item.id}`}
+                  name="renewalInstallments"
+                  type="number"
+                  min={1}
+                  max={12}
+                  placeholder="ex.: 5"
+                  defaultValue={item.renewalInstallments ?? ""}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground -mt-2">
+              Com mês + valor + parcelas, o app provisiona V÷N nos meses da renovação; a
+              parcelada real no cartão consome a provisão automaticamente.
+            </p>
             {/* IMPORTANTE (bug histórico: item nascer/virar arquivado sem
                 querer): parseItem() em actions.ts calcula `active` pela
                 PRESENÇA da chave "active" no FormData, não pelo valor

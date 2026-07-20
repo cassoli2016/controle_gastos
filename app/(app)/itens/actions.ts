@@ -6,6 +6,7 @@ import { itemSchema } from "@/lib/validators";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { anniversariesBetween, adjustedCents } from "@/lib/adjustment";
 import { nthBusinessDay } from "@/lib/fatura";
+import { ensureRenewalProvision } from "@/lib/renewal-provision";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
@@ -16,7 +17,11 @@ function parseItem(formData: FormData) {
   const rawRenewal = formData.get("renewalMonth");
   const fifthBusinessDay = formData.get("fifthBusinessDay") !== null; // checkbox
   const rawInterval = formData.get("intervalMonths");
+  const rawRenewalAmount = formData.get("renewalAmount");
+  const rawRenewalInst = formData.get("renewalInstallments");
   return itemSchema.safeParse({
+    renewalAmount: rawRenewalAmount === "" || rawRenewalAmount === null ? null : rawRenewalAmount,
+    renewalInstallments: rawRenewalInst === "" || rawRenewalInst === null ? null : rawRenewalInst,
     name: formData.get("name"),
     categoryId: formData.get("categoryId"),
     // 5º dia útil ignora o dia fixo de vencimento.
@@ -44,6 +49,16 @@ export async function updateItem(_prevState: ActionState, formData: FormData): P
   const parsed = parseItem(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.item.update({ where: { id }, data: parsed.data });
+
+  // Renovação parcelada configurada: provisiona a próxima ocorrência.
+  if (parsed.data.renewalMonth && parsed.data.renewalAmount && parsed.data.renewalInstallments) {
+    await ensureRenewalProvision({
+      id,
+      renewalMonth: parsed.data.renewalMonth,
+      renewalAmount: parsed.data.renewalAmount,
+      renewalInstallments: parsed.data.renewalInstallments,
+    });
+  }
 
   // Regra de data mudou? Redata os lançamentos FUTUROS não pagos do item
   // (5º dia útil calcula por mês; regra removida limpa a data).

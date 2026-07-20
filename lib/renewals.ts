@@ -38,3 +38,24 @@ export function renewalLabel(r: UpcomingRenewal): string {
   if (r.monthsAway === 1) return "renova mês que vem";
   return `renova em ${MONTH_NAMES[r.renewalMonth - 1]}`;
 }
+
+/**
+ * Competência (YYYY-MM) da PRÓXIMA ocorrência da renovação: o mês de
+ * renovação deste ano se ainda não passou, senão o do ano que vem.
+ */
+export function nextRenewalStartMonth(renewalMonth: number, currentMonthISO: string): string {
+  const [y, m] = currentMonthISO.split("-").map(Number);
+  const year = renewalMonth >= m ? y : y + 1;
+  return `${year}-${String(renewalMonth).padStart(2, "0")}`;
+}
+
+/**
+ * Divide um total em N parcelas de centavos que SOMAM exatamente o total
+ * (última parcela absorve o resto do arredondamento).
+ */
+export function splitInstallmentsCents(totalCents: number, n: number): number[] {
+  const base = Math.floor(totalCents / n);
+  const parts = Array.from({ length: n }, () => base);
+  parts[n - 1] += totalCents - base * n;
+  return parts;
+}

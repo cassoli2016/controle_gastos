@@ -36,6 +36,11 @@ model Item {
   // Mês (1-12) em que a conta RENOVA/vence anualmente (seguro, anuidade…):
   // gera alertas no Dashboard, na tela do Mês e no Telegram.
   renewalMonth  Int?
+  // Renovação parcelada: valor TOTAL anual + nº de parcelas (seguro em 4-5x
+  // no cartão). Provisiona V÷N como linhas do item nos meses da renovação;
+  // as parcelas reais no cartão consomem a provisão (como assinaturas).
+  renewalAmount       Decimal? @db.Decimal(12, 2)
+  renewalInstallments Int?
   // Reajuste anual: no mês adjustMonth (1-12), o valor sobe adjustPercent %
   // OU adjustAmount reais (um dos dois), composto a cada aniversário.
   adjustMonth   Int?

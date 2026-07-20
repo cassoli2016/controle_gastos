@@ -6,6 +6,7 @@ import { formatPct } from "@/lib/investments";
 import { prisma } from "@/lib/prisma";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { upcomingRenewals, renewalLabel } from "@/lib/renewals";
+import { ensureRenewalProvision } from "@/lib/renewal-provision";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -45,6 +46,16 @@ export async function GET(req: Request) {
     } catch (e) {
       console.error("cron quotes: sendMessage falhou:", (e as Error).message);
     }
+  }
+
+  // Renovações parceladas: garante a provisão da próxima ocorrência de cada
+  // item configurado (idempotente — roda diário, efetivo na virada do ano).
+  const configured = await prisma.item.findMany({
+    where: { active: true, renewalMonth: { not: null }, renewalAmount: { not: null }, renewalInstallments: { not: null } },
+    select: { id: true, renewalMonth: true, renewalAmount: true, renewalInstallments: true },
+  });
+  for (const item of configured) {
+    await ensureRenewalProvision(item);
   }
 
   // Alertas de renovação: no dia 1º de cada mês, avisa o que renova neste

@@ -16,6 +16,8 @@ export const itemSchema = z.object({
   dueDay: z.coerce.number().int().min(1).max(31).nullable().optional(),
   renewalMonth: z.coerce.number().int().min(1).max(12).nullable().optional(),
   businessDay: z.coerce.number().int().min(1).max(20).nullable().optional(),
+  renewalAmount: z.coerce.number().positive().nullable().optional(),
+  renewalInstallments: z.coerce.number().int().min(1).max(12).nullable().optional(),
   intervalMonths: z.coerce.number().int().min(1).max(12).optional(),
   active: z.boolean().default(true),
   notes: z.string().trim().optional(),

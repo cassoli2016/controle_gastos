@@ -5,6 +5,7 @@ import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { installmentMonths } from "@/lib/installments";
 import { cardTargetMonth } from "@/lib/fatura";
 import { consumeSubscriptionCharge } from "@/lib/card-subscription";
+import { consumeRenewalCharge } from "@/lib/renewal-provision";
 
 export type CardRef = { id: string; name: string; closingDay: number | null };
 
@@ -76,6 +77,14 @@ export async function addPurchaseToCard(
     const consumed = await consumeSubscriptionCharge(card, months[0], meta.description, amountCents, meta.dateISO);
     subscriptionId = consumed.subscriptionId;
     replacedProvision = subscriptionId !== null;
+  }
+  // Renovação parcelada (seguro 5x): cada parcela consome a provisão do item
+  // no seu mês (marca paga e abate) — sem contar em dobro com a fatura.
+  if (subscriptionId === null) {
+    for (const month of months) {
+      const consumed = await consumeRenewalCharge(month, meta.description, amountCents, meta.dateISO);
+      if (consumed) replacedProvision = true;
+    }
   }
 
   let firstMonthTotalCents = 0;
@@ -151,6 +160,9 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
         r.amountCents > 0
           ? await consumeSubscriptionCharge(card, month, r.description, r.amountCents, r.dateISO)
           : { subscriptionId: null };
+      if (r.amountCents > 0 && subscriptionId === null) {
+        await consumeRenewalCharge(month, r.description, r.amountCents, r.dateISO);
+      }
       data.push({
         cardId: card.id,
         month: monthDate,

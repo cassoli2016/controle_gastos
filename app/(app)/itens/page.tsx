@@ -37,7 +37,7 @@ export default async function ItensPage() {
               {items.map((i) => (
                 <ItemRow
                   key={i.id}
-                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, businessDay: i.businessDay, intervalMonths: i.intervalMonths, renewalMonth: i.renewalMonth, active: i.active }}
+                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, businessDay: i.businessDay, intervalMonths: i.intervalMonths, renewalMonth: i.renewalMonth, renewalAmount: i.renewalAmount === null ? null : Number(i.renewalAmount), renewalInstallments: i.renewalInstallments, active: i.active }}
                   categoryName={i.category.name}
               categoryColor={i.category.color}
                   categories={categoryOptions}
