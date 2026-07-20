@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { Pencil, Trash2 } from "lucide-react";
 
@@ -37,10 +38,13 @@ export function InstallmentDialog({
   installmentId,
   plannedCents,
   label,
+  categories,
 }: {
   installmentId: string;
   plannedCents: number;
   label: string;
+  /** Categorias para reclassificar o grupo (opcional). */
+  categories?: { id: string; name: string }[];
 }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateInstallment, {});
   useActionToast(editState, {
@@ -89,6 +93,27 @@ export function InstallmentDialog({
               <Label htmlFor={fieldId}>Valor da parcela</Label>
               <CurrencyInput id={fieldId} name="amount" defaultCents={plannedCents} />
             </div>
+            {categories && categories.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor={`installment-cat-${installmentId}`}>Categoria</Label>
+                <Select name="categoryId" defaultValue="keep">
+                  <SelectTrigger id={`installment-cat-${installmentId}`} className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keep">Manter a atual</SelectItem>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Muda a categoria de TODAS as ocorrências do grupo.
+                </p>
+              </div>
+            )}
             <DialogFooter>
               <Button type="submit" disabled={editPending}>
                 Salvar

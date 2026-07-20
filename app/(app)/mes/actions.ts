@@ -29,6 +29,8 @@ const incomeSchema = z.object({
 const updateInstallmentSchema = z.object({
   installmentId: z.string().min(1),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  // "keep" = manter a categoria atual (sentinel do Select).
+  categoryId: z.string().trim().optional().nullable(),
 });
 const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
 
@@ -390,13 +392,20 @@ export async function updateInstallment(_prevState: ActionState, formData: FormD
   const parsed = updateInstallmentSchema.safeParse({
     installmentId: formData.get("installmentId"),
     amount: formData.get("amount"),
+    categoryId: formData.get("categoryId"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { installmentId, amount } = parsed.data;
+  const categoryId = parsed.data.categoryId && parsed.data.categoryId !== "keep" ? parsed.data.categoryId : null;
   const { count } = await prisma.monthlyEntry.updateMany({
     where: { installmentId, paid: false },
-    data: { plannedAmount: amount },
+    data: { plannedAmount: amount, ...(categoryId ? { categoryId } : {}) },
   });
+  // Categoria vale para TODAS as ocorrências (pagas também — é classificação,
+  // não valor).
+  if (categoryId) {
+    await prisma.monthlyEntry.updateMany({ where: { installmentId, paid: true }, data: { categoryId } });
+  }
   revalidatePath("/mes");
   revalidatePath("/cartoes");
   return { ok: true, count };

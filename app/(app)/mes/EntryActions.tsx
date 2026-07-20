@@ -30,6 +30,7 @@ export function EntryActions({
   plannedCents,
   canRecur = false,
   isRecurring = false,
+  categories,
 }: {
   entryId: string;
   label: string;
@@ -39,6 +40,8 @@ export function EntryActions({
   canRecur?: boolean;
   /** Lançamento de conta recorrente (item): excluir pergunta se encerra os futuros. */
   isRecurring?: boolean;
+  /** Categorias para reclassificação em grupo (InstallmentDialog). */
+  categories?: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(deleteEntry, {});
   useActionToast(state, { success: "Lançamento excluído." });
@@ -102,7 +105,12 @@ export function EntryActions({
         </AlertDialog>
       )}
       {installmentId && (
-        <InstallmentDialog installmentId={installmentId} plannedCents={plannedCents} label={label} />
+        <InstallmentDialog
+          installmentId={installmentId}
+          plannedCents={plannedCents}
+          label={label}
+          categories={categories}
+        />
       )}
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogTrigger asChild>

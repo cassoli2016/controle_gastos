@@ -51,12 +51,14 @@ function EntryRow({
   month,
   variant,
   income,
+  categories,
 }: {
   row: DisplayRow;
   month: string;
   variant: "desktop" | "mobile";
   /** Grupo de receita: PayCell e labels usam "Receber/Recebido". */
   income: boolean;
+  categories: { id: string; name: string }[];
 }) {
   // Dia: item fixo mostra o dia de vencimento; avulso mostra a data do
   // lançamento (dd/mm) quando registrada.
@@ -114,6 +116,7 @@ function EntryRow({
       plannedCents={row.plannedCents}
       canRecur={row.itemId === null && row.cardId === null}
       isRecurring={row.itemId !== null}
+      categories={categories}
     />
   );
 
@@ -283,7 +286,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                       </thead>
                       <tbody>
                         {g.rows.map((row) => (
-                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} />
+                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
                         ))}
                       </tbody>
                     </table>
@@ -292,7 +295,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                   {/* Mobile: mini-cards empilhados */}
                   <div className="md:hidden divide-y">
                     {g.rows.map((row) => (
-                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} />
+                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
                     ))}
                   </div>
                 </CardContent>
