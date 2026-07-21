@@ -3,8 +3,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema } from "@/lib/validators";
-import { monthToDate, monthRange } from "@/lib/dates";
-import { adjustedCents } from "@/lib/adjustment";
+import { monthToDate, monthRange, monthStringFromDate } from "@/lib/dates";
+import { adjustedCents, anniversariesBetween } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
@@ -176,6 +176,62 @@ export async function copyPreviousMonthAction(_prevState: ActionState, formData:
   if (typeof month !== "string" || !month) return { error: "Mês inválido." };
   const result = await copyPreviousMonth(month);
   return { ok: result.ok, count: result.copied };
+}
+
+/**
+ * Copia as contas fixas do MESMO MÊS do ano anterior (sazonais: IPVA,
+ * matrícula, licenciamento…). Só itens ATIVOS entram; reajustes anuais cujo
+ * aniversário caiu no intervalo são aplicados; lançamentos que já existem no
+ * mês de destino não são sobrescritos.
+ */
+export async function copyYearAgoMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const month = formData.get("month");
+  if (typeof month !== "string" || !/^\d{4}-\d{2}$/.test(month)) return { error: "Mês inválido." };
+  const target = monthToDate(month);
+  const source = new Date(Date.UTC(target.getUTCFullYear() - 1, target.getUTCMonth(), 1));
+  const sourceMonth = monthStringFromDate(source);
+
+  const sourceEntries = await prisma.monthlyEntry.findMany({
+    where: { month: source, itemId: { not: null } },
+    include: {
+      item: { select: { active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true } },
+    },
+  });
+  if (sourceEntries.length === 0) return { error: `Nenhuma conta fixa em ${sourceMonth} para copiar.` };
+
+  let copied = 0;
+  await prisma.$transaction(async (tx) => {
+    for (const e of sourceEntries) {
+      if (!e.itemId || !e.item?.active) continue;
+      // Reajuste anual: aplica um passo por aniversário cruzado entre o mês
+      // de origem e o de destino (12 meses ⇒ no máximo 1).
+      let plannedAmount: number | typeof e.plannedAmount = e.plannedAmount;
+      const rule = e.item;
+      if (rule.adjustMonth && (rule.adjustPercent || rule.adjustAmount)) {
+        const level = anniversariesBetween(sourceMonth, month, rule.adjustMonth);
+        if (level > 0) {
+          const cents = adjustedCents(decimalToCents(String(e.plannedAmount)), level, {
+            percent: rule.adjustPercent === null ? null : Number(rule.adjustPercent),
+            amountCents: rule.adjustAmount === null ? null : decimalToCents(String(rule.adjustAmount)),
+          });
+          plannedAmount = centsToNumber(cents);
+        }
+      }
+      const purchaseDate = rule.businessDay
+        ? new Date(nthBusinessDay(month, rule.businessDay) + "T00:00:00Z")
+        : null;
+      await tx.monthlyEntry.upsert({
+        where: { itemId_month: { itemId: e.itemId, month: target } },
+        create: { itemId: e.itemId, month: target, plannedAmount, purchaseDate },
+        update: {},
+      });
+      copied++;
+    }
+  });
+  revalidatePath("/mes");
+  revalidatePath("/panorama");
+  revalidatePath("/dashboard");
+  return { ok: true, count: copied };
 }
 
 /**

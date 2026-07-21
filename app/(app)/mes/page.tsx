@@ -17,6 +17,7 @@ import { StatCard } from "@/components/StatCard";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyPreviousMonthButton } from "./CopyPreviousMonthButton";
+import { CopyYearAgoButton } from "./CopyYearAgoButton";
 import { PayCell } from "./PayCell";
 import { PlannedCell } from "./PlannedCell";
 import { AddEntryForm } from "./AddEntryForm";
@@ -225,6 +226,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
             entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
           />
           <CopyPreviousMonthButton month={month} />
+          <CopyYearAgoButton month={month} />
         </div>
       </div>
 
