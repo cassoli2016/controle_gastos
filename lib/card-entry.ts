@@ -7,9 +7,19 @@ import { cardTargetMonth } from "@/lib/fatura";
 import { consumeSubscriptionCharge } from "@/lib/card-subscription";
 import { consumeRenewalCharge } from "@/lib/renewal-provision";
 
-export type CardRef = { id: string; name: string; closingDay: number | null };
+export type CardRef = { id: string; name: string; closingDay: number | null; dueDay: number | null };
 
 export { cardTargetMonth } from "@/lib/fatura";
+
+/**
+ * Consolidado da fatura que zerou, não está pago e não tem mais nenhuma linha
+ * de extrato: sai de cena em vez de virar uma linha "0,00" no Panorama.
+ * Fatura que zera por estorno mantém o consolidado (as transações continuam
+ * lá); fatura já paga é histórico e nunca é apagada.
+ */
+export function shouldDropZeroedCardEntry(totalCents: number, paid: boolean, remainingTx: number): boolean {
+  return totalCents === 0 && !paid && remainingTx === 0;
+}
 
 /**
  * Garante o lançamento CONSOLIDADO do cartão no mês — 1 por cartão/mês,
@@ -27,6 +37,9 @@ export async function upsertCardEntry(opts: {
     where: { cardId: opts.card.id, month: monthDate, description: opts.card.name },
   });
   if (!existing) {
+    // Nada a registrar: não crie consolidado só para exibir "0,00" no Panorama
+    // (a guarda simétrica do outro branch apaga o que zerou).
+    if (opts.amountCents === 0) return { totalCents: 0 };
     const categoryId = await resolveDefaultPurchaseCategoryId();
     await prisma.monthlyEntry.create({
       data: {
@@ -41,6 +54,17 @@ export async function upsertCardEntry(opts: {
   }
   const totalCents =
     opts.mode === "add" ? decimalToCents(String(existing.plannedAmount)) + opts.amountCents : opts.amountCents;
+  // Consulta o extrato só quando as condições baratas já indicam que pode ser
+  // o caso de apagar (evita a query à toa na maioria das chamadas).
+  if (totalCents === 0 && !existing.paid) {
+    const remaining = await prisma.cardTransaction.count({
+      where: { cardId: opts.card.id, month: monthDate },
+    });
+    if (shouldDropZeroedCardEntry(totalCents, existing.paid, remaining)) {
+      await prisma.monthlyEntry.delete({ where: { id: existing.id } });
+      return { totalCents: 0 };
+    }
+  }
   await prisma.monthlyEntry.update({
     where: { id: existing.id },
     data: { plannedAmount: centsToNumber(totalCents) },
@@ -195,12 +219,13 @@ export async function updateCardTransaction(opts: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const tx = await prisma.cardTransaction.findUnique({ where: { id: opts.txId }, include: { card: true } });
   if (!tx) return { ok: false, error: "Lançamento não encontrado." };
-  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
   const oldMonth = monthStringFromDate(tx.month);
   const oldCents = decimalToCents(String(tx.amount));
 
-  await upsertCardEntry({ card, month: oldMonth, amountCents: -oldCents, mode: "add" });
-  await upsertCardEntry({ card, month: opts.monthISO, amountCents: opts.amountCents, mode: "add" });
+  // Move o extrato ANTES de acertar os consolidados, pelo mesmo motivo de
+  // deleteCardTransaction: a decisão de apagar o consolidado zerado do mês
+  // antigo depende do extrato já atualizado.
   await prisma.cardTransaction.update({
     where: { id: tx.id },
     data: {
@@ -209,6 +234,8 @@ export async function updateCardTransaction(opts: {
       month: monthToDate(opts.monthISO),
     },
   });
+  await upsertCardEntry({ card, month: oldMonth, amountCents: -oldCents, mode: "add" });
+  await upsertCardEntry({ card, month: opts.monthISO, amountCents: opts.amountCents, mode: "add" });
   return { ok: true };
 }
 
@@ -216,13 +243,15 @@ export async function updateCardTransaction(opts: {
 export async function deleteCardTransaction(txId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const tx = await prisma.cardTransaction.findUnique({ where: { id: txId }, include: { card: true } });
   if (!tx) return { ok: false, error: "Lançamento não encontrado." };
-  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
+  // Apaga o extrato ANTES de acertar o consolidado: upsertCardEntry olha
+  // quantas linhas restaram no mês para decidir se o consolidado zerado sai.
+  await prisma.cardTransaction.delete({ where: { id: tx.id } });
   await upsertCardEntry({
     card,
     month: monthStringFromDate(tx.month),
     amountCents: -decimalToCents(String(tx.amount)),
     mode: "add",
   });
-  await prisma.cardTransaction.delete({ where: { id: tx.id } });
   return { ok: true };
 }

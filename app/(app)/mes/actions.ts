@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema } from "@/lib/validators";
 import { monthToDate, monthRange, monthStringFromDate } from "@/lib/dates";
@@ -50,7 +50,7 @@ export async function upsertEntry(_prevState: ActionState, formData: FormData): 
     create: { itemId, month: monthToDate(month), plannedAmount },
     update: { plannedAmount },
   });
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -71,7 +71,7 @@ export async function markPaid(_prevState: ActionState, formData: FormData): Pro
       paidDate: paid && paidDate ? new Date(paidDate + "T00:00:00Z") : null,
     },
   });
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -95,7 +95,7 @@ export async function applyRange(_prevState: ActionState, formData: FormData): P
       });
     }
   });
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true, count: months.length };
 }
 
@@ -166,7 +166,7 @@ export async function copyPreviousMonth(month: string) {
       copied++;
     }
   });
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true, copied };
 }
 
@@ -228,9 +228,7 @@ export async function copyYearAgoMonthAction(_prevState: ActionState, formData: 
       copied++;
     }
   });
-  revalidatePath("/mes");
-  revalidatePath("/panorama");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true, count: copied };
 }
 
@@ -278,7 +276,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
       startISO: date,
       categoryId,
     });
-    revalidatePath("/mes");
+    revalidateFinance();
     return { ok: true, count };
   }
 
@@ -297,8 +295,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
       dueDay: Number(date.slice(8, 10)),
       intervalMonths: parsed.data.intervalMonths,
     });
-    revalidatePath("/mes");
-    revalidatePath("/itens");
+    revalidateFinance();
     return { ok: true, count };
   }
 
@@ -308,19 +305,18 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     const card = await prisma.creditCard.findUnique({ where: { id: cardId } });
     if (!card) return { error: "Cartão não encontrado." };
     const startMonth = cardTargetMonth(
-      { id: card.id, name: card.name, closingDay: card.closingDay },
+      { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
       date,
       date.slice(0, 7),
     );
     await addPurchaseToCard(
-      { id: card.id, name: card.name, closingDay: card.closingDay },
+      { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
       startMonth,
       Math.round(amount * 100),
       installments,
       { description, dateISO: date },
     );
-    revalidatePath("/mes");
-    revalidatePath("/cartoes");
+    revalidateFinance();
     return { ok: true, count: installments };
   }
 
@@ -343,8 +339,7 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     purchaseDateISO: date,
   });
 
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true, count: installments };
 }
 
@@ -374,9 +369,7 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
       businessDay: fifthBusinessDay ? 5 : null,
       intervalMonths: parsed.data.intervalMonths,
     });
-    revalidatePath("/mes");
-    revalidatePath("/itens");
-    revalidatePath("/dashboard");
+    revalidateFinance();
     return { ok: true, count };
   }
 
@@ -389,8 +382,7 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
     categoryId,
     purchaseDateISO: date,
   });
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true, count: 1 };
 }
 
@@ -410,8 +402,7 @@ export async function deleteRecurringForward(_prevState: ActionState, formData: 
     prisma.monthlyEntry.deleteMany({ where: { itemId: entry.itemId, month: { gte: entry.month } } }),
     prisma.item.update({ where: { id: entry.itemId }, data: { active: false } }),
   ]);
-  revalidatePath("/mes");
-  revalidatePath("/itens");
+  revalidateFinance();
   return { ok: true, count };
 }
 
@@ -421,8 +412,7 @@ export async function makeRecurring(_prevState: ActionState, formData: FormData)
   if (typeof entryId !== "string" || !entryId) return { error: "Lançamento inválido." };
   const result = await convertEntryToRecurring(entryId);
   if (!result.ok) return { error: result.error };
-  revalidatePath("/mes");
-  revalidatePath("/itens");
+  revalidateFinance();
   return { ok: true, count: result.count };
 }
 
@@ -436,8 +426,7 @@ export async function deleteEntry(_prevState: ActionState, formData: FormData): 
   const parsed = deleteEntrySchema.safeParse({ entryId: formData.get("entryId") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.monthlyEntry.delete({ where: { id: parsed.data.entryId } });
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -464,8 +453,7 @@ export async function updateInstallment(_prevState: ActionState, formData: FormD
   if (categoryId) {
     await prisma.monthlyEntry.updateMany({ where: { installmentId, paid: true }, data: { categoryId } });
   }
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true, count };
 }
 
@@ -474,8 +462,7 @@ export async function deleteInstallment(_prevState: ActionState, formData: FormD
   const parsed = deleteInstallmentSchema.safeParse({ installmentId: formData.get("installmentId") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { count } = await prisma.monthlyEntry.deleteMany({ where: { installmentId: parsed.data.installmentId } });
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true, count };
 }
 
@@ -518,9 +505,7 @@ export async function transferValue(_prevState: ActionState, formData: FormData)
     }),
   ]);
 
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -561,9 +546,7 @@ export async function setEntriesPaid(_prevState: ActionState, formData: FormData
       }),
     ),
   );
-  revalidatePath("/panorama");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true, count: entries.length };
 }
 
@@ -583,8 +566,6 @@ export async function updateEntryValue(_prevState: ActionState, formData: FormDa
     where: { id: parsed.data.entryId },
     data: { plannedAmount: parsed.data.amount },
   });
-  revalidatePath("/panorama");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }

@@ -7,7 +7,7 @@ import { createRecurrence, findActiveItemByName } from "@/lib/recurrence";
 
 export { normalizeDescription, descriptionsMatch } from "@/lib/description-match";
 
-type CardLike = { id: string; name?: string; closingDay: number | null };
+type CardLike = { id: string; name?: string; closingDay: number | null; dueDay: number | null };
 
 /** Horizonte padrão da provisão (o usuário pode escolher outro por assinatura). */
 export const SUBSCRIPTION_MONTHS = 12;
@@ -23,7 +23,11 @@ async function resolveSubscriptionCategoryId(): Promise<string> {
 }
 
 /** Primeira fatura em que a próxima cobrança da assinatura cai. */
-export function firstChargeFaturaMonth(card: { closingDay: number | null }, chargeDay: number, todayISO: string): string {
+export function firstChargeFaturaMonth(
+  card: { closingDay: number | null; dueDay?: number | null },
+  chargeDay: number,
+  todayISO: string,
+): string {
   const [y, m, d] = todayISO.split("-").map(Number);
   // Próxima cobrança: neste mês se o dia ainda não passou, senão no seguinte.
   const chargeMonth = d <= chargeDay ? { y, m } : m === 12 ? { y: y + 1, m: 1 } : { y, m: m + 1 };

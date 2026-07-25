@@ -58,11 +58,27 @@ export function NewCardForm() {
               type="number"
               min={1}
               max={31}
-              placeholder="ex.: 5"
+              placeholder="ex.: 27"
               className="w-24"
             />
             <p className="text-xs text-muted-foreground">
-              Compra após o fechamento entra na fatura do mês seguinte.
+              Compra após o fechamento entra na fatura seguinte.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-card-due">Dia de vencimento da fatura (opcional)</Label>
+            <Input
+              id="new-card-due"
+              name="dueDay"
+              type="number"
+              min={1}
+              max={31}
+              placeholder="ex.: 10"
+              className="w-24"
+            />
+            <p className="text-xs text-muted-foreground">
+              Define em que mês a fatura é paga. Vencimento antes do fechamento (fecha 27, vence 10) =
+              fatura paga no mês seguinte.
             </p>
           </div>
           <DialogFooter>

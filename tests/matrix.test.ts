@@ -25,6 +25,24 @@ describe("buildMatrix", () => {
     expect(diarista.totalCents).toBe(44000);
   });
 
+  it("célula parcial: paidCount conta as pagas sem virar allPaid", () => {
+    const diarista = m.sections.find((s) => s.categoryName === "Moradia")!.rows[0];
+    expect(diarista.cells["2026-08"]).toMatchObject({ count: 2, paidCount: 1, allPaid: false });
+  });
+
+  it("nenhuma ocorrência paga: paidCount zero", () => {
+    const nubank = m.sections.find((s) => s.categoryName === "Cartão/Compras")!.rows[0];
+    expect(nubank.cells["2026-08"]).toMatchObject({ count: 1, paidCount: 0, allPaid: false });
+  });
+
+  it("todas pagas: paidCount igual a count e allPaid", () => {
+    const todas = buildMatrix([
+      { line: "Almoço", categoryName: "Alimentação", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 5000, paid: true, entryId: "a1", kind: "loose" as const },
+      { line: "Almoço", categoryName: "Alimentação", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 5000, paid: true, entryId: "a2", kind: "loose" as const },
+    ]);
+    expect(todas.sections[0].rows[0].cells["2026-08"]).toMatchObject({ count: 2, paidCount: 2, allPaid: true });
+  });
+
   it("totais por mês (receita, despesa, saldo)", () => {
     expect(m.incomeByMonth["2026-08"]).toBe(2500000);
     expect(m.expenseByMonth["2026-08"]).toBe(1444000);

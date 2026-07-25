@@ -54,7 +54,8 @@ export default async function PanoramaPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Panorama</h1>
         <p className="text-sm text-muted-foreground">
-          Todos os meses lado a lado · verde = pago · clique no valor para editar ou dar baixa
+          Todos os meses lado a lado · verde = pago · âmbar = parcial · clique no valor para editar ou dar
+          baixa
         </p>
       </div>
 
@@ -167,6 +168,7 @@ function SectionRows({
                   <CellAction
                     cents={cell.cents}
                     allPaid={cell.allPaid}
+                    paidCount={cell.paidCount}
                     count={cell.count}
                     entries={cell.entries}
                     kind={cell.kind}

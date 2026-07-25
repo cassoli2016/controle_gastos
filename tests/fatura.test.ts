@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { faturaMonth, todayISOInSaoPaulo, nthBusinessDay } from "@/lib/fatura";
+import { faturaMonth, cardTargetMonth, todayISOInSaoPaulo, nthBusinessDay } from "@/lib/fatura";
 
 describe("faturaMonth (fechamento dia 5)", () => {
   it("compra até o dia do fechamento cai na fatura do próprio mês", () => {
@@ -39,5 +39,60 @@ describe("nthBusinessDay (5º dia útil)", () => {
   });
   it("1º dia útil de agosto/2026 = 03/08 (segunda)", () => {
     expect(nthBusinessDay("2026-08", 1)).toBe("2026-08-03");
+  });
+});
+
+describe("faturaMonth com vencimento — Bradesco Amazon (fecha 27, vence 10)", () => {
+  it("compra até o fechamento é paga no mês seguinte", () => {
+    expect(faturaMonth("2026-07-01", 27, 10)).toBe("2026-08");
+    expect(faturaMonth("2026-07-25", 27, 10)).toBe("2026-08");
+    expect(faturaMonth("2026-07-27", 27, 10)).toBe("2026-08");
+  });
+  it("compra após o fechamento pula uma fatura", () => {
+    expect(faturaMonth("2026-07-28", 27, 10)).toBe("2026-09");
+    expect(faturaMonth("2026-07-31", 27, 10)).toBe("2026-09");
+  });
+  it("virada de ano", () => {
+    expect(faturaMonth("2026-12-20", 27, 10)).toBe("2027-01");
+    expect(faturaMonth("2026-12-28", 27, 10)).toBe("2027-02");
+  });
+});
+
+describe("faturaMonth com vencimento — Nubank (fecha 4, vence 10)", () => {
+  it("vencimento depois do fechamento mantém o mês do fechamento", () => {
+    expect(faturaMonth("2026-07-03", 4, 10)).toBe("2026-07");
+    expect(faturaMonth("2026-07-04", 4, 10)).toBe("2026-07");
+    expect(faturaMonth("2026-07-25", 4, 10)).toBe("2026-08");
+  });
+  it("resultado idêntico ao de antes do vencimento existir", () => {
+    expect(faturaMonth("2026-07-25", 4, 10)).toBe(faturaMonth("2026-07-25", 4));
+    expect(faturaMonth("2026-07-03", 4, 10)).toBe(faturaMonth("2026-07-03", 4));
+  });
+});
+
+describe("faturaMonth — bordas do vencimento", () => {
+  it("vencimento ausente ou nulo mantém o comportamento antigo", () => {
+    expect(faturaMonth("2026-07-25", 27)).toBe("2026-07");
+    expect(faturaMonth("2026-07-25", 27, null)).toBe("2026-07");
+  });
+  it("vencimento igual ao fechamento conta como mês seguinte", () => {
+    expect(faturaMonth("2026-07-25", 27, 27)).toBe("2026-08");
+  });
+  it("data inválida continua null mesmo com vencimento", () => {
+    expect(faturaMonth("25/07/2026", 27, 10)).toBeNull();
+    expect(faturaMonth("2026-13-01", 27, 10)).toBeNull();
+  });
+});
+
+describe("cardTargetMonth", () => {
+  const bradesco = { closingDay: 27, dueDay: 10 };
+  it("aplica fechamento + vencimento", () => {
+    expect(cardTargetMonth(bradesco, "2026-07-25", "2026-07")).toBe("2026-08");
+  });
+  it("cartão sem fechamento cai no mês-fallback", () => {
+    expect(cardTargetMonth({ closingDay: null, dueDay: 10 }, "2026-07-25", "2026-07")).toBe("2026-07");
+  });
+  it("data inválida cai no mês-fallback", () => {
+    expect(cardTargetMonth(bradesco, "25/07/2026", "2026-07")).toBe("2026-07");
   });
 });

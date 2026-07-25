@@ -63,6 +63,11 @@ model CreditCard {
   // fatura do mês seguinte — usado pela importação de CSV para rotear cada
   // compra pela data. null = importar tudo no primeiro mês em aberto.
   closingDay Int?
+  // Dia de vencimento da fatura (1-31): define em QUE MÊS a fatura fechada é
+  // paga — e portanto a competência do lançamento. Vencimento <= fechamento
+  // significa pagar no mês seguinte ao fechamento (Bradesco: fecha 27, vence
+  // 10). null = competência é o próprio mês do fechamento.
+  dueDay     Int?
   active    Boolean        @default(true)
   createdAt DateTime       @default(now())
   entries   MonthlyEntry[]

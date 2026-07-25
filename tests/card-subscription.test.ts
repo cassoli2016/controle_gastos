@@ -31,3 +31,16 @@ describe("firstChargeFaturaMonth (fechamento dia 5)", () => {
     expect(firstChargeFaturaMonth({ ...card, closingDay: null }, 25, "2026-07-19")).toBe("2026-07");
   });
 });
+
+describe("firstChargeFaturaMonth com vencimento antes do fechamento (fecha 27, vence 10)", () => {
+  const bradesco = { id: "b", name: "Bradesco Amazon", closingDay: 27, dueDay: 10 };
+  it("cobrança dia 15, hoje 25/07: cobra 15/08 → fecha 27/08 → vence 10/09", () => {
+    expect(firstChargeFaturaMonth(bradesco, 15, "2026-07-25")).toBe("2026-09");
+  });
+  it("cobrança dia 28, hoje 25/07: cobra 28/07 (após o fechamento) → vence 10/09", () => {
+    expect(firstChargeFaturaMonth(bradesco, 28, "2026-07-25")).toBe("2026-09");
+  });
+  it("cobrança dia 3, hoje 25/07: cobra 03/08 → fecha 27/08 → vence 10/09", () => {
+    expect(firstChargeFaturaMonth(bradesco, 3, "2026-07-25")).toBe("2026-09");
+  });
+});

@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { refreshAllQuotes } from "@/lib/quote-refresh";
 import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
@@ -39,7 +39,7 @@ export async function upsertAsset(_prevState: ActionState, formData: FormData): 
     create: { ticker, segment: segment || null, quantity, avgPrice, active: true },
     update: { segment: segment || null, quantity, avgPrice, active: true },
   });
-  revalidatePath("/investimentos");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -48,15 +48,14 @@ export async function archiveAsset(_prevState: ActionState, formData: FormData):
   if (typeof id !== "string" || !id) return { error: "Ativo inválido." };
   const active = formData.get("active") === "true";
   await prisma.investmentAsset.update({ where: { id }, data: { active } });
-  revalidatePath("/investimentos");
+  revalidateFinance();
   return { ok: true };
 }
 
 /** Atualiza as cotações de todos os ativos ativos via brapi (cache no banco). */
 export async function refreshQuotes(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
   const r = await refreshAllQuotes();
-  revalidatePath("/investimentos");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   if (r.total === 0) return { error: "Nenhum ativo ativo para cotar." };
   if (r.updated === 0)
     return {
@@ -85,9 +84,7 @@ export async function toggleDividendReceived(_prevState: ActionState, formData: 
     }
     await prisma.dividend.update({ where: { id }, data: { received: false, entryId: null } });
   }
-  revalidatePath("/investimentos");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -127,7 +124,7 @@ export async function createDividend(_prevState: ActionState, formData: FormData
       net: centsToNumber(netCents),
     },
   });
-  revalidatePath("/investimentos");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -137,8 +134,7 @@ export async function deleteDividend(_prevState: ActionState, formData: FormData
   const dividend = await prisma.dividend.findUnique({ where: { id } });
   if (dividend?.entryId) await prisma.monthlyEntry.deleteMany({ where: { id: dividend.entryId } });
   await prisma.dividend.delete({ where: { id } });
-  revalidatePath("/investimentos");
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -153,15 +149,14 @@ export async function importB3Report(_prevState: ActionState, formData: FormData
 
   if (parsed.kind === "negociacao") {
     const r = await applyB3Trades(parsed.trades);
-    revalidatePath("/investimentos");
-    revalidatePath("/dashboard");
+    revalidateFinance();
     if (r.applied === 0 && r.duplicated > 0) return { error: "Nenhum negócio novo — este relatório já foi importado." };
     return { ok: true, count: r.applied };
   }
 
   if (parsed.kind === "proventos_provisionados") {
     const r = await applyB3Provisioned(parsed.incomes);
-    revalidatePath("/investimentos");
+    revalidateFinance();
     if (r.created + r.updated === 0 && r.duplicated > 0)
       return { error: "Nenhum anúncio novo — agenda já estava atualizada." };
     return { ok: true, count: r.created + r.updated };
@@ -169,9 +164,7 @@ export async function importB3Report(_prevState: ActionState, formData: FormData
 
   // movimentacao e proventos_recebidos: proventos pagos
   const r = await applyB3Incomes(parsed.incomes);
-  revalidatePath("/investimentos");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   if (r.matched + r.created === 0 && r.duplicated > 0)
     return { error: "Nenhum provento novo — este relatório já foi importado." };
   return { ok: true, count: r.matched + r.created };
@@ -222,7 +215,6 @@ export async function registerTrade(_prevState: ActionState, formData: FormData)
   if (r.applied === 0 && r.skippedOld > 0)
     return { error: "Data anterior à carga inicial (17/07/2026) — esse período já está no PM." };
 
-  revalidatePath("/investimentos");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }

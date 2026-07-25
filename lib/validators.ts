@@ -49,6 +49,16 @@ export const cardSchema = z.object({
       .max(31, "Dia de fechamento entre 1 e 31")
       .nullable(),
   ),
+  // Dia de vencimento da fatura (opcional): campo vazio vira null.
+  dueDay: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce
+      .number()
+      .int("Dia de vencimento deve ser inteiro")
+      .min(1, "Dia de vencimento entre 1 e 31")
+      .max(31, "Dia de vencimento entre 1 e 31")
+      .nullable(),
+  ),
 });
 
 export const purchaseSchema = z.object({

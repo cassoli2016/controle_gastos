@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validators";
 
@@ -14,7 +14,7 @@ export async function createCategory(_prevState: ActionState, formData: FormData
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.category.create({ data: parsed.data });
-  revalidatePath("/categorias");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -28,7 +28,7 @@ export async function updateCategory(_prevState: ActionState, formData: FormData
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.category.update({ where: { id }, data: parsed.data });
-  revalidatePath("/categorias");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -38,6 +38,6 @@ export async function deleteCategory(_prevState: ActionState, formData: FormData
   const count = await prisma.item.count({ where: { categoryId: id } });
   if (count > 0) return { error: "Categoria em uso por itens; recategorize antes de excluir." };
   await prisma.category.delete({ where: { id } });
-  revalidatePath("/categorias");
+  revalidateFinance();
   return { ok: true };
 }
