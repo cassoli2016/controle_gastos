@@ -17,6 +17,7 @@ export type CellEntry = { id: string; cents: number; paid: boolean };
 export function CellAction({
   cents,
   allPaid,
+  paidCount,
   count,
   entries,
   kind,
@@ -26,6 +27,8 @@ export function CellAction({
 }: {
   cents: number;
   allPaid: boolean;
+  /** Ocorrências já pagas da célula — `0 < paidCount < count` é baixa parcial. */
+  paidCount: number;
   count: number;
   entries: CellEntry[];
   kind: "item" | "card" | "loose";
@@ -52,17 +55,33 @@ export function CellAction({
   const fmt = (c: number) =>
     (c / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Célula com várias ocorrências (recorrência semanal) pode estar
+  // parcialmente paga: âmbar, com a contagem no canto. Nesse estado o botão
+  // só dá baixa nas ABERTAS — repagar as pagas sobrescreveria valor e data
+  // do pagamento que já aconteceu.
+  const partial = paidCount > 0 && !allPaid;
+  const payIds = allPaid ? entries.map((e) => e.id) : entries.filter((e) => !e.paid).map((e) => e.id);
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           className={`w-full rounded px-1 py-0.5 text-right tabular-nums hover:bg-accent hover:text-foreground ${
-            allPaid ? "text-emerald-600 dark:text-emerald-400" : ""
+            allPaid
+              ? "text-emerald-600 dark:text-emerald-400"
+              : partial
+                ? "text-amber-600 dark:text-amber-400"
+                : ""
           }`}
-          title={count > 1 ? `${count} ocorrências` : undefined}
+          title={count > 1 ? `${count} ocorrências${partial ? ` · ${paidCount} pagas` : ""}` : undefined}
         >
           {fmt(cents)}
+          {partial && count > 1 && (
+            <span className="ml-0.5 align-super text-[9px] tabular-nums opacity-70">
+              {paidCount}/{count}
+            </span>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72">
@@ -72,6 +91,7 @@ export function CellAction({
             <p className="text-xs text-muted-foreground">
               {monthLabel} · {formatCents(cents)}
               {count > 1 && ` · ${count} ocorrências`}
+              {partial && ` · ${paidCount} ${income ? "recebidas" : "pagas"}`}
               {allPaid && (income ? " · recebido" : " · pago")}
             </p>
           </div>
@@ -100,17 +120,17 @@ export function CellAction({
           )}
 
           <form action={payAction}>
-            <input type="hidden" name="entryIds" value={JSON.stringify(entries.map((e) => e.id))} />
+            <input type="hidden" name="entryIds" value={JSON.stringify(payIds)} />
             <input type="hidden" name="paid" value={(!allPaid).toString()} />
             <Button type="submit" size="sm" className="w-full" variant={allPaid ? "outline" : "default"} disabled={payPending}>
               {allPaid
                 ? "Desfazer baixa"
                 : income
-                  ? count > 1
-                    ? `Receber todas (${count})`
+                  ? payIds.length > 1
+                    ? `Receber todas (${payIds.length})`
                     : "Receber"
-                  : count > 1
-                    ? `Pagar todas (${count})`
+                  : payIds.length > 1
+                    ? `Pagar todas (${payIds.length})`
                     : "Pagar"}
             </Button>
           </form>
