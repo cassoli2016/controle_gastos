@@ -21,6 +21,8 @@ export type MatrixCell = {
   cents: number;
   /** Todas as ocorrências da célula pagas (semanais somam várias). */
   allPaid: boolean;
+  /** Quantas das `count` ocorrências estão pagas — baixa parcial da célula. */
+  paidCount: number;
   count: number;
   entries: { id: string; cents: number; paid: boolean }[];
   kind: "item" | "card" | "loose";
@@ -63,9 +65,10 @@ export function buildMatrix(entries: MatrixEntry[]): Matrix {
     };
     const row = sec.rows.get(e.line) ?? { line: e.line, cells: {}, totalCents: 0 };
     const cell =
-      row.cells[e.monthISO] ?? { cents: 0, allPaid: true, count: 0, entries: [], kind: e.kind };
+      row.cells[e.monthISO] ?? { cents: 0, allPaid: true, paidCount: 0, count: 0, entries: [], kind: e.kind };
     cell.cents += e.cents;
     cell.allPaid = cell.allPaid && e.paid;
+    if (e.paid) cell.paidCount += 1;
     cell.count += 1;
     cell.entries.push({ id: e.entryId, cents: e.cents, paid: e.paid });
     if (e.kind === "card") cell.kind = "card";
