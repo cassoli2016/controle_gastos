@@ -186,7 +186,9 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     ...toEntryView(r as never),
     entryId: r.id,
     itemId: r.itemId,
-    dueDay: r.item?.dueDay ?? null,
+    // Consolidado do cartão não tem data de compra: o "Dia" útil ali é o
+    // vencimento da fatura (antes ficava "—").
+    dueDay: r.item?.dueDay ?? (r.purchaseDate === null ? r.card?.dueDay ?? null : null),
     renewsThisMonth: r.item?.renewalMonth === monthDate.getUTCMonth() + 1,
     purchaseDate: r.purchaseDate,
     paidDate: r.paidDate,

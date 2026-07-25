@@ -33,6 +33,7 @@ type Card = {
   name: string;
   color: string;
   closingDay: number | null;
+  dueDay: number | null;
   active: boolean;
 };
 
@@ -65,7 +66,9 @@ export function CardRow({ card }: { card: Card }) {
     <div className="flex items-center gap-1.5">
       {card.closingDay !== null && (
         <Badge variant="outline" className="font-normal text-muted-foreground">
-          Fecha dia {card.closingDay}
+          {card.dueDay !== null
+            ? `Fecha ${card.closingDay} · vence ${card.dueDay}`
+            : `Fecha dia ${card.closingDay}`}
         </Badge>
       )}
       <Badge variant={card.active ? "default" : "outline"}>{card.active ? "Ativo" : "Arquivado"}</Badge>
@@ -176,6 +179,23 @@ export function CardRow({ card }: { card: Card }) {
               />
               <p className="text-xs text-muted-foreground">
                 Compra após o fechamento entra na fatura do mês seguinte.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-card-due-${card.id}`}>Dia de vencimento da fatura (opcional)</Label>
+              <Input
+                id={`edit-card-due-${card.id}`}
+                name="dueDay"
+                type="number"
+                min={1}
+                max={31}
+                placeholder="ex.: 10"
+                defaultValue={card.dueDay ?? ""}
+                className="w-24"
+              />
+              <p className="text-xs text-muted-foreground">
+                Define em que mês a fatura é paga. Vencimento antes do fechamento (fecha 27, vence 10) =
+                fatura paga no mês seguinte.
               </p>
             </div>
             <DialogFooter>
