@@ -57,16 +57,38 @@ async function main() {
     console.log("(2) nenhuma linha de extrato do Nubank em jul/26 — nada a fazer.");
     return;
   }
-  const augustTx = await prisma.cardTransaction.findMany({ where: { cardId: nubank.id, month: august } });
-  const key = (t: { description: string; amount: unknown }) => `${t.description}|${String(t.amount)}`;
-  const augustKeys = new Set(augustTx.map(key));
-  const orphans = julyTx.filter((t) => augustKeys.has(key(t)));
-  if (orphans.length !== julyTx.length) {
+  // Antecipação manual de fatura: nunca apagar, mesmo que coincida em
+  // descrição+valor com uma linha de agosto — é dado precioso preservado
+  // pelo resto do sistema quando o CSV substitui o mês.
+  const prepayments = julyTx.filter((t) => t.prepayment);
+  if (prepayments.length > 0) {
     throw new Error(
-      `(2) ${julyTx.length - orphans.length} de ${julyTx.length} linhas do Nubank em jul/26 não têm par em ago/26 — abortado sem apagar nada.`,
+      `(2) ${prepayments.length} linha(s) de jul/26 são prepayment (antecipação manual) — abortado sem apagar nada.`,
     );
   }
-  const { count } = await prisma.cardTransaction.deleteMany({ where: { id: { in: orphans.map((t) => t.id) } } });
+  const augustTx = await prisma.cardTransaction.findMany({ where: { cardId: nubank.id, month: august } });
+  const key = (t: { description: string; amount: unknown }) => `${t.description}|${String(t.amount)}`;
+  // Multiset: cada chave de agosto só pode "casar" com uma linha de julho.
+  // Um Set testaria só pertencimento — com chaves repetidas em agosto (ex.:
+  // duas recargas de mesmo valor no mês), isso deixaria passar linhas de
+  // julho em excesso que não são duplicatas 1-para-1.
+  const augustCounts = new Map<string, number>();
+  for (const t of augustTx) augustCounts.set(key(t), (augustCounts.get(key(t)) ?? 0) + 1);
+  const duplicadas: typeof julyTx = [];
+  for (const t of julyTx) {
+    const k = key(t);
+    const remaining = augustCounts.get(k) ?? 0;
+    if (remaining > 0) {
+      augustCounts.set(k, remaining - 1);
+      duplicadas.push(t);
+    }
+  }
+  if (duplicadas.length !== julyTx.length) {
+    throw new Error(
+      `(2) ${julyTx.length - duplicadas.length} de ${julyTx.length} linhas do Nubank em jul/26 não têm par em ago/26 — abortado sem apagar nada.`,
+    );
+  }
+  const { count } = await prisma.cardTransaction.deleteMany({ where: { id: { in: duplicadas.map((t) => t.id) } } });
   console.log(`(2) ${count} linhas de extrato do Nubank em jul/26 removidas (duplicatas exatas de ago/26).`);
 }
 
