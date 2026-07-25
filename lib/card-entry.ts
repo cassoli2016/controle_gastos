@@ -41,6 +41,20 @@ export async function upsertCardEntry(opts: {
   }
   const totalCents =
     opts.mode === "add" ? decimalToCents(String(existing.plannedAmount)) + opts.amountCents : opts.amountCents;
+  // Fatura que zerou e não tem mais nenhuma linha de extrato: o consolidado
+  // sobra como uma linha "0,00" no Panorama (foi o que aconteceu com a fatura
+  // de jul/26 do Bradesco depois de mover as compras para agosto). Fatura que
+  // zera por estorno mantém o consolidado — as transações continuam lá. Fatura
+  // já paga é histórico e nunca é apagada.
+  if (totalCents === 0 && !existing.paid) {
+    const remaining = await prisma.cardTransaction.count({
+      where: { cardId: opts.card.id, month: monthDate },
+    });
+    if (remaining === 0) {
+      await prisma.monthlyEntry.delete({ where: { id: existing.id } });
+      return { totalCents: 0 };
+    }
+  }
   await prisma.monthlyEntry.update({
     where: { id: existing.id },
     data: { plannedAmount: centsToNumber(totalCents) },
@@ -199,8 +213,9 @@ export async function updateCardTransaction(opts: {
   const oldMonth = monthStringFromDate(tx.month);
   const oldCents = decimalToCents(String(tx.amount));
 
-  await upsertCardEntry({ card, month: oldMonth, amountCents: -oldCents, mode: "add" });
-  await upsertCardEntry({ card, month: opts.monthISO, amountCents: opts.amountCents, mode: "add" });
+  // Move o extrato ANTES de acertar os consolidados, pelo mesmo motivo de
+  // deleteCardTransaction: a decisão de apagar o consolidado zerado do mês
+  // antigo depende do extrato já atualizado.
   await prisma.cardTransaction.update({
     where: { id: tx.id },
     data: {
@@ -209,6 +224,8 @@ export async function updateCardTransaction(opts: {
       month: monthToDate(opts.monthISO),
     },
   });
+  await upsertCardEntry({ card, month: oldMonth, amountCents: -oldCents, mode: "add" });
+  await upsertCardEntry({ card, month: opts.monthISO, amountCents: opts.amountCents, mode: "add" });
   return { ok: true };
 }
 
@@ -217,12 +234,14 @@ export async function deleteCardTransaction(txId: string): Promise<{ ok: true } 
   const tx = await prisma.cardTransaction.findUnique({ where: { id: txId }, include: { card: true } });
   if (!tx) return { ok: false, error: "Lançamento não encontrado." };
   const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
+  // Apaga o extrato ANTES de acertar o consolidado: upsertCardEntry olha
+  // quantas linhas restaram no mês para decidir se o consolidado zerado sai.
+  await prisma.cardTransaction.delete({ where: { id: tx.id } });
   await upsertCardEntry({
     card,
     month: monthStringFromDate(tx.month),
     amountCents: -decimalToCents(String(tx.amount)),
     mode: "add",
   });
-  await prisma.cardTransaction.delete({ where: { id: tx.id } });
   return { ok: true };
 }
