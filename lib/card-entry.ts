@@ -12,6 +12,16 @@ export type CardRef = { id: string; name: string; closingDay: number | null; due
 export { cardTargetMonth } from "@/lib/fatura";
 
 /**
+ * Consolidado da fatura que zerou, não está pago e não tem mais nenhuma linha
+ * de extrato: sai de cena em vez de virar uma linha "0,00" no Panorama.
+ * Fatura que zera por estorno mantém o consolidado (as transações continuam
+ * lá); fatura já paga é histórico e nunca é apagada.
+ */
+export function shouldDropZeroedCardEntry(totalCents: number, paid: boolean, remainingTx: number): boolean {
+  return totalCents === 0 && !paid && remainingTx === 0;
+}
+
+/**
  * Garante o lançamento CONSOLIDADO do cartão no mês — 1 por cartão/mês,
  * identificado por cardId + mês + description = nome do cartão — e soma
  * ("add") ou define ("set") o valor previsto. Retorna o total atualizado.
@@ -27,6 +37,9 @@ export async function upsertCardEntry(opts: {
     where: { cardId: opts.card.id, month: monthDate, description: opts.card.name },
   });
   if (!existing) {
+    // Nada a registrar: não crie consolidado só para exibir "0,00" no Panorama
+    // (a guarda simétrica do outro branch apaga o que zerou).
+    if (opts.amountCents === 0) return { totalCents: 0 };
     const categoryId = await resolveDefaultPurchaseCategoryId();
     await prisma.monthlyEntry.create({
       data: {
@@ -41,16 +54,13 @@ export async function upsertCardEntry(opts: {
   }
   const totalCents =
     opts.mode === "add" ? decimalToCents(String(existing.plannedAmount)) + opts.amountCents : opts.amountCents;
-  // Fatura que zerou e não tem mais nenhuma linha de extrato: o consolidado
-  // sobra como uma linha "0,00" no Panorama (foi o que aconteceu com a fatura
-  // de jul/26 do Bradesco depois de mover as compras para agosto). Fatura que
-  // zera por estorno mantém o consolidado — as transações continuam lá. Fatura
-  // já paga é histórico e nunca é apagada.
+  // Consulta o extrato só quando as condições baratas já indicam que pode ser
+  // o caso de apagar (evita a query à toa na maioria das chamadas).
   if (totalCents === 0 && !existing.paid) {
     const remaining = await prisma.cardTransaction.count({
       where: { cardId: opts.card.id, month: monthDate },
     });
-    if (remaining === 0) {
+    if (shouldDropZeroedCardEntry(totalCents, existing.paid, remaining)) {
       await prisma.monthlyEntry.delete({ where: { id: existing.id } });
       return { totalCents: 0 };
     }

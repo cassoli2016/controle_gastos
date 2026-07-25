@@ -100,7 +100,7 @@ Script `scripts/fix-fatura-jul.ts`, idempotente e com relatório no stdout:
 - `tests/fatura.test.ts` — os casos dos dois cartões reais: Bradesco (fecha 27 · vence 10) antes/no/depois do fechamento e virada de ano; Nubank (fecha 4 · vence 10) confirmando que o resultado não mudou; `dueDay` nulo mantendo o comportamento antigo; `dueDay == closingDay` caindo no mês seguinte. Os casos existentes permanecem intactos.
 - `tests/matrix.test.ts` — célula com 10 ocorrências e 5 pagas → `paidCount = 5`, `allPaid = false`; todas pagas → `allPaid = true`; nenhuma paga → `paidCount = 0`.
 - `tests/card-subscription.test.ts` — `firstChargeFaturaMonth` com vencimento antes do fechamento.
-- Novo teste de `upsertCardEntry` não é viável em unidade (depende do Prisma); a exclusão do consolidado zerado é verificada pelo script de limpeza e pelo e2e existente.
+- `tests/card-entry.test.ts` — a decisão de apagar o consolidado zerado foi extraída para o predicado puro `shouldDropZeroedCardEntry` (sem dependência do Prisma) e é coberta por 5 casos unitários. Cobertura e2e desse cenário fica como follow-up: `scripts/e2e-reset-db.ts` não semeia nenhum `CreditCard` nem `CardTransaction`, então não há hoje um teste e2e que monte o estado (fatura zerada, sem extrato) necessário para exercitar essa exclusão.
 
 ## Fora de escopo
 

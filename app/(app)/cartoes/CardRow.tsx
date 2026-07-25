@@ -173,12 +173,12 @@ export function CardRow({ card }: { card: Card }) {
                 type="number"
                 min={1}
                 max={31}
-                placeholder="ex.: 5"
+                placeholder="ex.: 27"
                 defaultValue={card.closingDay ?? ""}
                 className="w-24"
               />
               <p className="text-xs text-muted-foreground">
-                Compra após o fechamento entra na fatura do mês seguinte.
+                Compra após o fechamento entra na fatura seguinte.
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
