@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { refreshAllQuotes } from "@/lib/quote-refresh";
 import { formatCents } from "@/lib/money";
 import { formatPct } from "@/lib/investments";
@@ -23,8 +23,7 @@ export async function GET(req: Request) {
   }
 
   const r = await refreshAllQuotes();
-  revalidatePath("/investimentos");
-  revalidatePath("/dashboard");
+  revalidateFinance();
 
   // Resumo no Telegram (primeiro chat autorizado).
   const token = process.env.TELEGRAM_BOT_TOKEN;

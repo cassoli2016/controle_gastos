@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction } from "@/lib/card-entry";
@@ -25,7 +25,7 @@ export async function createCard(_prevState: ActionState, formData: FormData): P
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.create({ data: parsed.data });
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -40,7 +40,7 @@ export async function updateCard(_prevState: ActionState, formData: FormData): P
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.update({ where: { id }, data: parsed.data });
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -60,9 +60,7 @@ export async function registerPrepayment(_prevState: ActionState, formData: Form
     date,
     Math.round(amount * 100),
   );
-  revalidatePath("/cartoes");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -94,10 +92,7 @@ export async function createSubscription(_prevState: ActionState, formData: Form
     months: parsed.data.months,
   });
   if ("error" in created) return { error: created.error };
-  revalidatePath("/cartoes");
-  revalidatePath("/mes");
-  revalidatePath("/itens");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -114,9 +109,7 @@ export async function cancelSubscription(_prevState: ActionState, formData: Form
     today.slice(0, 7),
   );
   await cancelCardSubscription(subscriptionId, fromMonth);
-  revalidatePath("/cartoes");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -129,7 +122,7 @@ export async function archiveCard(_prevState: ActionState, formData: FormData): 
   if (typeof id !== "string" || !id) return { error: "Cartão inválido." };
   const active = formData.get("active") === "true";
   await prisma.creditCard.update({ where: { id }, data: { active } });
-  revalidatePath("/cartoes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -156,9 +149,7 @@ export async function updateStatementLine(_prevState: ActionState, formData: For
     monthISO: parsed.data.month,
   });
   if (!r.ok) return { error: r.error };
-  revalidatePath("/cartoes");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -168,8 +159,6 @@ export async function deleteStatementLine(_prevState: ActionState, formData: For
   if (typeof txId !== "string" || !txId) return { error: "Lançamento inválido." };
   const r = await deleteCardTransaction(txId);
   if (!r.ok) return { error: r.error };
-  revalidatePath("/cartoes");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }

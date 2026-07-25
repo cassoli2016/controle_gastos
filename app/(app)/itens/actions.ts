@@ -1,6 +1,6 @@
 "use server";
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { itemSchema } from "@/lib/validators";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
@@ -42,7 +42,7 @@ export async function createItem(_prevState: ActionState, formData: FormData): P
   const dup = await findActiveItemByName(parsed.data.name);
   if (dup) return { error: `Já existe o item ativo "${dup.name}".` };
   await prisma.item.create({ data: parsed.data });
-  revalidatePath("/itens");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -99,8 +99,7 @@ export async function updateItem(_prevState: ActionState, formData: FormData): P
       await prisma.monthlyEntry.update({ where: { id: e.id }, data: { purchaseDate } });
     }
   }
-  revalidatePath("/itens");
-  revalidatePath("/mes");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -109,7 +108,7 @@ export async function archiveItem(_prevState: ActionState, formData: FormData): 
   if (typeof id !== "string" || !id) return { error: "Item inválido." };
   const active = formData.get("active") === "true";
   await prisma.item.update({ where: { id }, data: { active } });
-  revalidatePath("/itens");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -174,9 +173,7 @@ export async function saveAdjustment(_prevState: ActionState, formData: FormData
     });
   }
 
-  revalidatePath("/itens");
-  revalidatePath("/mes");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true, count };
 }
 
@@ -188,6 +185,6 @@ export async function clearAdjustment(_prevState: ActionState, formData: FormDat
     where: { id },
     data: { adjustMonth: null, adjustPercent: null, adjustAmount: null },
   });
-  revalidatePath("/itens");
+  revalidateFinance();
   return { ok: true };
 }

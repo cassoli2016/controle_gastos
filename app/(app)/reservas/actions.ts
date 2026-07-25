@@ -1,5 +1,5 @@
 "use server";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { reserveSchema } from "@/lib/validators";
 
@@ -16,8 +16,7 @@ export async function createReserve(_prevState: ActionState, formData: FormData)
   const parsed = parseReserve(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.reserveBox.create({ data: parsed.data });
-  revalidatePath("/reservas");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -27,8 +26,7 @@ export async function updateReserve(_prevState: ActionState, formData: FormData)
   const parsed = parseReserve(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.reserveBox.update({ where: { id }, data: parsed.data });
-  revalidatePath("/reservas");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }
 
@@ -36,7 +34,6 @@ export async function deleteReserve(_prevState: ActionState, formData: FormData)
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Caixinha inválida." };
   await prisma.reserveBox.delete({ where: { id } });
-  revalidatePath("/reservas");
-  revalidatePath("/dashboard");
+  revalidateFinance();
   return { ok: true };
 }

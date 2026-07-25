@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
 import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@/lib/nubank-share";
@@ -113,12 +113,6 @@ async function downloadTelegramFile(fileId: string): Promise<string | null> {
   }
 }
 
-function revalidateAll() {
-  revalidatePath("/mes");
-  revalidatePath("/cartoes");
-  revalidatePath("/dashboard");
-}
-
 function fmtMonth(month: string): string {
   return formatCompetencia(monthToDate(month));
 }
@@ -155,7 +149,7 @@ async function handleB3Document(
 
   if (parsed.kind === "negociacao") {
     const r = await applyB3Trades(parsed.trades);
-    revalidateAll();
+    revalidateFinance();
     let msg = `📈 Negociação B3: ${r.applied} negócios aplicados (${r.buys} compras, ${r.sells} vendas)`;
     if (r.tickers.length > 0) msg += `\nAtivos: ${r.tickers.join(", ")} — cotas e PM recalculados`;
     if (r.duplicated > 0) msg += `\n♻️ ${r.duplicated} já importados (ignorados)`;
@@ -166,7 +160,7 @@ async function handleB3Document(
 
   if (parsed.kind === "proventos_provisionados") {
     const r = await applyB3Provisioned(parsed.incomes);
-    revalidateAll();
+    revalidateFinance();
     let msg = `📅 Proventos provisionados: ${formatCents(r.totalCents)} na agenda`;
     if (r.created > 0) msg += `\n➕ ${r.created} anúncios novos a receber`;
     if (r.updated > 0) msg += `\n🔄 ${r.updated} datas de previsão atualizadas`;
@@ -176,7 +170,7 @@ async function handleB3Document(
   }
 
   const r = await applyB3Incomes(parsed.incomes);
-  revalidateAll();
+  revalidateFinance();
   const label = parsed.kind === "proventos_recebidos" ? "Proventos recebidos" : "Movimentação B3";
   let msg = `💰 ${label}: ${r.matched + r.created} proventos — ${formatCents(r.totalCents)}`;
   if (r.matched > 0) msg += `\n✅ ${r.matched} casados com a agenda (marcados recebidos)`;
@@ -265,7 +259,7 @@ async function handleCsvDocument(
     totalsByMonth.set(month, totalCents);
   }
 
-  revalidateAll();
+  revalidateFinance();
 
   const parts = months.map((m) => {
     return `${fmtMonth(m)} — ${formatCents(totalsByMonth.get(m)!)} (${rowsByMonth.get(m)!.length} lançamentos)`;
@@ -325,7 +319,7 @@ async function handleShareText(chatId: number, parsed: ShareParseResult) {
       lines.push(`✅ ${p.description} — ${formatCents(amountCents)} · ${fmtMonth(defaultMonth)}`);
     }
   }
-  revalidateAll();
+  revalidateFinance();
 
   let msg = lines.join("\n");
   if (failedLines.length > 0) msg += `\n⚠️ Ignorei: ${failedLines.slice(0, 3).join(" · ")}`;
@@ -453,7 +447,7 @@ async function handleBatchText(chatId: number, text: string) {
     );
     plainSummary = `📄 ${purchases} lançamento(s) sem cartão — ${formatCents(totalCents)} · ${fmtMonth(defaultMonth)}`;
   }
-  revalidateAll();
+  revalidateFinance();
 
   const lines: string[] = [];
   for (const { card, cents, months } of perCard.values()) {
@@ -505,7 +499,7 @@ async function handleSingleText(chatId: number, text: string) {
       }
     }
     const { month, totalCents } = await addPrepaymentToCard(card, todayISOInSaoPaulo(), amountCents);
-    revalidateAll();
+    revalidateFinance();
     await reply(
       chatId,
       `💸 Pagamento antecipado — ${formatCents(amountCents)} no ${card.name}\nFatura ${fmtMonth(month)} agora: ${formatCents(totalCents)}`,
@@ -535,7 +529,7 @@ async function handleSingleText(chatId: number, text: string) {
         businessDay: parsed.businessDay,
         intervalMonths: parsed.intervalMonths,
       });
-      revalidateAll();
+      revalidateFinance();
       await reply(
         chatId,
         `💰🔁 Recebimento mensal criado: ${parsed.description} — ${formatCents(amountCents)}/mês de ${fmtMonth(months[0])} a ${fmtMonth(months[count - 1])}.`,
@@ -551,7 +545,7 @@ async function handleSingleText(chatId: number, text: string) {
       categoryId,
       purchaseDateISO: todayISOInSaoPaulo(),
     });
-    revalidateAll();
+    revalidateFinance();
     await reply(chatId, `💰 ${parsed.description} — ${formatCents(amountCents)} · ${fmtMonth(defaultMonth)} (recebimento)`);
     return;
   }
@@ -569,7 +563,7 @@ async function handleSingleText(chatId: number, text: string) {
       startISO: todayISOInSaoPaulo(),
       months: parsed.installments > 1 ? parsed.installments : undefined,
     });
-    revalidateAll();
+    revalidateFinance();
     const dias = parsed.weekdays.map((d) => WEEKDAY_LABELS[d]).join(" e ");
     await reply(
       chatId,
@@ -597,7 +591,7 @@ async function handleSingleText(chatId: number, text: string) {
         await reply(chatId, `♻️ ${created.error}`);
         return;
       }
-      revalidateAll();
+      revalidateFinance();
       await reply(
         chatId,
         `🔁💳 Assinatura ${parsed.description} — ${formatCents(amountCents)}/mês por ${created.months} meses (linha própria no mês, a partir de ${fmtMonth(created.firstMonth)}).\nQuando a cobrança chegar na fatura ela é marcada como paga automaticamente.`,
@@ -618,7 +612,7 @@ async function handleSingleText(chatId: number, text: string) {
       intervalMonths: parsed.intervalMonths,
       months: parsed.installments > 1 ? parsed.installments : undefined,
     });
-    revalidateAll();
+    revalidateFinance();
     const cadencia =
       parsed.intervalMonths && parsed.intervalMonths > 1 ? `a cada ${parsed.intervalMonths} meses` : "mensal";
     await reply(
@@ -638,7 +632,7 @@ async function handleSingleText(chatId: number, text: string) {
     const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, parsed.installments, {
       description: parsed.description,
     });
-    revalidateAll();
+    revalidateFinance();
     const valor =
       parsed.installments > 1 ? `${parsed.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
     await reply(
@@ -656,7 +650,7 @@ async function handleSingleText(chatId: number, text: string) {
     cardId: null,
     purchaseDateISO: todayISOInSaoPaulo(),
   });
-  revalidateAll();
+  revalidateFinance();
   await reply(
     chatId,
     `✅ ${parsed.description} — ${formatCents(amountCents)}${count > 1 ? ` em ${count}x` : ""} · ${fmtMonth(defaultMonth)}`,
@@ -750,7 +744,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true });
     }
     const asset = await prisma.investmentAsset.findUnique({ where: { ticker } });
-    revalidateAll();
+    revalidateFinance();
     await reply(
       chatId,
       `${side === "BUY" ? "🟢 Compra" : "🔴 Venda"}: ${quantity} ${ticker} a R$ ${price.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} — ${formatCents(Math.round(quantity * price * 100))}\nPosição: ${asset?.quantity ?? 0} cotas · PM R$ ${Number(asset?.avgPrice ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
