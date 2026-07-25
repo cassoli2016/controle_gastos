@@ -66,7 +66,7 @@ async function findCardByHint(hint: string): Promise<CardRef | null> {
   const card = await prisma.creditCard.findFirst({
     where: { active: true, name: { contains: hint, mode: "insensitive" } },
   });
-  return card ? { id: card.id, name: card.name, closingDay: card.closingDay } : null;
+  return card ? { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay } : null;
 }
 
 /** Baixa o conteúdo BINÁRIO de um arquivo enviado ao bot via getFile. */
@@ -219,9 +219,9 @@ async function handleCsvDocument(
     const activeCards = await prisma.creditCard.findMany({ where: { active: true } });
     const matches = matchCardsByFileName(doc.file_name, activeCards);
     if (matches.length === 1) {
-      card = { id: matches[0].id, name: matches[0].name, closingDay: matches[0].closingDay };
+      card = { id: matches[0].id, name: matches[0].name, closingDay: matches[0].closingDay, dueDay: matches[0].dueDay };
     } else if (matches.length === 0 && activeCards.length === 1) {
-      card = { id: activeCards[0].id, name: activeCards[0].name, closingDay: activeCards[0].closingDay };
+      card = { id: activeCards[0].id, name: activeCards[0].name, closingDay: activeCards[0].closingDay, dueDay: activeCards[0].dueDay };
     } else {
       const names = activeCards.map((c) => c.name).join(", ");
       await reply(
@@ -498,7 +498,7 @@ async function handleSingleText(chatId: number, text: string) {
     } else {
       const actives = await prisma.creditCard.findMany({ where: { active: true } });
       if (actives.length === 1) {
-        card = { id: actives[0].id, name: actives[0].name, closingDay: actives[0].closingDay };
+        card = { id: actives[0].id, name: actives[0].name, closingDay: actives[0].closingDay, dueDay: actives[0].dueDay };
       } else {
         await reply(chatId, `De qual cartão? Ex.: "antecipei ${parsed.amountReais} nubank". Cartões: ${actives.map((c) => c.name).join(", ")}.`);
         return;

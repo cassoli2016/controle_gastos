@@ -74,7 +74,7 @@ async function main() {
       );
     }
     const { totalCents } = await replaceCardMonth(
-      { id: card.id, name: card.name, closingDay: card.closingDay },
+      { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
       month,
       monthRows,
     );

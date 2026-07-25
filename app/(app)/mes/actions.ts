@@ -308,12 +308,12 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
     const card = await prisma.creditCard.findUnique({ where: { id: cardId } });
     if (!card) return { error: "Cartão não encontrado." };
     const startMonth = cardTargetMonth(
-      { id: card.id, name: card.name, closingDay: card.closingDay },
+      { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
       date,
       date.slice(0, 7),
     );
     await addPurchaseToCard(
-      { id: card.id, name: card.name, closingDay: card.closingDay },
+      { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
       startMonth,
       Math.round(amount * 100),
       installments,

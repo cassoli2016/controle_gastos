@@ -7,7 +7,7 @@ import { cardTargetMonth } from "@/lib/fatura";
 import { consumeSubscriptionCharge } from "@/lib/card-subscription";
 import { consumeRenewalCharge } from "@/lib/renewal-provision";
 
-export type CardRef = { id: string; name: string; closingDay: number | null };
+export type CardRef = { id: string; name: string; closingDay: number | null; dueDay: number | null };
 
 export { cardTargetMonth } from "@/lib/fatura";
 
@@ -195,7 +195,7 @@ export async function updateCardTransaction(opts: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const tx = await prisma.cardTransaction.findUnique({ where: { id: opts.txId }, include: { card: true } });
   if (!tx) return { ok: false, error: "Lançamento não encontrado." };
-  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
   const oldMonth = monthStringFromDate(tx.month);
   const oldCents = decimalToCents(String(tx.amount));
 
@@ -216,7 +216,7 @@ export async function updateCardTransaction(opts: {
 export async function deleteCardTransaction(txId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const tx = await prisma.cardTransaction.findUnique({ where: { id: txId }, include: { card: true } });
   if (!tx) return { ok: false, error: "Lançamento não encontrado." };
-  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay };
+  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
   await upsertCardEntry({
     card,
     month: monthStringFromDate(tx.month),
