@@ -1,10 +1,10 @@
-import { Inbox, TrendingUp, TrendingDown, Wallet, Clock, PiggyBank } from "lucide-react";
+import { Inbox, TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget } from "@/lib/planning";
-import { dailyBudget } from "@/lib/daily-budget";
+import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import {
   plannedIncome,
@@ -42,6 +42,8 @@ type DisplayRow = EntryView & {
   installmentId: string | null;
   installmentSeq: number | null;
   installmentCount: number | null;
+  /** Preenchido só em linha derivada (reserva): substitui as ações, que não existem. */
+  readOnlyHint: string | null;
 };
 
 // Um único componente de linha, com duas formas de renderização (tabela no
@@ -82,7 +84,12 @@ function EntryRow({
   ) : (
     <span className="tabular-nums">{formatCents(row.plannedCents)}</span>
   );
-  const pay = (
+  // Linha derivada (reserva do dia a dia): não há MonthlyEntry por trás, então
+  // não se paga, não se edita e não se exclui — no lugar do botão vai a
+  // explicação de onde o valor vem.
+  const pay = row.readOnlyHint ? (
+    <span className="text-xs text-muted-foreground">{row.readOnlyHint}</span>
+  ) : (
     <PayCell
       entryId={row.entryId}
       plannedCents={row.plannedCents}
@@ -112,7 +119,7 @@ function EntryRow({
       )}
     </span>
   );
-  const actions = (
+  const actions = row.readOnlyHint ? null : (
     <EntryActions
       entryId={row.entryId}
       label={row.itemName}
@@ -186,7 +193,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     getDailyBudget(),
   ]);
 
-  const views: DisplayRow[] = rows.map((r) => ({
+  const realViews: DisplayRow[] = rows.map((r) => ({
     ...toEntryView(r as never),
     entryId: r.id,
     itemId: r.itemId,
@@ -201,14 +208,39 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     installmentId: r.installmentId,
     installmentSeq: r.installmentSeq,
     installmentCount: r.installmentCount,
+    readOnlyHint: null,
   }));
 
-  const groups = groupByCategory(views);
-  const isEmpty = views.length === 0;
+  // `isEmpty` olha só os lançamentos REAIS: um mês sem conta nenhuma continua
+  // mostrando o estado vazio, em vez de meia tela ocupada só pela reserva.
+  const isEmpty = realViews.length === 0;
 
-  // Reserva do dia a dia: meta de gasto variável do mês em tela, caindo por dia
-  // que passa. Não entra em nenhum total — os gastos reais vêm pela fatura.
-  const budgetView = budget ? dailyBudget(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
+  // A reserva do dia a dia é despesa derivada do calendário. Ela entra em
+  // `views` ANTES dos cálculos, para a lista e os totais saírem do mesmo array
+  // e não poderem divergir.
+  const budgetLine = budget && !isEmpty ? dailyBudgetLine(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
+  const views: DisplayRow[] = budgetLine
+    ? [
+        ...realViews,
+        {
+          ...dailyBudgetEntryView(budgetLine),
+          entryId: DAILY_BUDGET_ENTRY_ID,
+          itemId: null,
+          dueDay: null,
+          renewsThisMonth: false,
+          purchaseDate: null,
+          paidDate: null,
+          cardId: null,
+          cardName: null,
+          installmentId: null,
+          installmentSeq: null,
+          installmentCount: null,
+          readOnlyHint: budgetLine.hint,
+        },
+      ]
+    : realViews;
+
+  const groups = groupByCategory(views);
 
   const entryItemIds = new Set(views.map((v) => v.itemId));
   const availableItems = activeItems
@@ -233,7 +265,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           />
           <IncomeDialog />
           <TransferDialog
-            entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+            entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
           />
           <CopyPreviousMonthButton month={month} />
           <CopyYearAgoButton month={month} />
@@ -252,21 +284,11 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         </Card>
       ) : (
         <>
-          <div
-            className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${budgetView ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
-          >
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
             <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
             <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
             <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
-            {budgetView && (
-              <StatCard
-                label="Reserva do dia a dia (meta)"
-                value={formatCents(budgetView.remainingCents)}
-                hint={`${budgetView.daysRemaining} de ${budgetView.daysInMonth} dias · ${formatCents(budgetView.perDayCents)}/dia`}
-                icon={PiggyBank}
-              />
-            )}
           </div>
 
           <div className="space-y-4">
