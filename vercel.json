@@ -1,8 +1,10 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
       "path": "/api/cron/quotes",
       "schedule": "0 21 * * *"
     }
-  ]
+  ],
+  "ignoreCommand": "[ \"$VERCEL_ENV\" != production ]"
 }
