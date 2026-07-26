@@ -245,7 +245,13 @@ describe("reserva do dia a dia nos cálculos do mês", () => {
     expect(remainingToPay(comReserva)).toBe(81000 + 60000);
   });
   it("aparece na categoria própria e no ranking", () => {
-    expect(expenseByCategory(comReserva)[0]).toEqual({ categoryName: "Reserva do dia a dia", cents: 60000 });
+    // Busca por nome, não por posição: "Assinaturas" soma 65.000 nesta fixture
+    // e fica à frente da reserva (60.000) na ordenação por categoria.
+    expect(expenseByCategory(comReserva).find((c) => c.categoryName === "Reserva do dia a dia")).toEqual({
+      categoryName: "Reserva do dia a dia",
+      cents: 60000,
+    });
+    // No ranking por ITEM ela é a maior — PS PLUS sozinho é 59.000.
     expect(expenseRanking(comReserva)[0]).toEqual({ itemName: "Reserva do dia a dia", cents: 60000 });
   });
   it("mês passado não muda nada", () => {
