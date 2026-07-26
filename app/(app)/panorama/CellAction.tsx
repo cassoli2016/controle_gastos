@@ -81,7 +81,7 @@ export function CellAction({
             allPaid
               ? `Quitado · previsto ${formatCents(cents)}`
               : partial
-                ? `Falta ${formatCents(remainingCents)} de ${formatCents(cents)}${count > 1 ? ` · ${paidCount} de ${count} pagas` : ""}`
+                ? `Falta ${formatCents(remainingCents)} de ${formatCents(cents)}${count > 1 ? ` · ${paidCount} de ${count} ${income ? "recebidas" : "pagas"}` : ""}`
                 : count > 1
                   ? `${count} ocorrências`
                   : undefined

@@ -261,7 +261,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
             <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
             {budgetView && (
               <StatCard
-                label="Reserva do dia a dia"
+                label="Reserva do dia a dia (meta)"
                 value={formatCents(budgetView.remainingCents)}
                 hint={`${budgetView.daysRemaining} de ${budgetView.daysInMonth} dias · ${formatCents(budgetView.perDayCents)}/dia`}
                 icon={PiggyBank}
