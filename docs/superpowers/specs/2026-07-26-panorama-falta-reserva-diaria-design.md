@@ -94,7 +94,7 @@ model DailyBudget {
 }
 ```
 
-Tabela de linha única em vez de constante no código, para o usuário mudar o valor sem deploy. Sem linha cadastrada, o app trata como **não configurado** e não exibe o card — nenhum valor mágico embutido.
+Tabela de linha única em vez de constante no código, para o usuário mudar o valor sem deploy. A migration já grava R$ 100,00 (o valor que ele informou) como **dado**, não como constante — assim o card aparece pronto no deploy. O caminho "não configurado" continua implementado: sem linha, `getDailyBudget()` devolve `null` e o card simplesmente não é exibido, em vez de inventar um valor.
 
 ### Cálculo (função pura)
 
