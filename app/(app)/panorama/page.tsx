@@ -4,6 +4,8 @@ import { monthStringFromDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 import { buildMatrix, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { getDailyBudget } from "@/lib/planning";
+import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CellAction } from "./CellAction";
@@ -16,9 +18,12 @@ function fmt(cents: number): string {
 }
 
 export default async function PanoramaPage() {
-  const rows = await prisma.monthlyEntry.findMany({
-    include: { item: { include: { category: true } }, category: true, card: true },
-  });
+  const [rows, budget] = await Promise.all([
+    prisma.monthlyEntry.findMany({
+      include: { item: { include: { category: true } }, category: true, card: true },
+    }),
+    getDailyBudget(),
+  ]);
 
   const entries: MatrixEntry[] = rows.map((r) => {
     const category = r.item?.category ?? r.category;
@@ -33,8 +38,30 @@ export default async function PanoramaPage() {
       kind: r.cardId ? ("card" as const) : r.itemId ? ("item" as const) : ("loose" as const),
     };
   });
+
+  const today = todayISOInSaoPaulo();
+  const currentMonth = today.slice(0, 7);
+
+  // Uma linha de reserva por mês que a matriz JÁ mostra — a reserva não cria
+  // meses novos na visão. O valor cai sozinho: mês cheio no futuro, decaindo
+  // no corrente, zero no passado.
+  if (budget) {
+    for (const monthISO of new Set(entries.map((e) => e.monthISO))) {
+      const l = dailyBudgetLine(monthISO, today, budget.perDayCents);
+      entries.push({
+        line: l.line,
+        categoryName: l.categoryName,
+        categoryType: l.categoryType,
+        monthISO,
+        cents: l.cents,
+        paid: false,
+        entryId: `${DAILY_BUDGET_ENTRY_ID}-${monthISO}`,
+        kind: "budget",
+      });
+    }
+  }
+
   const matrix = buildMatrix(entries);
-  const currentMonth = todayISOInSaoPaulo().slice(0, 7);
 
   const monthTh = (m: string) => (
     <th

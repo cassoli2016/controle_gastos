@@ -104,6 +104,32 @@ describe("buildMatrix", () => {
     ]);
     expect(menor.toPayByMonth["2026-08"]).toBe(0);
   });
+
+  it("linha derivada da reserva entra como despesa não paga", () => {
+    const comReserva = buildMatrix([
+      { line: "Luz", categoryName: "Moradia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 18000, paid: false, entryId: "l1", kind: "item" as const },
+      { line: "Reserva do dia a dia", categoryName: "Reserva do dia a dia", categoryType: "EXPENSE" as const, monthISO: "2026-08", cents: 310000, paid: false, entryId: "daily-budget-2026-08", kind: "budget" as const },
+    ]);
+    const secao = comReserva.sections.find((s) => s.categoryName === "Reserva do dia a dia")!;
+    expect(secao.rows[0].cells["2026-08"]).toMatchObject({
+      cents: 310000,
+      remainingCents: 310000,
+      allPaid: false,
+      count: 1,
+      kind: "budget",
+    });
+    expect(secao.totalsByMonth["2026-08"]).toBe(310000);
+    expect(comReserva.toPayByMonth["2026-08"]).toBe(18000 + 310000);
+    expect(comReserva.balanceByMonth["2026-08"]).toBe(-(18000 + 310000));
+  });
+
+  it("reserva de mês passado vale zero sem virar quitada", () => {
+    const passado = buildMatrix([
+      { line: "Reserva do dia a dia", categoryName: "Reserva do dia a dia", categoryType: "EXPENSE" as const, monthISO: "2026-06", cents: 0, paid: false, entryId: "daily-budget-2026-06", kind: "budget" as const },
+    ]);
+    expect(passado.sections[0].rows[0].cells["2026-06"]).toMatchObject({ cents: 0, remainingCents: 0, allPaid: false });
+    expect(passado.toPayByMonth["2026-06"]).toBe(0);
+  });
 });
 
 describe("shortMonthLabel", () => {

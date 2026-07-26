@@ -16,8 +16,12 @@ export type MatrixEntry = {
   paid: boolean;
   /** Para as ações na célula (editar/dar baixa). */
   entryId: string;
-  /** "card" = consolidado de cartão (valor vem do extrato — não edita aqui). */
-  kind: "item" | "card" | "loose";
+  /**
+   * "card" = consolidado de cartão (valor vem do extrato, não se edita aqui);
+   * "budget" = reserva do dia a dia (derivada do calendário, não se paga nem
+   * se edita).
+   */
+  kind: "item" | "card" | "loose" | "budget";
 };
 
 export type MatrixCell = {
@@ -34,7 +38,7 @@ export type MatrixCell = {
   paidCount: number;
   count: number;
   entries: { id: string; cents: number; paid: boolean }[];
-  kind: "item" | "card" | "loose";
+  kind: "item" | "card" | "loose" | "budget";
 };
 
 export type MatrixRow = {

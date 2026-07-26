@@ -34,7 +34,7 @@ export function CellAction({
   paidCount: number;
   count: number;
   entries: CellEntry[];
-  kind: "item" | "card" | "loose";
+  kind: "item" | "card" | "loose" | "budget";
   income: boolean;
   monthLabel: string;
   line: string;
@@ -111,7 +111,7 @@ export function CellAction({
             </p>
           </div>
 
-          {kind !== "card" && count === 1 && (
+          {(kind === "item" || kind === "loose") && count === 1 && (
             <form action={valAction} className="flex flex-col gap-1.5">
               <input type="hidden" name="entryId" value={entries[0].id} />
               <Label htmlFor={`cell-amount-${entries[0].id}`}>Previsto</Label>
@@ -128,27 +128,34 @@ export function CellAction({
               Fatura consolidada — o valor vem das compras. Edite pelo &quot;Ver extrato&quot; em Cartões.
             </p>
           )}
+          {kind === "budget" && (
+            <p className="text-xs text-muted-foreground">
+              Reserva do dia a dia — cai sozinha a cada dia que passa. Mude o valor por dia em Reservas.
+            </p>
+          )}
           {count > 1 && kind !== "card" && (
             <p className="text-xs text-muted-foreground">
               Valor por ocorrência: edite pelo lápis do grupo na tela do Mês.
             </p>
           )}
 
-          <form action={payAction}>
-            <input type="hidden" name="entryIds" value={JSON.stringify(payIds)} />
-            <input type="hidden" name="paid" value={(!allPaid).toString()} />
-            <Button type="submit" size="sm" className="w-full" variant={allPaid ? "outline" : "default"} disabled={payPending}>
-              {allPaid
-                ? "Desfazer baixa"
-                : income
-                  ? payIds.length > 1
-                    ? `Receber todas (${payIds.length})`
-                    : "Receber"
-                  : payIds.length > 1
-                    ? `Pagar todas (${payIds.length})`
-                    : "Pagar"}
-            </Button>
-          </form>
+          {kind !== "budget" && (
+            <form action={payAction}>
+              <input type="hidden" name="entryIds" value={JSON.stringify(payIds)} />
+              <input type="hidden" name="paid" value={(!allPaid).toString()} />
+              <Button type="submit" size="sm" className="w-full" variant={allPaid ? "outline" : "default"} disabled={payPending}>
+                {allPaid
+                  ? "Desfazer baixa"
+                  : income
+                    ? payIds.length > 1
+                      ? `Receber todas (${payIds.length})`
+                      : "Receber"
+                    : payIds.length > 1
+                      ? `Pagar todas (${payIds.length})`
+                      : "Pagar"}
+              </Button>
+            </form>
+          )}
         </div>
       </PopoverContent>
     </Popover>
