@@ -16,6 +16,7 @@ export type CellEntry = { id: string; cents: number; paid: boolean };
  */
 export function CellAction({
   cents,
+  remainingCents,
   allPaid,
   paidCount,
   count,
@@ -26,6 +27,8 @@ export function CellAction({
   line,
 }: {
   cents: number;
+  /** O que ainda falta na célula — é o valor exibido na matriz. */
+  remainingCents: number;
   allPaid: boolean;
   /** Ocorrências já pagas da célula — `0 < paidCount < count` é baixa parcial. */
   paidCount: number;
@@ -74,9 +77,17 @@ export function CellAction({
                 ? "text-amber-600 dark:text-amber-400"
                 : ""
           }`}
-          title={count > 1 ? `${count} ocorrências${partial ? ` · ${paidCount} pagas` : ""}` : undefined}
+          title={
+            allPaid
+              ? `Quitado · previsto ${formatCents(cents)}`
+              : partial
+                ? `Falta ${formatCents(remainingCents)} de ${formatCents(cents)}${count > 1 ? ` · ${paidCount} de ${count} pagas` : ""}`
+                : count > 1
+                  ? `${count} ocorrências`
+                  : undefined
+          }
         >
-          {fmt(cents)}
+          {fmt(remainingCents)}
           {partial && count > 1 && (
             <span className="ml-0.5 align-super text-[9px] tabular-nums opacity-70">
               {paidCount}/{count}
@@ -89,10 +100,14 @@ export function CellAction({
           <div>
             <p className="text-sm font-medium">{line}</p>
             <p className="text-xs text-muted-foreground">
-              {monthLabel} · {formatCents(cents)}
+              {monthLabel} ·{" "}
+              {allPaid
+                ? `${income ? "recebido" : "pago"} · ${formatCents(cents)}`
+                : partial
+                  ? `falta ${formatCents(remainingCents)} de ${formatCents(cents)}`
+                  : formatCents(cents)}
               {count > 1 && ` · ${count} ocorrências`}
               {partial && ` · ${paidCount} ${income ? "recebidas" : "pagas"}`}
-              {allPaid && (income ? " · recebido" : " · pago")}
             </p>
           </div>
 
