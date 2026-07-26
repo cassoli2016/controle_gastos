@@ -159,6 +159,16 @@ model ReserveBox {
   createdAt DateTime @default(now())
 }
 
+// Reserva do dia a dia: teto diário de gasto variável (mercado, combustível,
+// lanches). O mês reserva amountPerDay × dias do mês e o que resta cai
+// amountPerDay por dia que passa. É META, não despesa — os gastos reais entram
+// pela fatura do cartão. Linha única (id "default").
+model DailyBudget {
+  id           String   @id @default("default")
+  amountPerDay Decimal  @db.Decimal(12, 2)
+  updatedAt    DateTime @updatedAt
+}
+
 // ============ INVESTIMENTOS (v1: Ações B3 + Dividendos) ============
 
 // Posição na carteira: cotas + preço médio; cotação cacheada via brapi.dev.

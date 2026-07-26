@@ -1,7 +1,7 @@
 "use server";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
-import { reserveSchema } from "@/lib/validators";
+import { reserveSchema, dailyBudgetSchema } from "@/lib/validators";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -34,6 +34,19 @@ export async function deleteReserve(_prevState: ActionState, formData: FormData)
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Caixinha inválida." };
   await prisma.reserveBox.delete({ where: { id } });
+  revalidateFinance();
+  return { ok: true };
+}
+
+/** Define o valor por dia da reserva do dia a dia (linha única "default"). */
+export async function setDailyBudget(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = dailyBudgetSchema.safeParse({ amountPerDay: formData.get("amountPerDay") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await prisma.dailyBudget.upsert({
+    where: { id: "default" },
+    create: { id: "default", amountPerDay: parsed.data.amountPerDay },
+    update: { amountPerDay: parsed.data.amountPerDay },
+  });
   revalidateFinance();
   return { ok: true };
 }

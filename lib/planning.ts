@@ -46,3 +46,10 @@ export async function getReserves(): Promise<ReserveView[]> {
     amountCents: decimalToCents(String(b.amount)),
   }));
 }
+
+/** Valor por dia da reserva do dia a dia; null = ainda não configurado. */
+export async function getDailyBudget(): Promise<{ perDayCents: number } | null> {
+  const row = await prisma.dailyBudget.findFirst();
+  if (!row) return null;
+  return { perDayCents: decimalToCents(String(row.amountPerDay)) };
+}
