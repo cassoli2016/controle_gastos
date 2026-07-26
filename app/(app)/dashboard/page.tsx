@@ -5,11 +5,11 @@ import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank, BellRing } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
-import { dailyBudget } from "@/lib/daily-budget";
+import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents } from "@/lib/money";
 import { StatCard } from "@/components/StatCard";
@@ -30,12 +30,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     where: { month: monthDate },
     include: { item: { include: { category: true } }, category: true },
   });
-  const views = rows.map((r) => toEntryView(r as never));
-
-  const catColor = new Map((await prisma.category.findMany()).map((c) => [c.name, c.color]));
-  const pieData = expenseByCategory(views).map((x) => ({ categoryName: x.categoryName, value: x.cents, color: catColor.get(x.categoryName) ?? "#64748b" }));
-  const ranking = expenseRanking(views).slice(0, 10);
-  const hasExpenses = ranking.length > 0;
+  const realViews = rows.map((r) => toEntryView(r as never));
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
   const [negativeMonths, reserves, investAssets, renewalItems, budget] = await Promise.all([
@@ -58,7 +53,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
-  const budgetView = budget ? dailyBudget(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
+
+  // A reserva do dia a dia é despesa derivada do calendário: entra em views
+  // antes dos totais, da pizza e do ranking, para os três somarem o mesmo.
+  const today = todayISOInSaoPaulo();
+  const views = budget
+    ? [...realViews, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]
+    : realViews;
+
+  const catColor = new Map((await prisma.category.findMany()).map((c) => [c.name, c.color]));
+  const pieData = expenseByCategory(views).map((x) => ({
+    categoryName: x.categoryName,
+    value: x.cents,
+    color: catColor.get(x.categoryName) ?? "#64748b",
+  }));
+  const ranking = expenseRanking(views).slice(0, 10);
+  const hasExpenses = ranking.length > 0;
 
   // Saldo mensal: receitas − despesas previstas dos próximos 12 meses
   // (uma query para o intervalo inteiro; agrupamento por mês em JS).
@@ -75,7 +85,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     viewsByMonth.set(key, list);
   }
   const balanceData: MonthlyBalancePoint[] = chartMonths.map((m) => {
-    const v = viewsByMonth.get(m) ?? [];
+    const base = viewsByMonth.get(m) ?? [];
+    // Cada mês do gráfico carrega a sua reserva: mês cheio à frente, decaindo
+    // no corrente, zero atrás.
+    const v = budget ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))] : base;
     return {
       month: formatCompetencia(monthToDate(m)),
       incomeCents: plannedIncome(v),
@@ -91,19 +104,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
-      <div className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${budgetView ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
         <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
         <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
         <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
-        {budgetView && (
-          <StatCard
-            label="Reserva do dia a dia (meta)"
-            value={formatCents(budgetView.remainingCents)}
-            hint={`${budgetView.daysRemaining} de ${budgetView.daysInMonth} dias · ${formatCents(budgetView.perDayCents)}/dia`}
-            icon={PiggyBank}
-          />
-        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
