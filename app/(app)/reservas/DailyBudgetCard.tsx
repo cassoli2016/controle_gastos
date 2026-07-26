@@ -11,8 +11,8 @@ import { useActionToast } from "@/hooks/use-action-toast";
 
 /**
  * Reserva do dia a dia: mostra o que resta no mês corrente e permite mudar o
- * valor por dia. O texto deixa explícito que é meta — se ficasse junto do
- * "Total guardado" das caixinhas, pareceria dinheiro parado.
+ * valor por dia. O texto separa as duas coisas que o usuário poderia confundir
+ * — ela é despesa do mês, e não dinheiro guardado nas caixinhas.
  */
 export function DailyBudgetCard({
   perDayCents,
@@ -59,8 +59,8 @@ export function DailyBudgetCard({
         </form>
 
         <p className="text-xs text-muted-foreground">
-          Meta de gasto do dia a dia — não entra no &quot;Total guardado&quot; nem no saldo do mês. Os gastos
-          reais chegam pela fatura do cartão.
+          Entra como despesa do mês e cai a cada dia que passa. Não soma no &quot;Total guardado&quot; — aquilo é
+          dinheiro parado em caixinhas.
         </p>
       </CardContent>
     </Card>

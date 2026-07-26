@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
-import { toEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedBalance } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
 import { decimalToCents } from "@/lib/money";
+import { dailyBudgetLine } from "@/lib/daily-budget";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 
 export type NegativeMonth = { month: string; balanceCents: number };
 
@@ -27,9 +29,17 @@ export async function getNegativeMonths(): Promise<NegativeMonth[]> {
     byMonth.set(key, list);
   }
 
+  // A reserva do dia a dia é despesa do mês, então pesa no descoberto: um mês
+  // que fecharia no zero passa a precisar de cobertura.
+  const budget = await getDailyBudget();
+  const today = todayISOInSaoPaulo();
+
   const out: NegativeMonth[] = [];
   for (const [month, views] of byMonth) {
-    const balanceCents = plannedBalance(views);
+    const withBudget = budget
+      ? [...views, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]
+      : views;
+    const balanceCents = plannedBalance(withBudget);
     if (balanceCents < 0) out.push({ month, balanceCents });
   }
   return out; // rows vêm ordenadas por mês; Map preserva a ordem de inserção
