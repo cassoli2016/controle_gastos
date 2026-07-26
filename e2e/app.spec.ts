@@ -16,8 +16,17 @@ test.describe.serial("caminho crítico", () => {
     const aluguelRow = page.locator("tr", { hasText: "ALUGUEL" });
     await expect(aluguelRow).toBeVisible();
 
-    // Falta pagar (despesas em aberto) = R$ 2.000,00
+    // R$ 2.000,00 é o previsto do ALUGUEL (== subtotal de Moradia, único item
+    // da categoria); não é mais o "Falta pagar" da tela — a reserva do dia a
+    // dia (R$ 100/dia, semeada pela migration também no schema e2e) entra
+    // como despesa do mês e empurra o "Falta pagar" para R$ 5.100,00.
     await expect(page.getByText(/R\$\s?2\.000,00/).first()).toBeVisible();
+
+    // Reserva do dia a dia: linha derivada do calendário, sem MonthlyEntry
+    // por trás — não tem botão "Pagar" (não há o que marcar como pago).
+    const reservaRow = page.locator("tr", { hasText: "Reserva do dia a dia" });
+    await expect(reservaRow).toBeVisible();
+    await expect(reservaRow.getByRole("button", { name: "Pagar" })).not.toBeVisible();
 
     await aluguelRow.getByRole("button", { name: "Pagar" }).click();
     await page.getByRole("button", { name: "Confirmar" }).click();

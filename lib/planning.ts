@@ -14,7 +14,11 @@ export type NegativeMonth = { month: string; balanceCents: number };
  * "descoberto" que as caixinhas de reserva precisam cobrir.
  */
 export async function getNegativeMonths(): Promise<NegativeMonth[]> {
-  const current = monthToDate(monthStringFromDate(new Date()));
+  // "Hoje" vem sempre de todayISOInSaoPaulo() (regra do projeto): usar
+  // `new Date()` aqui divergiria no fuso do servidor e poderia trocar de mês
+  // horas antes/depois do que o resto do app, nas primeiras horas do dia 1.
+  const today = todayISOInSaoPaulo();
+  const current = monthToDate(today.slice(0, 7));
   const rows = await prisma.monthlyEntry.findMany({
     where: { month: { gte: current } },
     include: { item: { include: { category: true } }, category: true },
@@ -32,7 +36,6 @@ export async function getNegativeMonths(): Promise<NegativeMonth[]> {
   // A reserva do dia a dia é despesa do mês, então pesa no descoberto: um mês
   // que fecharia no zero passa a precisar de cobertura.
   const budget = await getDailyBudget();
-  const today = todayISOInSaoPaulo();
 
   const out: NegativeMonth[] = [];
   for (const [month, views] of byMonth) {

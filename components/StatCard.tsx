@@ -24,14 +24,11 @@ const TONES = {
 export function StatCard({
   label,
   value,
-  hint,
   tone = "default",
   icon: Icon,
 }: {
   label: string;
   value: string;
-  /** Linha de detalhe abaixo do valor (ex.: "6 de 31 dias · R$ 100,00/dia"). */
-  hint?: string;
   tone?: keyof typeof TONES;
   icon?: LucideIcon;
 }) {
@@ -50,7 +47,6 @@ export function StatCard({
           </div>
           {/* text-base no mobile: "R$ 25.000,00" cabe inteiro num card de meia largura */}
           <div className={cn("truncate text-base font-bold tabular-nums md:text-xl", t.value)}>{value}</div>
-          {hint && <div className="truncate text-[10px] text-muted-foreground md:text-[11px]">{hint}</div>}
         </div>
       </CardContent>
     </Card>
