@@ -4,7 +4,8 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank, BellRing } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getNegativeMonths, getReserves } from "@/lib/planning";
+import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
+import { dailyBudget } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
@@ -37,11 +38,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const hasExpenses = ranking.length > 0;
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
-  const [negativeMonths, reserves, investAssets, renewalItems] = await Promise.all([
+  const [negativeMonths, reserves, investAssets, renewalItems, budget] = await Promise.all([
     getNegativeMonths(),
     getReserves(),
     prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
     prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
+    getDailyBudget(),
   ]);
   const renewals = upcomingRenewals(
     renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
@@ -56,6 +58,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
+  const budgetView = budget ? dailyBudget(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
 
   // Saldo mensal: receitas − despesas previstas dos próximos 12 meses
   // (uma query para o intervalo inteiro; agrupamento por mês em JS).
@@ -88,11 +91,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${budgetView ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
         <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
         <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
         <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
+        {budgetView && (
+          <StatCard
+            label="Reserva do dia a dia"
+            value={formatCents(budgetView.remainingCents)}
+            hint={`${budgetView.daysRemaining} de ${budgetView.daysInMonth} dias · ${formatCents(budgetView.perDayCents)}/dia`}
+            icon={PiggyBank}
+          />
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">

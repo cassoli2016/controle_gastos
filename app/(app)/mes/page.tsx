@@ -1,8 +1,11 @@
-import { Inbox, TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
+import { Inbox, TrendingUp, TrendingDown, Wallet, Clock, PiggyBank } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView } from "@/lib/entries";
+import { getDailyBudget } from "@/lib/planning";
+import { dailyBudget } from "@/lib/daily-budget";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import {
   plannedIncome,
   plannedExpense,
@@ -171,7 +174,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems, activeCards, categories] = await Promise.all([
+  const [rows, activeItems, activeCards, categories, budget] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
       include: { item: { include: { category: true } }, category: true, card: true },
@@ -180,6 +183,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.creditCard.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    getDailyBudget(),
   ]);
 
   const views: DisplayRow[] = rows.map((r) => ({
@@ -201,6 +205,10 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
 
   const groups = groupByCategory(views);
   const isEmpty = views.length === 0;
+
+  // Reserva do dia a dia: meta de gasto variável do mês em tela, caindo por dia
+  // que passa. Não entra em nenhum total — os gastos reais vêm pela fatura.
+  const budgetView = budget ? dailyBudget(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
 
   const entryItemIds = new Set(views.map((v) => v.itemId));
   const availableItems = activeItems
@@ -244,11 +252,21 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div
+            className={`grid grid-cols-2 gap-3 md:grid-cols-3 ${budgetView ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
+          >
             <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
             <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
             <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
             <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
+            {budgetView && (
+              <StatCard
+                label="Reserva do dia a dia"
+                value={formatCents(budgetView.remainingCents)}
+                hint={`${budgetView.daysRemaining} de ${budgetView.daysInMonth} dias · ${formatCents(budgetView.perDayCents)}/dia`}
+                icon={PiggyBank}
+              />
+            )}
           </div>
 
           <div className="space-y-4">
