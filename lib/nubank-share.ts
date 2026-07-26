@@ -30,7 +30,10 @@ export type ShareParseResult = {
 const AMOUNT_LINE_RE = /^R\$\s*([\d.]+(?:,\d{1,2})?)$/;
 const INSTALLMENT_LINE_RE = /^em\s+(\d{1,3})x(?:\s+de\s+R\$\s*([\d.]+(?:,\d{1,2})?))?$/i;
 const CARD_LINE_RE = /^cart[aã]o\s+(.+)$/i;
-const DATE_LINE_RE = /(\d{1,2})\s+de\s+([a-zA-ZçÇãÃéÉêÊ]+)\s+de\s+(\d{4})/;
+// Os "de" são opcionais: o compartilhamento normalmente manda "26 de julho de
+// 2026", mas "26 julho 2026" aparece — e exigir os "de" fazia a data não casar,
+// derrubando o bloco inteiro junto com ela.
+const DATE_LINE_RE = /(\d{1,2})\s+(?:de\s+)?([a-zA-ZçÇãÃéÉêÊ]+)\s+(?:de\s+)?(\d{4})/;
 
 const MONTHS: Record<string, number> = {
   janeiro: 1,
@@ -62,6 +65,14 @@ function parseShareDate(line: string): string | undefined {
   const month = MONTHS[stripAccents(m[2].toLowerCase())];
   if (!month || day < 1 || day > 31) return undefined;
   return `${m[3]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * True se a linha `i` abre um bloco novo: uma descrição seguida da linha de
+ * valor. É o que delimita o fim do bloco anterior.
+ */
+function startsBlock(lines: string[], i: number): boolean {
+  return !AMOUNT_LINE_RE.test(lines[i]) && i + 1 < lines.length && AMOUNT_LINE_RE.test(lines[i + 1]);
 }
 
 /** True se a mensagem tem alguma linha só com o valor ("R$ 6,99"). */
@@ -122,7 +133,14 @@ export function parseNubankShares(text: string): ShareParseResult {
         j++;
         continue;
       }
-      break;
+      // Linha que não é parcelamento, cartão nem data: se ela abre o próximo
+      // bloco, o atual acabou. Senão é ruído — reporta e SEGUE, em vez de
+      // abandonar o resto do bloco. Parar aqui já custou uma compra lançada
+      // sem cartão e no mês errado, porque o "Cartão Nubank" vinha depois de
+      // uma linha de data que não casou.
+      if (startsBlock(lines, j)) break;
+      failedLines.push(line);
+      j++;
     }
 
     if (Number.isFinite(purchase.amountReais) && purchase.amountReais > 0) {
