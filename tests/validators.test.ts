@@ -7,6 +7,7 @@ import {
   applyRangeSchema,
   cardSchema,
   purchaseSchema,
+  dailyBudgetSchema,
 } from "@/lib/validators";
 
 describe("validators", () => {
@@ -118,5 +119,16 @@ describe("purchaseSchema com recorrência", () => {
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.installments).toBe(1);
+  });
+});
+
+describe("dailyBudgetSchema", () => {
+  it("aceita valor positivo", () => {
+    expect(dailyBudgetSchema.safeParse({ amountPerDay: "100" }).success).toBe(true);
+    expect(dailyBudgetSchema.safeParse({ amountPerDay: 50.5 }).success).toBe(true);
+  });
+  it("rejeita zero e negativo", () => {
+    expect(dailyBudgetSchema.safeParse({ amountPerDay: "0" }).success).toBe(false);
+    expect(dailyBudgetSchema.safeParse({ amountPerDay: "-10" }).success).toBe(false);
   });
 });

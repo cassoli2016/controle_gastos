@@ -114,3 +114,9 @@ export const reserveSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   amount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
 });
+
+// Reserva do dia a dia: só o valor por dia é configurável — o total do mês e o
+// que resta são derivados do calendário (lib/daily-budget.ts).
+export const dailyBudgetSchema = z.object({
+  amountPerDay: z.coerce.number().positive("Valor por dia deve ser maior que zero"),
+});

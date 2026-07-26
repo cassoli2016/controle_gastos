@@ -1,15 +1,24 @@
 import { PiggyBank } from "lucide-react";
-import { getReserves, getNegativeMonths } from "@/lib/planning";
+import { getReserves, getNegativeMonths, getDailyBudget } from "@/lib/planning";
+import { dailyBudget } from "@/lib/daily-budget";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { sumCents, formatCents } from "@/lib/money";
 import { StatCard } from "@/components/StatCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { NewReserveForm } from "./NewReserveForm";
 import { ReserveCard } from "./ReserveCard";
+import { DailyBudgetCard } from "./DailyBudgetCard";
 
 export default async function ReservasPage() {
-  const [reserves, negativeMonths] = await Promise.all([getReserves(), getNegativeMonths()]);
+  const [reserves, negativeMonths, budget] = await Promise.all([
+    getReserves(),
+    getNegativeMonths(),
+    getDailyBudget(),
+  ]);
   const totalCents = sumCents(reserves.map((r) => r.amountCents));
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
+  const today = todayISOInSaoPaulo();
+  const budgetView = budget ? dailyBudget(today.slice(0, 7), today, budget.perDayCents) : null;
 
   return (
     <div className="space-y-6">
@@ -28,6 +37,16 @@ export default async function ReservasPage() {
           />
         )}
       </div>
+
+      {budgetView && (
+        <DailyBudgetCard
+          perDayCents={budgetView.perDayCents}
+          daysRemaining={budgetView.daysRemaining}
+          daysInMonth={budgetView.daysInMonth}
+          remainingCents={budgetView.remainingCents}
+          monthTotalCents={budgetView.monthTotalCents}
+        />
+      )}
 
       {reserves.length === 0 ? (
         <Card>

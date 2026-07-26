@@ -16,6 +16,7 @@ export type CellEntry = { id: string; cents: number; paid: boolean };
  */
 export function CellAction({
   cents,
+  remainingCents,
   allPaid,
   paidCount,
   count,
@@ -26,12 +27,14 @@ export function CellAction({
   line,
 }: {
   cents: number;
+  /** O que ainda falta na célula — é o valor exibido na matriz. */
+  remainingCents: number;
   allPaid: boolean;
   /** Ocorrências já pagas da célula — `0 < paidCount < count` é baixa parcial. */
   paidCount: number;
   count: number;
   entries: CellEntry[];
-  kind: "item" | "card" | "loose";
+  kind: "item" | "card" | "loose" | "budget";
   income: boolean;
   monthLabel: string;
   line: string;
@@ -74,9 +77,17 @@ export function CellAction({
                 ? "text-amber-600 dark:text-amber-400"
                 : ""
           }`}
-          title={count > 1 ? `${count} ocorrências${partial ? ` · ${paidCount} pagas` : ""}` : undefined}
+          title={
+            allPaid
+              ? `Quitado · previsto ${formatCents(cents)}`
+              : partial
+                ? `Falta ${formatCents(remainingCents)} de ${formatCents(cents)}${count > 1 ? ` · ${paidCount} de ${count} ${income ? "recebidas" : "pagas"}` : ""}`
+                : count > 1
+                  ? `${count} ocorrências`
+                  : undefined
+          }
         >
-          {fmt(cents)}
+          {fmt(remainingCents)}
           {partial && count > 1 && (
             <span className="ml-0.5 align-super text-[9px] tabular-nums opacity-70">
               {paidCount}/{count}
@@ -89,14 +100,18 @@ export function CellAction({
           <div>
             <p className="text-sm font-medium">{line}</p>
             <p className="text-xs text-muted-foreground">
-              {monthLabel} · {formatCents(cents)}
+              {monthLabel} ·{" "}
+              {allPaid
+                ? `${income ? "recebido" : "pago"} · ${formatCents(cents)}`
+                : partial
+                  ? `falta ${formatCents(remainingCents)} de ${formatCents(cents)}`
+                  : formatCents(cents)}
               {count > 1 && ` · ${count} ocorrências`}
               {partial && ` · ${paidCount} ${income ? "recebidas" : "pagas"}`}
-              {allPaid && (income ? " · recebido" : " · pago")}
             </p>
           </div>
 
-          {kind !== "card" && count === 1 && (
+          {(kind === "item" || kind === "loose") && count === 1 && (
             <form action={valAction} className="flex flex-col gap-1.5">
               <input type="hidden" name="entryId" value={entries[0].id} />
               <Label htmlFor={`cell-amount-${entries[0].id}`}>Previsto</Label>
@@ -113,27 +128,34 @@ export function CellAction({
               Fatura consolidada — o valor vem das compras. Edite pelo &quot;Ver extrato&quot; em Cartões.
             </p>
           )}
+          {kind === "budget" && (
+            <p className="text-xs text-muted-foreground">
+              Reserva do dia a dia — cai sozinha a cada dia que passa. Mude o valor por dia em Reservas.
+            </p>
+          )}
           {count > 1 && kind !== "card" && (
             <p className="text-xs text-muted-foreground">
               Valor por ocorrência: edite pelo lápis do grupo na tela do Mês.
             </p>
           )}
 
-          <form action={payAction}>
-            <input type="hidden" name="entryIds" value={JSON.stringify(payIds)} />
-            <input type="hidden" name="paid" value={(!allPaid).toString()} />
-            <Button type="submit" size="sm" className="w-full" variant={allPaid ? "outline" : "default"} disabled={payPending}>
-              {allPaid
-                ? "Desfazer baixa"
-                : income
-                  ? payIds.length > 1
-                    ? `Receber todas (${payIds.length})`
-                    : "Receber"
-                  : payIds.length > 1
-                    ? `Pagar todas (${payIds.length})`
-                    : "Pagar"}
-            </Button>
-          </form>
+          {kind !== "budget" && (
+            <form action={payAction}>
+              <input type="hidden" name="entryIds" value={JSON.stringify(payIds)} />
+              <input type="hidden" name="paid" value={(!allPaid).toString()} />
+              <Button type="submit" size="sm" className="w-full" variant={allPaid ? "outline" : "default"} disabled={payPending}>
+                {allPaid
+                  ? "Desfazer baixa"
+                  : income
+                    ? payIds.length > 1
+                      ? `Receber todas (${payIds.length})`
+                      : "Receber"
+                    : payIds.length > 1
+                      ? `Pagar todas (${payIds.length})`
+                      : "Pagar"}
+              </Button>
+            </form>
+          )}
         </div>
       </PopoverContent>
     </Popover>

@@ -4,11 +4,12 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank, BellRing } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getNegativeMonths, getReserves } from "@/lib/planning";
+import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
+import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents } from "@/lib/money";
 import { StatCard } from "@/components/StatCard";
@@ -29,19 +30,18 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     where: { month: monthDate },
     include: { item: { include: { category: true } }, category: true },
   });
-  const views = rows.map((r) => toEntryView(r as never));
-
-  const catColor = new Map((await prisma.category.findMany()).map((c) => [c.name, c.color]));
-  const pieData = expenseByCategory(views).map((x) => ({ categoryName: x.categoryName, value: x.cents, color: catColor.get(x.categoryName) ?? "#64748b" }));
-  const ranking = expenseRanking(views).slice(0, 10);
-  const hasExpenses = ranking.length > 0;
+  const realViews = rows.map((r) => toEntryView(r as never));
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
-  const [negativeMonths, reserves, investAssets, renewalItems] = await Promise.all([
+  // categories não depende de budget (só pieData depende) — entra no mesmo
+  // Promise.all para não rodar em série à toa.
+  const [negativeMonths, reserves, investAssets, renewalItems, budget, categories] = await Promise.all([
     getNegativeMonths(),
     getReserves(),
     prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
     prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
+    getDailyBudget(),
+    prisma.category.findMany(),
   ]);
   const renewals = upcomingRenewals(
     renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
@@ -56,6 +56,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
+
+  // A reserva do dia a dia é despesa derivada do calendário: entra em views
+  // antes dos totais, da pizza e do ranking, para os três somarem o mesmo. Mês
+  // sem nenhum lançamento real não ganha número fabricado — mesma regra da
+  // tela Mês (guarda `isEmpty`): sem isso, um mês futuro totalmente vazio
+  // aparecia com "despesa" só da reserva, e a pizza desenhava uma fatia de
+  // valor zero em vez do estado "Sem despesas neste mês".
+  const today = todayISOInSaoPaulo();
+  const views =
+    budget && realViews.length > 0
+      ? [...realViews, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]
+      : realViews;
+
+  const catColor = new Map(categories.map((c) => [c.name, c.color]));
+  const pieData = expenseByCategory(views).map((x) => ({
+    categoryName: x.categoryName,
+    value: x.cents,
+    color: catColor.get(x.categoryName) ?? "#64748b",
+  }));
+  const ranking = expenseRanking(views).slice(0, 10);
+  const hasExpenses = ranking.length > 0;
 
   // Saldo mensal: receitas − despesas previstas dos próximos 12 meses
   // (uma query para o intervalo inteiro; agrupamento por mês em JS).
@@ -72,7 +93,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     viewsByMonth.set(key, list);
   }
   const balanceData: MonthlyBalancePoint[] = chartMonths.map((m) => {
-    const v = viewsByMonth.get(m) ?? [];
+    const base = viewsByMonth.get(m) ?? [];
+    // Cada mês do gráfico carrega a sua reserva: mês cheio à frente, decaindo
+    // no corrente, zero atrás. Mesma regra da tela Mês: mês sem nenhum
+    // lançamento real fica de fora — senão o gráfico desenharia saldo
+    // negativo fabricado para meses futuros sem lançamento nenhum.
+    const v =
+      base.length === 0
+        ? base
+        : budget
+          ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))]
+          : base;
     return {
       month: formatCompetencia(monthToDate(m)),
       incomeCents: plannedIncome(v),

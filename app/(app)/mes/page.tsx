@@ -2,7 +2,10 @@ import { Inbox, TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
+import { getDailyBudget } from "@/lib/planning";
+import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import {
   plannedIncome,
   plannedExpense,
@@ -39,6 +42,8 @@ type DisplayRow = EntryView & {
   installmentId: string | null;
   installmentSeq: number | null;
   installmentCount: number | null;
+  /** Preenchido só em linha derivada (reserva): substitui as ações, que não existem. */
+  readOnlyHint: string | null;
 };
 
 // Um único componente de linha, com duas formas de renderização (tabela no
@@ -79,7 +84,12 @@ function EntryRow({
   ) : (
     <span className="tabular-nums">{formatCents(row.plannedCents)}</span>
   );
-  const pay = (
+  // Linha derivada (reserva do dia a dia): não há MonthlyEntry por trás, então
+  // não se paga, não se edita e não se exclui — no lugar do botão vai a
+  // explicação de onde o valor vem.
+  const pay = row.readOnlyHint ? (
+    <span className="text-xs text-muted-foreground">{row.readOnlyHint}</span>
+  ) : (
     <PayCell
       entryId={row.entryId}
       plannedCents={row.plannedCents}
@@ -109,7 +119,7 @@ function EntryRow({
       )}
     </span>
   );
-  const actions = (
+  const actions = row.readOnlyHint ? null : (
     <EntryActions
       entryId={row.entryId}
       label={row.itemName}
@@ -171,7 +181,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const month = qMonth ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems, activeCards, categories] = await Promise.all([
+  const [rows, activeItems, activeCards, categories, budget] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
       include: { item: { include: { category: true } }, category: true, card: true },
@@ -180,9 +190,10 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.creditCard.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    getDailyBudget(),
   ]);
 
-  const views: DisplayRow[] = rows.map((r) => ({
+  const realViews: DisplayRow[] = rows.map((r) => ({
     ...toEntryView(r as never),
     entryId: r.id,
     itemId: r.itemId,
@@ -197,10 +208,39 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     installmentId: r.installmentId,
     installmentSeq: r.installmentSeq,
     installmentCount: r.installmentCount,
+    readOnlyHint: null,
   }));
 
+  // `isEmpty` olha só os lançamentos REAIS: um mês sem conta nenhuma continua
+  // mostrando o estado vazio, em vez de meia tela ocupada só pela reserva.
+  const isEmpty = realViews.length === 0;
+
+  // A reserva do dia a dia é despesa derivada do calendário. Ela entra em
+  // `views` ANTES dos cálculos, para a lista e os totais saírem do mesmo array
+  // e não poderem divergir.
+  const budgetLine = budget && !isEmpty ? dailyBudgetLine(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
+  const views: DisplayRow[] = budgetLine
+    ? [
+        ...realViews,
+        {
+          ...dailyBudgetEntryView(budgetLine),
+          entryId: DAILY_BUDGET_ENTRY_ID,
+          itemId: null,
+          dueDay: null,
+          renewsThisMonth: false,
+          purchaseDate: null,
+          paidDate: null,
+          cardId: null,
+          cardName: null,
+          installmentId: null,
+          installmentSeq: null,
+          installmentCount: null,
+          readOnlyHint: budgetLine.hint,
+        },
+      ]
+    : realViews;
+
   const groups = groupByCategory(views);
-  const isEmpty = views.length === 0;
 
   const entryItemIds = new Set(views.map((v) => v.itemId));
   const availableItems = activeItems
@@ -225,7 +265,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           />
           <IncomeDialog />
           <TransferDialog
-            entries={views.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+            entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
           />
           <CopyPreviousMonthButton month={month} />
           <CopyYearAgoButton month={month} />

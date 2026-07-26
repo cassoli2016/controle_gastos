@@ -4,6 +4,8 @@ import { monthStringFromDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 import { buildMatrix, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { getDailyBudget } from "@/lib/planning";
+import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CellAction } from "./CellAction";
@@ -16,9 +18,12 @@ function fmt(cents: number): string {
 }
 
 export default async function PanoramaPage() {
-  const rows = await prisma.monthlyEntry.findMany({
-    include: { item: { include: { category: true } }, category: true, card: true },
-  });
+  const [rows, budget] = await Promise.all([
+    prisma.monthlyEntry.findMany({
+      include: { item: { include: { category: true } }, category: true, card: true },
+    }),
+    getDailyBudget(),
+  ]);
 
   const entries: MatrixEntry[] = rows.map((r) => {
     const category = r.item?.category ?? r.category;
@@ -33,8 +38,30 @@ export default async function PanoramaPage() {
       kind: r.cardId ? ("card" as const) : r.itemId ? ("item" as const) : ("loose" as const),
     };
   });
+
+  const today = todayISOInSaoPaulo();
+  const currentMonth = today.slice(0, 7);
+
+  // Uma linha de reserva por mês que a matriz JÁ mostra — a reserva não cria
+  // meses novos na visão. O valor cai sozinho: mês cheio no futuro, decaindo
+  // no corrente, zero no passado.
+  if (budget) {
+    for (const monthISO of new Set(entries.map((e) => e.monthISO))) {
+      const l = dailyBudgetLine(monthISO, today, budget.perDayCents);
+      entries.push({
+        line: l.line,
+        categoryName: l.categoryName,
+        categoryType: l.categoryType,
+        monthISO,
+        cents: l.cents,
+        paid: false,
+        entryId: `${DAILY_BUDGET_ENTRY_ID}-${monthISO}`,
+        kind: "budget",
+      });
+    }
+  }
+
   const matrix = buildMatrix(entries);
-  const currentMonth = todayISOInSaoPaulo().slice(0, 7);
 
   const monthTh = (m: string) => (
     <th
@@ -54,8 +81,8 @@ export default async function PanoramaPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Panorama</h1>
         <p className="text-sm text-muted-foreground">
-          Todos os meses lado a lado · verde = pago · âmbar = parcial · clique no valor para editar ou dar
-          baixa
+          Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
+          clique no valor para editar ou dar baixa
         </p>
       </div>
 
@@ -86,24 +113,24 @@ export default async function PanoramaPage() {
                 <tfoot className="border-t-2 font-semibold">
                   <tr className="border-b">
                     <td className="sticky left-0 z-10 bg-card px-4 py-2 text-emerald-600 dark:text-emerald-400">
-                      Receitas
+                      A receber
                     </td>
                     {matrix.months.map((m) => (
                       <td key={m} className={`px-3 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400 ${m === currentMonth ? "bg-primary/5" : ""}`}>
-                        {matrix.incomeByMonth[m] ? fmt(matrix.incomeByMonth[m]) : "—"}
+                        {m in matrix.toReceiveByMonth ? fmt(matrix.toReceiveByMonth[m]) : "—"}
                       </td>
                     ))}
                   </tr>
                   <tr className="border-b">
-                    <td className="sticky left-0 z-10 bg-card px-4 py-2 text-rose-600 dark:text-rose-400">Despesas</td>
+                    <td className="sticky left-0 z-10 bg-card px-4 py-2 text-rose-600 dark:text-rose-400">A pagar</td>
                     {matrix.months.map((m) => (
                       <td key={m} className={`px-3 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400 ${m === currentMonth ? "bg-primary/5" : ""}`}>
-                        {matrix.expenseByMonth[m] ? fmt(matrix.expenseByMonth[m]) : "—"}
+                        {m in matrix.toPayByMonth ? fmt(matrix.toPayByMonth[m]) : "—"}
                       </td>
                     ))}
                   </tr>
                   <tr>
-                    <td className="sticky left-0 z-10 bg-card px-4 py-2">Saldo</td>
+                    <td className="sticky left-0 z-10 bg-card px-4 py-2">Saldo a realizar</td>
                     {matrix.months.map((m) => {
                       const v = matrix.balanceByMonth[m] ?? 0;
                       return (
@@ -153,7 +180,7 @@ function SectionRows({
             key={m}
             className={`px-3 py-1.5 text-right tabular-nums text-xs text-muted-foreground ${m === currentMonth ? "bg-primary/5" : ""}`}
           >
-            {section.totalsByMonth[m] ? fmt(section.totalsByMonth[m]) : ""}
+            {m in section.totalsByMonth ? fmt(section.totalsByMonth[m]) : ""}
           </td>
         ))}
       </tr>
@@ -167,6 +194,7 @@ function SectionRows({
                 {cell ? (
                   <CellAction
                     cents={cell.cents}
+                    remainingCents={cell.remainingCents}
                     allPaid={cell.allPaid}
                     paidCount={cell.paidCount}
                     count={cell.count}
