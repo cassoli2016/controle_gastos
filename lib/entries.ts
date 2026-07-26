@@ -1,5 +1,6 @@
 import { decimalToCents } from "@/lib/money";
 import type { EntryView } from "@/lib/calc";
+import type { DailyBudgetLine } from "@/lib/daily-budget";
 
 type PrismaEntryRow = {
   plannedAmount: string | number;
@@ -19,5 +20,20 @@ export function toEntryView(row: PrismaEntryRow): EntryView {
     plannedCents: decimalToCents(String(row.plannedAmount)),
     paid: row.paid,
     paidCents: row.paidAmount === null ? null : decimalToCents(String(row.paidAmount)),
+  };
+}
+
+/**
+ * Linha derivada da reserva na forma que `lib/calc.ts` consome. Nunca paga: o
+ * valor cai pelo calendário, não por baixa.
+ */
+export function dailyBudgetEntryView(line: DailyBudgetLine): EntryView {
+  return {
+    itemName: line.line,
+    categoryName: line.categoryName,
+    categoryType: line.categoryType,
+    plannedCents: line.cents,
+    paid: false,
+    paidCents: null,
   };
 }
