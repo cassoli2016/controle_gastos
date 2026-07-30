@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   plannedIncome, plannedExpense, plannedBalance, remainingToPay,
+  paidExpense, receivedIncome, progressPct, isOverdue,
   expenseRanking, expenseByCategory, type EntryView,
 } from "@/lib/calc";
 import { dailyBudgetEntryView } from "@/lib/entries";
@@ -64,4 +65,38 @@ describe("reserva do dia a dia nos cálculos do mês", () => {
     const passado = dailyBudgetEntryView(dailyBudgetLine("2026-06", "2026-07-26", 10000));
     expect(plannedExpense([...E, passado])).toBe(87000);
   });
+});
+
+describe("progresso de pagamento", () => {
+  it("paidExpense soma só despesas pagas", () => expect(paidExpense(E)).toBe(6000));
+  it("paidExpense é o complemento de remainingToPay", () =>
+    expect(paidExpense(E) + remainingToPay(E)).toBe(plannedExpense(E)));
+  it("receivedIncome soma só receitas pagas", () => expect(receivedIncome(E)).toBe(2500000));
+  it("progressPct arredonda para inteiro", () => {
+    expect(progressPct(6000, 87000)).toBe(7);
+    expect(progressPct(66000, 115000)).toBe(57);
+  });
+  it("progressPct com total 0 → 0 (sem divisão por zero)", () => {
+    expect(progressPct(0, 0)).toBe(0);
+    expect(progressPct(500, 0)).toBe(0);
+  });
+  it("progressPct nunca passa de 100", () => expect(progressPct(200, 100)).toBe(100));
+});
+
+describe("isOverdue", () => {
+  const base = { paid: false, categoryType: "EXPENSE" as const, dueDay: 10 };
+  it("mês corrente, vencimento já passou → atrasada", () =>
+    expect(isOverdue(base, "2026-07", "2026-07-30")).toBe(true));
+  it("mês corrente, vence hoje → não atrasada", () =>
+    expect(isOverdue({ ...base, dueDay: 30 }, "2026-07", "2026-07-30")).toBe(false));
+  it("mês passado, não paga → atrasada mesmo sem dueDay", () =>
+    expect(isOverdue({ ...base, dueDay: null }, "2026-06", "2026-07-30")).toBe(true));
+  it("mês futuro nunca atrasa", () =>
+    expect(isOverdue(base, "2026-08", "2026-07-30")).toBe(false));
+  it("paga não atrasa", () =>
+    expect(isOverdue({ ...base, paid: true }, "2026-07", "2026-07-30")).toBe(false));
+  it("receita não atrasa", () =>
+    expect(isOverdue({ ...base, categoryType: "INCOME" as const }, "2026-07", "2026-07-30")).toBe(false));
+  it("mês corrente sem dueDay não atrasa", () =>
+    expect(isOverdue({ ...base, dueDay: null }, "2026-07", "2026-07-30")).toBe(false));
 });
