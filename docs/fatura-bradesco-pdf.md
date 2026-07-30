@@ -59,5 +59,12 @@ Formato de cada linha: `dd/mm  DESCRIÇÃO CIDADE(pp/tt)  valor`
    idempotente: substitui extrato + consolidado do mês, preservando antecipações.
 3. Exemplo/gabarito: `scripts/fix-fatura-ago-bradesco.ts` (primeira importação
    real, ago/2026).
+4. Meses seguintes: cada linha "(pp/tt)" implica parcelas pp+1..tt nas próximas
+   faturas com o mesmo valor — validar contra o "Total parcelado para as
+   próximas faturas" da página 2 (tolerância de poucos reais: o Bradesco ajusta
+   centavos nas parcelas finais). Compras com data APÓS o fechamento pertencem
+   ao ciclo novo e não podem ser apagadas na reconstrução. Estorno de compra
+   parcelada cancela o plano inteiro (sem parcelas futuras). Gabarito:
+   `scripts/fix-faturas-futuras-bradesco.ts`.
 
 Relacionados: [cartao-credito](cartao-credito.md)
