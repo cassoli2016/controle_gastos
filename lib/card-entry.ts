@@ -22,6 +22,22 @@ export function shouldDropZeroedCardEntry(totalCents: number, paid: boolean, rem
 }
 
 /**
+ * Total já comprometido por mês em faturas futuras: agrupa consolidados de
+ * cartão por mês, soma todos os cartões, ordena e descarta mês zerado.
+ * Visibilidade apenas — a despesa continua contando no mês do vencimento.
+ */
+export function upcomingCardCommitments(
+  rows: { month: string; plannedCents: number }[],
+): { month: string; totalCents: number }[] {
+  const byMonth = new Map<string, number>();
+  for (const r of rows) byMonth.set(r.month, (byMonth.get(r.month) ?? 0) + r.plannedCents);
+  return [...byMonth.entries()]
+    .map(([month, totalCents]) => ({ month, totalCents }))
+    .filter((x) => x.totalCents !== 0)
+    .sort((a, b) => (a.month < b.month ? -1 : 1));
+}
+
+/**
  * Garante o lançamento CONSOLIDADO do cartão no mês — 1 por cartão/mês,
  * identificado por cardId + mês + description = nome do cartão — e soma
  * ("add") ou define ("set") o valor previsto. Retorna o total atualizado.

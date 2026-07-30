@@ -25,6 +25,36 @@ export function plannedBalance(e: EntryView[]): number {
 export function remainingToPay(e: EntryView[]): number {
   return sumCents(expense(e).filter((x) => !x.paid).map((x) => x.plannedCents));
 }
+/** Soma dos previstos de despesas já pagas (complemento de remainingToPay). */
+export function paidExpense(e: EntryView[]): number {
+  return sumCents(expense(e).filter((x) => x.paid).map((x) => x.plannedCents));
+}
+/** Soma dos previstos de receitas já recebidas. */
+export function receivedIncome(e: EntryView[]): number {
+  return sumCents(income(e).filter((x) => x.paid).map((x) => x.plannedCents));
+}
+/** Percentual inteiro 0–100 (clampado); total <= 0 → 0, sem divisão por zero. */
+export function progressPct(paidCents: number, totalCents: number): number {
+  if (totalCents <= 0) return 0;
+  return Math.min(100, Math.max(0, Math.round((paidCents / totalCents) * 100)));
+}
+/**
+ * Despesa não paga está atrasada quando o mês já passou, ou quando é o mês
+ * corrente e o dia de vencimento ficou para trás. Receita, linha paga e mês
+ * futuro nunca atrasam; sem dueDay, só o mês passado conta.
+ * "YYYY-MM" compara lexicograficamente na ordem cronológica.
+ */
+export function isOverdue(
+  row: { paid: boolean; categoryType: "INCOME" | "EXPENSE"; dueDay: number | null },
+  month: string,
+  todayISO: string,
+): boolean {
+  if (row.paid || row.categoryType === "INCOME") return false;
+  const todayMonth = todayISO.slice(0, 7);
+  if (month < todayMonth) return true;
+  if (month > todayMonth) return false;
+  return row.dueDay !== null && row.dueDay < Number(todayISO.slice(8, 10));
+}
 export function expenseRanking(e: EntryView[]): { itemName: string; cents: number }[] {
   return expense(e)
     .map((x) => ({ itemName: x.itemName, cents: x.plannedCents }))

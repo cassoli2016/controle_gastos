@@ -1,4 +1,4 @@
-import { Inbox, TrendingUp, TrendingDown, Wallet, Clock } from "lucide-react";
+import { Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
@@ -6,17 +6,12 @@ import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import {
-  plannedIncome,
-  plannedExpense,
-  plannedBalance,
-  remainingToPay,
-  groupByCategory,
-} from "@/lib/calc";
+import { groupByCategory, isOverdue } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
+import { cn } from "@/lib/utils";
 import { MonthNav } from "@/components/MonthNav";
-import { StatCard } from "@/components/StatCard";
+import { MonthStatCards } from "@/components/MonthStatCards";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CopyPreviousMonthButton } from "./CopyPreviousMonthButton";
@@ -44,6 +39,8 @@ type DisplayRow = EntryView & {
   installmentCount: number | null;
   /** Preenchido só em linha derivada (reserva): substitui as ações, que não existem. */
   readOnlyHint: string | null;
+  /** Despesa não paga com vencimento para trás (isOverdue): destaque na coluna Dia. */
+  overdue: boolean;
 };
 
 // Um único componente de linha, com duas formas de renderização (tabela no
@@ -130,17 +127,24 @@ function EntryRow({
       categories={categories}
     />
   );
+  // Atraso pinta o Dia de âmbar; linha paga esmaece inteira (o "Desmarcar"
+  // continua clicável — opacity não desabilita nada).
+  const dayClass = row.overdue ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground";
+  const daySuffix = row.overdue ? " ⚠" : "";
 
   if (variant === "desktop") {
     return (
-      <tr className="border-b last:border-b-0">
+      <tr className={cn("border-b last:border-b-0", row.paid && "opacity-60")}>
         <td className="px-3 py-1.5">
           <span className="flex items-center gap-1.5 flex-wrap">
             <span className="truncate">{row.itemName}</span>
             {badges}
           </span>
         </td>
-        <td className="px-3 py-1.5 text-muted-foreground tabular-nums">{dayLabel ?? "—"}</td>
+        <td className={cn("px-3 py-1.5 tabular-nums", dayClass)}>
+          {dayLabel ?? "—"}
+          {daySuffix}
+        </td>
         <td className="px-3 py-1.5 text-right">
           <span className="inline-flex justify-end">{planned}</span>
         </td>
@@ -151,14 +155,15 @@ function EntryRow({
   }
 
   return (
-    <div className="flex flex-col gap-2 p-3">
+    <div className={cn("flex flex-col gap-2 p-3", row.paid && "opacity-60")}>
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex items-center gap-1.5 flex-wrap">
           <span className="font-medium">{row.itemName}</span>
           {badges}
         </span>
-        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+        <span className={cn("text-xs tabular-nums shrink-0", dayClass)}>
           {row.dueDay ? `Dia ${row.dueDay}` : dayLabel ?? "—"}
+          {daySuffix}
         </span>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -193,23 +198,28 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     getDailyBudget(),
   ]);
 
-  const realViews: DisplayRow[] = rows.map((r) => ({
-    ...toEntryView(r as never),
-    entryId: r.id,
-    itemId: r.itemId,
-    // Consolidado do cartão não tem data de compra: o "Dia" útil ali é o
-    // vencimento da fatura (antes ficava "—").
-    dueDay: r.item?.dueDay ?? (r.purchaseDate === null ? r.card?.dueDay ?? null : null),
-    renewsThisMonth: r.item?.renewalMonth === monthDate.getUTCMonth() + 1,
-    purchaseDate: r.purchaseDate,
-    paidDate: r.paidDate,
-    cardId: r.cardId,
-    cardName: r.card?.name ?? null,
-    installmentId: r.installmentId,
-    installmentSeq: r.installmentSeq,
-    installmentCount: r.installmentCount,
-    readOnlyHint: null,
-  }));
+  const today = todayISOInSaoPaulo();
+  const realViews: DisplayRow[] = rows.map((r) => {
+    const view = {
+      ...toEntryView(r as never),
+      entryId: r.id,
+      itemId: r.itemId,
+      // Consolidado do cartão não tem data de compra: o "Dia" útil ali é o
+      // vencimento da fatura (antes ficava "—").
+      dueDay: r.item?.dueDay ?? (r.purchaseDate === null ? r.card?.dueDay ?? null : null),
+      renewsThisMonth: r.item?.renewalMonth === monthDate.getUTCMonth() + 1,
+      purchaseDate: r.purchaseDate,
+      paidDate: r.paidDate,
+      cardId: r.cardId,
+      cardName: r.card?.name ?? null,
+      installmentId: r.installmentId,
+      installmentSeq: r.installmentSeq,
+      installmentCount: r.installmentCount,
+      readOnlyHint: null,
+      overdue: false,
+    };
+    return { ...view, overdue: isOverdue(view, month, today) };
+  });
 
   // `isEmpty` olha só os lançamentos REAIS: um mês sem conta nenhuma continua
   // mostrando o estado vazio, em vez de meia tela ocupada só pela reserva.
@@ -218,7 +228,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   // A reserva do dia a dia é despesa derivada do calendário. Ela entra em
   // `views` ANTES dos cálculos, para a lista e os totais saírem do mesmo array
   // e não poderem divergir.
-  const budgetLine = budget && !isEmpty ? dailyBudgetLine(month, todayISOInSaoPaulo(), budget.perDayCents) : null;
+  const budgetLine = budget && !isEmpty ? dailyBudgetLine(month, today, budget.perDayCents) : null;
   const views: DisplayRow[] = budgetLine
     ? [
         ...realViews,
@@ -236,6 +246,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           installmentSeq: null,
           installmentCount: null,
           readOnlyHint: budgetLine.hint,
+          overdue: false,
         },
       ]
     : realViews;
@@ -284,19 +295,27 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
-            <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
-            <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
-            <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
-          </div>
+          <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
 
           <div className="space-y-4">
-            {groups.map((g) => (
+            {groups.map((g) => {
+              // Contador "pagos": só linhas reais — a reserva derivada não é pagável.
+              const payable = g.rows.filter((r) => !r.readOnlyHint);
+              const paidCount = payable.filter((r) => r.paid).length;
+              const doneLabel =
+                g.categoryType === "INCOME"
+                  ? payable.length === 1 ? "recebido" : "recebidos"
+                  : payable.length === 1 ? "pago" : "pagos";
+              return (
               <Card key={`${g.categoryType}:${g.categoryName}`}>
                 <CardHeader className="flex items-center justify-between gap-2 border-b">
                   <div className="font-medium">{g.categoryName}</div>
                   <div className="flex items-center gap-2">
+                    {payable.length > 0 && (
+                      <span className="text-xs text-muted-foreground tabular-nums">
+                        {paidCount}/{payable.length} {doneLabel}
+                      </span>
+                    )}
                     <Badge variant={g.categoryType === "INCOME" ? "default" : "secondary"}>
                       {g.categoryType === "INCOME" ? "Receita" : "Despesa"}
                     </Badge>
@@ -344,7 +363,8 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
