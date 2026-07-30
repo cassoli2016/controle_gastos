@@ -59,7 +59,9 @@ export function StatCard({
           {/* text-base no mobile: "R$ 25.000,00" cabe inteiro num card de meia largura */}
           <div className={cn("truncate text-base font-bold tabular-nums md:text-xl", t.value)}>{value}</div>
           {detail && (
-            <div className="truncate text-[11px] text-muted-foreground md:text-xs">{detail}</div>
+            // Sem truncate: num card de meia largura no mobile o corte comia
+            // justamente o "R$ 490,00 falta" — quebrar linha preserva a informação.
+            <div className="text-[11px] leading-tight text-muted-foreground md:text-xs">{detail}</div>
           )}
           {progress !== undefined && (
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
