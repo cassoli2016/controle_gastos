@@ -68,11 +68,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const budgetLine = budget && realViews.length > 0 ? dailyBudgetLine(month, today, budget.perDayCents) : null;
   const views = budgetLine ? [...realViews, dailyBudgetEntryView(budgetLine)] : realViews;
 
-  const catColor = new Map(categories.map((c) => [c.name, c.color]));
+  // Cor por ID: categorias homônimas não disputam a mesma cor/fatia (a linha
+  // derivada da reserva usa id sintético e cai no cinza de fallback).
+  const catColor = new Map(categories.map((c) => [c.id, c.color]));
   const pieData = expenseByCategory(views).map((x) => ({
     categoryName: x.categoryName,
     value: x.cents,
-    color: catColor.get(x.categoryName) ?? "#64748b",
+    color: catColor.get(x.categoryId) ?? "#64748b",
   }));
   const ranking = expenseRanking(views).slice(0, 10);
   const hasExpenses = ranking.length > 0;

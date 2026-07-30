@@ -2,6 +2,7 @@ import { sumCents } from "@/lib/money";
 
 export type EntryView = {
   itemName: string;
+  categoryId: string;
   categoryName: string;
   categoryType: "INCOME" | "EXPENSE";
   plannedCents: number;
@@ -60,11 +61,18 @@ export function expenseRanking(e: EntryView[]): { itemName: string; cents: numbe
     .map((x) => ({ itemName: x.itemName, cents: x.plannedCents }))
     .sort((a, b) => b.cents - a.cents);
 }
-export function expenseByCategory(e: EntryView[]): { categoryName: string; cents: number }[] {
-  const map = new Map<string, number>();
-  for (const x of expense(e)) map.set(x.categoryName, (map.get(x.categoryName) ?? 0) + x.plannedCents);
+/** Agrega por ID (homônimas não se misturam); o nome é só o rótulo de exibição. */
+export function expenseByCategory(e: EntryView[]): { categoryId: string; categoryName: string; cents: number }[] {
+  const map = new Map<string, { categoryName: string; cents: number }>();
+  for (const x of expense(e)) {
+    const cur = map.get(x.categoryId);
+    map.set(x.categoryId, {
+      categoryName: cur?.categoryName ?? x.categoryName,
+      cents: (cur?.cents ?? 0) + x.plannedCents,
+    });
+  }
   return [...map.entries()]
-    .map(([categoryName, cents]) => ({ categoryName, cents }))
+    .map(([categoryId, v]) => ({ categoryId, ...v }))
     .sort((a, b) => b.cents - a.cents);
 }
 

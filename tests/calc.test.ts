@@ -8,10 +8,10 @@ import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 
 const E: EntryView[] = [
-  { itemName: "SALÁRIO", categoryName: "Renda", categoryType: "INCOME", plannedCents: 2500000, paid: true, paidCents: 2500000 },
-  { itemName: "YOUTUBE", categoryName: "Assinaturas", categoryType: "EXPENSE", plannedCents: 6000, paid: true, paidCents: 6000 },
-  { itemName: "ESTACIONAMENTO", categoryName: "Transporte", categoryType: "EXPENSE", plannedCents: 22000, paid: false, paidCents: null },
-  { itemName: "PS PLUS", categoryName: "Assinaturas", categoryType: "EXPENSE", plannedCents: 59000, paid: false, paidCents: null },
+  { itemName: "SALÁRIO", categoryId: "cat-renda", categoryName: "Renda", categoryType: "INCOME", plannedCents: 2500000, paid: true, paidCents: 2500000 },
+  { itemName: "YOUTUBE", categoryId: "cat-assin", categoryName: "Assinaturas", categoryType: "EXPENSE", plannedCents: 6000, paid: true, paidCents: 6000 },
+  { itemName: "ESTACIONAMENTO", categoryId: "cat-transp", categoryName: "Transporte", categoryType: "EXPENSE", plannedCents: 22000, paid: false, paidCents: null },
+  { itemName: "PS PLUS", categoryId: "cat-assin", categoryName: "Assinaturas", categoryType: "EXPENSE", plannedCents: 59000, paid: false, paidCents: null },
 ];
 
 describe("calc", () => {
@@ -26,11 +26,18 @@ describe("calc", () => {
       { itemName: "YOUTUBE", cents: 6000 },
     ]);
   });
-  it("expenseByCategory agrega e ordena desc", () => {
+  it("expenseByCategory agrega por ID, rotula pelo nome e ordena desc", () => {
     expect(expenseByCategory(E)).toEqual([
-      { categoryName: "Assinaturas", cents: 65000 },
-      { categoryName: "Transporte", cents: 22000 },
+      { categoryId: "cat-assin", categoryName: "Assinaturas", cents: 65000 },
+      { categoryId: "cat-transp", categoryName: "Transporte", cents: 22000 },
     ]);
+  });
+  it("categorias homônimas com ids diferentes NÃO se misturam", () => {
+    const homon: EntryView[] = [
+      { itemName: "A", categoryId: "c1", categoryName: "Outros", categoryType: "EXPENSE", plannedCents: 100, paid: false, paidCents: null },
+      { itemName: "B", categoryId: "c2", categoryName: "Outros", categoryType: "EXPENSE", plannedCents: 200, paid: false, paidCents: null },
+    ];
+    expect(expenseByCategory(homon)).toHaveLength(2);
   });
 });
 
@@ -39,6 +46,8 @@ describe("reserva do dia a dia nos cálculos do mês", () => {
   const reserva = dailyBudgetEntryView(dailyBudgetLine("2026-07", "2026-07-26", 10000));
   const comReserva: EntryView[] = [...E, reserva];
 
+  it("linha da reserva carrega o id sintético", () =>
+    expect(reserva.categoryId).toBe("daily-budget"));
   it("conta como despesa não paga", () => {
     expect(reserva).toMatchObject({ plannedCents: 60000, paid: false, paidCents: null, categoryType: "EXPENSE" });
   });
@@ -55,6 +64,7 @@ describe("reserva do dia a dia nos cálculos do mês", () => {
     // Busca por nome, não por posição: "Assinaturas" soma 65.000 nesta fixture
     // e fica à frente da reserva (60.000) na ordenação por categoria.
     expect(expenseByCategory(comReserva).find((c) => c.categoryName === "Reserva do dia a dia")).toEqual({
+      categoryId: "daily-budget",
       categoryName: "Reserva do dia a dia",
       cents: 60000,
     });

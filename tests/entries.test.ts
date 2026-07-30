@@ -7,10 +7,11 @@ describe("toEntryView", () => {
       plannedAmount: "220.00",
       paid: false,
       paidAmount: null,
-      item: { name: "ESTACIONAMENTO", category: { name: "Transporte", type: "EXPENSE" } },
+      item: { name: "ESTACIONAMENTO", category: { id: "cat-transp", name: "Transporte", type: "EXPENSE" } },
     };
     expect(toEntryView(row as never)).toEqual({
       itemName: "ESTACIONAMENTO",
+      categoryId: "cat-transp",
       categoryName: "Transporte",
       categoryType: "EXPENSE",
       plannedCents: 22000,
@@ -26,10 +27,11 @@ describe("toEntryView", () => {
       paidAmount: "350.00",
       item: null,
       description: "Notebook Dell (1/10)",
-      category: { name: "Eletrônicos", type: "EXPENSE" },
+      category: { id: "cat-eletro", name: "Eletrônicos", type: "EXPENSE" },
     };
     expect(toEntryView(row as never)).toEqual({
       itemName: "Notebook Dell (1/10)",
+      categoryId: "cat-eletro",
       categoryName: "Eletrônicos",
       categoryType: "EXPENSE",
       plannedCents: 35000,
