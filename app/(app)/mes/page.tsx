@@ -1,6 +1,6 @@
 import { Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { monthToDate } from "@/lib/dates";
+import { monthToDate, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget } from "@/lib/planning";
@@ -183,7 +183,7 @@ function EntryRow({
 
 export default async function MesPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
-  const month = qMonth ?? (await resolveDefaultMonth());
+  const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
   const [rows, activeItems, activeCards, categories, budget] = await Promise.all([

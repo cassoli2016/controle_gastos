@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
-import { monthToDate, formatCompetencia } from "@/lib/dates";
+import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
@@ -24,7 +24,7 @@ import { monthStringFromDate } from "@/lib/dates";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
-  const month = qMonth ?? (await resolveDefaultMonth());
+  const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
   const rows = await prisma.monthlyEntry.findMany({
