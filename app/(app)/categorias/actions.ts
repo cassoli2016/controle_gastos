@@ -1,4 +1,5 @@
 "use server";
+import { guardAction } from "@/lib/action-guard";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { categorySchema } from "@/lib/validators";
@@ -6,7 +7,7 @@ import { categorySchema } from "@/lib/validators";
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
 export type ActionState = { error?: string; ok?: boolean };
 
-export async function createCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createCategory = guardAction(async function createCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = categorySchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
@@ -16,9 +17,9 @@ export async function createCategory(_prevState: ActionState, formData: FormData
   await prisma.category.create({ data: parsed.data });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function updateCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateCategory = guardAction(async function updateCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Categoria inválida." };
   const parsed = categorySchema.safeParse({
@@ -30,9 +31,9 @@ export async function updateCategory(_prevState: ActionState, formData: FormData
   await prisma.category.update({ where: { id }, data: parsed.data });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function deleteCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteCategory = guardAction(async function deleteCategory(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Categoria inválida." };
   const count = await prisma.item.count({ where: { categoryId: id } });
@@ -40,4 +41,4 @@ export async function deleteCategory(_prevState: ActionState, formData: FormData
   await prisma.category.delete({ where: { id } });
   revalidateFinance();
   return { ok: true };
-}
+});

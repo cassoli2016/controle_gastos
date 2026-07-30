@@ -1,4 +1,5 @@
 "use server";
+import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
@@ -37,7 +38,7 @@ const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
 export type ActionState = { error?: string; ok?: boolean; count?: number };
 
-export async function upsertEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const upsertEntry = guardAction(async function upsertEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryUpsertSchema.safeParse({
     itemId: formData.get("itemId"),
     month: formData.get("month"),
@@ -52,9 +53,9 @@ export async function upsertEntry(_prevState: ActionState, formData: FormData): 
   });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function markPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const markPaid = guardAction(async function markPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = markPaidSchema.safeParse({
     entryId: formData.get("entryId"),
     paid: formData.get("paid") === "true",
@@ -73,9 +74,9 @@ export async function markPaid(_prevState: ActionState, formData: FormData): Pro
   });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function applyRange(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const applyRange = guardAction(async function applyRange(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = applyRangeSchema.safeParse({
     itemId: formData.get("itemId"),
     from: formData.get("from"),
@@ -97,9 +98,9 @@ export async function applyRange(_prevState: ActionState, formData: FormData): P
   });
   revalidateFinance();
   return { ok: true, count: months.length };
-}
+});
 
-export async function copyPreviousMonth(month: string) {
+export const copyPreviousMonth = guardAction(async function copyPreviousMonth(month: string) {
   const target = monthToDate(month);
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
   const prevEntries = await prisma.monthlyEntry.findMany({
@@ -168,15 +169,17 @@ export async function copyPreviousMonth(month: string) {
   });
   revalidateFinance();
   return { ok: true, copied };
-}
+});
 
 /** Adaptador de assinatura para uso com useActionState (não altera a lógica de copyPreviousMonth). */
-export async function copyPreviousMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const copyPreviousMonthAction = guardAction(async function copyPreviousMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const month = formData.get("month");
   if (typeof month !== "string" || !month) return { error: "Mês inválido." };
   const result = await copyPreviousMonth(month);
+  // copyPreviousMonth também é blindada: a união inclui { error }.
+  if ("error" in result) return { error: result.error };
   return { ok: result.ok, count: result.copied };
-}
+});
 
 /**
  * Copia as contas fixas do MESMO MÊS do ano anterior (sazonais: IPVA,
@@ -184,7 +187,7 @@ export async function copyPreviousMonthAction(_prevState: ActionState, formData:
  * aniversário caiu no intervalo são aplicados; lançamentos que já existem no
  * mês de destino não são sobrescritos.
  */
-export async function copyYearAgoMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMonthAction(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const month = formData.get("month");
   if (typeof month !== "string" || !/^\d{4}-\d{2}$/.test(month)) return { error: "Mês inválido." };
   const target = monthToDate(month);
@@ -230,14 +233,14 @@ export async function copyYearAgoMonthAction(_prevState: ActionState, formData: 
   });
   revalidateFinance();
   return { ok: true, count: copied };
-}
+});
 
 /**
  * Lança uma compra (avulsa ou parcelada): valida o formulário, resolve
  * cartão/categoria opcionais e cria 1 MonthlyEntry por parcela numa única
  * transação, todas ligadas pelo mesmo installmentId.
  */
-export async function createPurchase(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createPurchase = guardAction(async function createPurchase(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = purchaseSchema.safeParse({
     cardId: formData.get("cardId"),
     description: formData.get("description"),
@@ -341,10 +344,10 @@ export async function createPurchase(_prevState: ActionState, formData: FormData
 
   revalidateFinance();
   return { ok: true, count: installments };
-}
+});
 
 /** Lança um recebimento (categoria INCOME); recorrente vira conta fixa. */
-export async function createIncome(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createIncome = guardAction(async function createIncome(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = incomeSchema.safeParse({
     description: formData.get("description"),
     amount: formData.get("amount"),
@@ -384,14 +387,14 @@ export async function createIncome(_prevState: ActionState, formData: FormData):
   });
   revalidateFinance();
   return { ok: true, count: 1 };
-}
+});
 
 /**
  * Encerra uma recorrência a partir de um lançamento: exclui ESTE lançamento e
  * todos os futuros do mesmo item, e desativa o item (não volta em "Copiar
  * mês anterior" nem nos formulários). Meses anteriores ficam como histórico.
  */
-export async function deleteRecurringForward(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteRecurringForward = guardAction(async function deleteRecurringForward(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const entryId = formData.get("entryId");
   if (typeof entryId !== "string" || !entryId) return { error: "Lançamento inválido." };
   const entry = await prisma.monthlyEntry.findUnique({ where: { id: entryId } });
@@ -404,17 +407,17 @@ export async function deleteRecurringForward(_prevState: ActionState, formData: 
   ]);
   revalidateFinance();
   return { ok: true, count };
-}
+});
 
 /** Converte um lançamento avulso em recorrência mensal (cria a conta fixa). */
-export async function makeRecurring(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const makeRecurring = guardAction(async function makeRecurring(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const entryId = formData.get("entryId");
   if (typeof entryId !== "string" || !entryId) return { error: "Lançamento inválido." };
   const result = await convertEntryToRecurring(entryId);
   if (!result.ok) return { error: result.error };
   revalidateFinance();
   return { ok: true, count: result.count };
-}
+});
 
 /**
  * Exclui um MonthlyEntry pelo id. Usada tanto para lançamentos de item fixo
@@ -422,20 +425,20 @@ export async function makeRecurring(_prevState: ActionState, formData: FormData)
  * parcelas individuais (exclui só aquela parcela, sem tocar nas demais do
  * mesmo installmentId — para isso ver deleteInstallment).
  */
-export async function deleteEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteEntry = guardAction(async function deleteEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = deleteEntrySchema.safeParse({ entryId: formData.get("entryId") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.monthlyEntry.delete({ where: { id: parsed.data.entryId } });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /**
  * Atualiza o valor previsto de todas as parcelas em aberto (paid=false) de um
  * parcelamento. Parcelas já pagas não são alteradas — o valor pago fica
  * como registrado no momento do pagamento.
  */
-export async function updateInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateInstallment = guardAction(async function updateInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = updateInstallmentSchema.safeParse({
     installmentId: formData.get("installmentId"),
     amount: formData.get("amount"),
@@ -455,23 +458,23 @@ export async function updateInstallment(_prevState: ActionState, formData: FormD
   }
   revalidateFinance();
   return { ok: true, count };
-}
+});
 
 /** Exclui todas as parcelas (pagas ou não) de um parcelamento. */
-export async function deleteInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteInstallment = guardAction(async function deleteInstallment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = deleteInstallmentSchema.safeParse({ installmentId: formData.get("installmentId") });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { count } = await prisma.monthlyEntry.deleteMany({ where: { installmentId: parsed.data.installmentId } });
   revalidateFinance();
   return { ok: true, count };
-}
+});
 
 /**
  * Transfere valor entre dois lançamentos do MESMO mês (ex.: baixar a provisão
  * "ALMOÇO" e somar no lançamento do cartão). Atômico: origem diminui e destino
  * aumenta na mesma transação; a origem nunca fica negativa.
  */
-export async function transferValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const transferValue = guardAction(async function transferValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = transferSchema.safeParse({
     sourceEntryId: formData.get("sourceEntryId"),
     targetEntryId: formData.get("targetEntryId"),
@@ -507,7 +510,7 @@ export async function transferValue(_prevState: ActionState, formData: FormData)
 
   revalidateFinance();
   return { ok: true };
-}
+});
 
 const entryIdsSchema = z.object({
   entryIds: z.string().transform((v, ctx) => {
@@ -528,7 +531,7 @@ const entryIdsSchema = z.object({
  * (célula pode agregar várias ocorrências, ex.: diarista). Pagar usa o
  * previsto de cada um como valor pago.
  */
-export async function setEntriesPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const setEntriesPaid = guardAction(async function setEntriesPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryIdsSchema.safeParse({
     entryIds: formData.get("entryIds"),
     paid: formData.get("paid"),
@@ -548,7 +551,7 @@ export async function setEntriesPaid(_prevState: ActionState, formData: FormData
   );
   revalidateFinance();
   return { ok: true, count: entries.length };
-}
+});
 
 const entryValueSchema = z.object({
   entryId: z.string().min(1),
@@ -556,7 +559,7 @@ const entryValueSchema = z.object({
 });
 
 /** Edita o previsto de UM lançamento (célula simples do Panorama). */
-export async function updateEntryValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateEntryValue = guardAction(async function updateEntryValue(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryValueSchema.safeParse({
     entryId: formData.get("entryId"),
     amount: formData.get("amount"),
@@ -568,4 +571,4 @@ export async function updateEntryValue(_prevState: ActionState, formData: FormDa
   });
   revalidateFinance();
   return { ok: true };
-}
+});

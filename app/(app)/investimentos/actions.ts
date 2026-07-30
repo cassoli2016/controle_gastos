@@ -1,4 +1,5 @@
 "use server";
+import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
@@ -25,7 +26,7 @@ const assetSchema = z.object({
   avgPrice: z.coerce.number().positive("PM deve ser maior que zero"),
 });
 
-export async function upsertAsset(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const upsertAsset = guardAction(async function upsertAsset(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = assetSchema.safeParse({
     ticker: formData.get("ticker"),
     segment: formData.get("segment"),
@@ -41,19 +42,19 @@ export async function upsertAsset(_prevState: ActionState, formData: FormData): 
   });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function archiveAsset(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const archiveAsset = guardAction(async function archiveAsset(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Ativo inválido." };
   const active = formData.get("active") === "true";
   await prisma.investmentAsset.update({ where: { id }, data: { active } });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /** Atualiza as cotações de todos os ativos ativos via brapi (cache no banco). */
-export async function refreshQuotes(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
+export const refreshQuotes = guardAction(async function refreshQuotes(_prevState: ActionState, _formData: FormData): Promise<ActionState> {
   const r = await refreshAllQuotes();
   revalidateFinance();
   if (r.total === 0) return { error: "Nenhum ativo ativo para cotar." };
@@ -62,14 +63,14 @@ export async function refreshQuotes(_prevState: ActionState, _formData: FormData
       error: "Nenhuma cotação obtida. Confira o BRAPI_TOKEN no ambiente (crie grátis em brapi.dev).",
     };
   return { ok: true, count: r.updated };
-}
+});
 
 /**
  * Marca um provento como recebido e lança no fluxo do mês (categoria
  * Dividendos, INCOME, já pago). entryId evita duplicar; desmarcar remove o
  * lançamento.
  */
-export async function toggleDividendReceived(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const toggleDividendReceived = guardAction(async function toggleDividendReceived(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("dividendId");
   if (typeof id !== "string" || !id) return { error: "Provento inválido." };
   const dividend = await prisma.dividend.findUnique({ where: { id }, include: { asset: true } });
@@ -86,7 +87,7 @@ export async function toggleDividendReceived(_prevState: ActionState, formData: 
   }
   revalidateFinance();
   return { ok: true };
-}
+});
 
 const dividendSchema = z.object({
   ticker: z.string().trim().toUpperCase().regex(TICKER_RE, "Ticker inválido (ex.: BBSE3)"),
@@ -97,7 +98,7 @@ const dividendSchema = z.object({
 });
 
 /** Cadastra um provento anunciado (bruto=líquido para Dividendos; JSCP tem 15% de IR). */
-export async function createDividend(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createDividend = guardAction(async function createDividend(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = dividendSchema.safeParse({
     ticker: formData.get("ticker"),
     type: formData.get("type"),
@@ -126,9 +127,9 @@ export async function createDividend(_prevState: ActionState, formData: FormData
   });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function deleteDividend(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteDividend = guardAction(async function deleteDividend(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("dividendId");
   if (typeof id !== "string" || !id) return { error: "Provento inválido." };
   const dividend = await prisma.dividend.findUnique({ where: { id } });
@@ -136,10 +137,10 @@ export async function deleteDividend(_prevState: ActionState, formData: FormData
   await prisma.dividend.delete({ where: { id } });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /** Importa um relatório .xlsx da Área do Investidor B3 (Negociação ou Movimentação). */
-export async function importB3Report(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const importB3Report = guardAction(async function importB3Report(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) return { error: "Selecione o arquivo .xlsx do relatório." };
   if (file.size > 5_000_000) return { error: "Arquivo muito grande (máx. 5 MB)." };
@@ -168,7 +169,7 @@ export async function importB3Report(_prevState: ActionState, formData: FormData
   if (r.matched + r.created === 0 && r.duplicated > 0)
     return { error: "Nenhum provento novo — este relatório já foi importado." };
   return { ok: true, count: r.matched + r.created };
-}
+});
 
 const tradeSchema = z.object({
   ticker: z.string().trim().toUpperCase().regex(TICKER_RE, "Ticker inválido (ex.: BBSE3)"),
@@ -184,7 +185,7 @@ const tradeSchema = z.object({
  * histórico com o mesmo hash da importação B3 (importar o extrato depois não
  * duplica o mesmo negócio).
  */
-export async function registerTrade(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const registerTrade = guardAction(async function registerTrade(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = tradeSchema.safeParse({
     ticker: formData.get("ticker"),
     side: formData.get("side"),
@@ -217,4 +218,4 @@ export async function registerTrade(_prevState: ActionState, formData: FormData)
 
   revalidateFinance();
   return { ok: true };
-}
+});

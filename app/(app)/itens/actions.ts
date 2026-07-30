@@ -1,4 +1,5 @@
 "use server";
+import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
@@ -36,7 +37,7 @@ function parseItem(formData: FormData) {
   });
 }
 
-export async function createItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createItem = guardAction(async function createItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = parseItem(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const dup = await findActiveItemByName(parsed.data.name);
@@ -44,9 +45,9 @@ export async function createItem(_prevState: ActionState, formData: FormData): P
   await prisma.item.create({ data: parsed.data });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function updateItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateItem = guardAction(async function updateItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Item inválido." };
   const parsed = parseItem(formData);
@@ -101,16 +102,16 @@ export async function updateItem(_prevState: ActionState, formData: FormData): P
   }
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function archiveItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const archiveItem = guardAction(async function archiveItem(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Item inválido." };
   const active = formData.get("active") === "true";
   await prisma.item.update({ where: { id }, data: { active } });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 const adjustmentSchema = z
   .object({
@@ -132,7 +133,7 @@ const adjustmentSchema = z
  * (composto para %, linear para valor fixo). Aplicar é uma edição em massa
  * única — reaplicar reajusta de novo sobre os valores já reajustados.
  */
-export async function saveAdjustment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const saveAdjustment = guardAction(async function saveAdjustment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = adjustmentSchema.safeParse({
     id: formData.get("id"),
     adjustMonth: formData.get("adjustMonth"),
@@ -175,10 +176,10 @@ export async function saveAdjustment(_prevState: ActionState, formData: FormData
 
   revalidateFinance();
   return { ok: true, count };
-}
+});
 
 /** Remove a regra de reajuste do item (não altera lançamentos já gravados). */
-export async function clearAdjustment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const clearAdjustment = guardAction(async function clearAdjustment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Item inválido." };
   await prisma.item.update({
@@ -187,4 +188,4 @@ export async function clearAdjustment(_prevState: ActionState, formData: FormDat
   });
   revalidateFinance();
   return { ok: true };
-}
+});
