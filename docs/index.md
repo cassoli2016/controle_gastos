@@ -22,6 +22,7 @@ expandido em um arquivo de conceito próprio via `/mega-brain:migrate` ou `/mega
 - [nfs-emitidas](nfs-emitidas.md) — histórico de notas fiscais emitidas por ano (2019→presente)
 - [ipva](ipva.md) — IPVA e licenciamento por veículo (identificadores mascarados)
 - [cartao-credito](cartao-credito.md) — compras parceladas do cartão distribuídas por competência
+- [fatura-bradesco-pdf](fatura-bradesco-pdf.md) — layout do PDF da fatura Bradesco/Amazon e regras de transcrição para o app
 
 ## Metrics
 
