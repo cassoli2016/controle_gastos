@@ -30,3 +30,13 @@ describe("money", () => {
     expect(() => parseBRLToCents("abc")).toThrow();
   });
 });
+
+describe("decimalToCents guard", () => {
+  it("lança para entrada não numérica", () => {
+    expect(() => decimalToCents("abc")).toThrow(/abc/);
+    expect(() => decimalToCents(Number.NaN)).toThrow();
+  });
+  it("continua convertendo números válidos", () => {
+    expect(decimalToCents("1383.42")).toBe(138342);
+  });
+});

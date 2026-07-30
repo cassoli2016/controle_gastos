@@ -11,6 +11,12 @@ export function formatCompetencia(d: Date): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "short", year: "numeric", timeZone: "UTC" }).format(d);
 }
 
+const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
+/** Valida "YYYY-MM" vindo da URL; inválido/ausente → null (caller usa o mês default). */
+export function sanitizeMonth(month: string | undefined): string | null {
+  return month !== undefined && MONTH_RE.test(month) ? month : null;
+}
+
 /** Lista "YYYY-MM" inclusiva de `from` até `to`. Vazio se `to` < `from`. */
 export function monthRange(from: string, to: string): string[] {
   const start = monthToDate(from);

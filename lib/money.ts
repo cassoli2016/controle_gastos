@@ -1,6 +1,7 @@
 /** Converte um Decimal/valor numérico em centavos inteiros. */
 export function decimalToCents(value: number | string): number {
   const n = typeof value === "string" ? Number(value) : value;
+  if (Number.isNaN(n)) throw new Error(`Valor decimal inválido: ${value}`);
   return Math.round(n * 100);
 }
 
