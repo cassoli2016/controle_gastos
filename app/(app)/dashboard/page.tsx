@@ -2,7 +2,7 @@ import Link from "next/link";
 import { upcomingRenewals, renewalLabel, MONTH_NAMES } from "@/lib/renewals";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
-import { TrendingUp, TrendingDown, Wallet, Clock, CalendarX2, PiggyBank, BellRing } from "lucide-react";
+import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -10,9 +10,10 @@ import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
-import { plannedIncome, plannedExpense, plannedBalance, remainingToPay, expenseByCategory, expenseRanking } from "@/lib/calc";
-import { formatCents, sumCents } from "@/lib/money";
-import { StatCard } from "@/components/StatCard";
+import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
+import { formatCents, sumCents, decimalToCents } from "@/lib/money";
+import { upcomingCardCommitments } from "@/lib/card-entry";
+import { MonthStatCards } from "@/components/MonthStatCards";
 import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
@@ -64,10 +65,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // aparecia com "despesa" só da reserva, e a pizza desenhava uma fatia de
   // valor zero em vez do estado "Sem despesas neste mês".
   const today = todayISOInSaoPaulo();
-  const views =
-    budget && realViews.length > 0
-      ? [...realViews, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]
-      : realViews;
+  const budgetLine = budget && realViews.length > 0 ? dailyBudgetLine(month, today, budget.perDayCents) : null;
+  const views = budgetLine ? [...realViews, dailyBudgetEntryView(budgetLine)] : realViews;
 
   const catColor = new Map(categories.map((c) => [c.name, c.color]));
   const pieData = expenseByCategory(views).map((x) => ({
@@ -112,6 +111,16 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     };
   });
 
+  // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
+  // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
+  // apenas — o gasto conta no mês em que a fatura vence.
+  const nextThree = new Set(chartMonths.slice(1, 4));
+  const upcomingFaturas = upcomingCardCommitments(
+    rangeRows
+      .filter((r) => r.cardId !== null && nextThree.has(monthStringFromDate(r.month)))
+      .map((r) => ({ month: monthStringFromDate(r.month), plannedCents: decimalToCents(String(r.plannedAmount)) })),
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -119,12 +128,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Receitas" value={formatCents(plannedIncome(views))} tone="income" icon={TrendingUp} />
-        <StatCard label="Despesas" value={formatCents(plannedExpense(views))} tone="expense" icon={TrendingDown} />
-        <StatCard label="Saldo" value={formatCents(plannedBalance(views))} tone={plannedBalance(views) < 0 ? "expense" : "default"} icon={Wallet} />
-        <StatCard label="Falta pagar" value={formatCents(remainingToPay(views))} tone="warn" icon={Clock} />
-      </div>
+      <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>
@@ -250,6 +254,33 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             )}
             <Button asChild variant="outline" size="sm">
               <Link href="/itens">Configurar itens</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Próximas faturas</CardTitle>
+            <CreditCardIcon className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {upcomingFaturas.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nada comprometido nas próximas faturas.</p>
+            ) : (
+              <ul className="space-y-1.5">
+                {upcomingFaturas.map((f) => (
+                  <li key={f.month} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground">{formatCompetencia(monthToDate(f.month))}</span>
+                    <span className="font-medium tabular-nums">{formatCents(f.totalCents)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Compras no cartão que já vão cair nos próximos meses.
+            </p>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/cartoes">Ver cartões</Link>
             </Button>
           </CardContent>
         </Card>
