@@ -2,7 +2,9 @@
 import { guardAction } from "@/lib/action-guard";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
-import { reserveSchema, dailyBudgetSchema } from "@/lib/validators";
+import { reserveSchema, dailyBudgetSchema, depositSchema } from "@/lib/validators";
+import { resolveCategoryId } from "@/lib/purchases";
+import { RESERVE_CATEGORY, depositEntryData } from "@/lib/reserve-flow";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -35,6 +37,31 @@ export const deleteReserve = guardAction(async function deleteReserve(_prevState
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Caixinha inválida." };
   await prisma.reserveBox.delete({ where: { id } });
+  revalidateFinance();
+  return { ok: true };
+});
+
+/**
+ * Deposita na caixinha: soma no amount E cria o lançamento de despesa já pago
+ * no mês da data — numa transação só, para o dinheiro nunca contar duas vezes.
+ */
+export const depositToReserve = guardAction(async function depositToReserve(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = depositSchema.safeParse({
+    id: formData.get("id"),
+    amount: formData.get("amount"),
+    date: formData.get("date"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { id, amount, date } = parsed.data;
+
+  const box = await prisma.reserveBox.findUnique({ where: { id } });
+  if (!box) return { error: "Caixinha não encontrada." };
+
+  const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
+  await prisma.$transaction(async (tx) => {
+    await tx.reserveBox.update({ where: { id }, data: { amount: { increment: amount } } });
+    await tx.monthlyEntry.create({ data: { categoryId, ...depositEntryData(box.name, amount, date) } });
+  });
   revalidateFinance();
   return { ok: true };
 });

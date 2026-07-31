@@ -32,6 +32,18 @@ export async function resolveIncomeCategoryId(): Promise<string> {
   return created.id;
 }
 
+/** Find-or-create de categoria por nome (categorias de sistema, ex.: movimentos de caixinha). */
+export async function resolveCategoryId(spec: {
+  name: string;
+  type: "INCOME" | "EXPENSE";
+  color: string;
+}): Promise<string> {
+  const existing = await prisma.category.findFirst({ where: { name: spec.name, type: spec.type } });
+  if (existing) return existing.id;
+  const created = await prisma.category.create({ data: spec });
+  return created.id;
+}
+
 export type PurchaseInput = {
   description: string;
   /** Valor POR parcela, em reais. */

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
-import { getDailyBudget } from "@/lib/planning";
+import { getDailyBudget, getReserves } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { groupByCategory, isOverdue } from "@/lib/calc";
@@ -55,6 +55,7 @@ function EntryRow({
   variant,
   income,
   categories,
+  reserves,
 }: {
   row: DisplayRow;
   month: string;
@@ -62,6 +63,7 @@ function EntryRow({
   /** Grupo de receita: PayCell e labels usam "Receber/Recebido". */
   income: boolean;
   categories: { id: string; name: string }[];
+  reserves: { id: string; name: string }[];
 }) {
   // Dia: item fixo mostra o dia de vencimento; avulso mostra a data do
   // lançamento (dd/mm) quando registrada.
@@ -94,6 +96,7 @@ function EntryRow({
       paidCents={row.paidCents}
       paidDate={row.paidDate}
       income={income}
+      reserves={reserves}
     />
   );
   // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
@@ -186,7 +189,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
   const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems, activeCards, categories, budget] = await Promise.all([
+  const [rows, activeItems, activeCards, categories, budget, reserves] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
       include: { item: { include: { category: true } }, category: true, card: true },
@@ -196,7 +199,9 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
     prisma.creditCard.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     getDailyBudget(),
+    getReserves(),
   ]);
+  const reserveOptions = reserves.map((r) => ({ id: r.id, name: r.name }));
 
   const today = todayISOInSaoPaulo();
   const realViews: DisplayRow[] = rows.map((r) => {
@@ -355,7 +360,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                       </thead>
                       <tbody>
                         {g.rows.map((row) => (
-                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
+                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} reserves={reserveOptions} />
                         ))}
                       </tbody>
                     </table>
@@ -364,7 +369,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
                   {/* Mobile: mini-cards empilhados */}
                   <div className="md:hidden divide-y">
                     {g.rows.map((row) => (
-                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} />
+                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} categories={categories.map((c) => ({ id: c.id, name: c.name }))} reserves={reserveOptions} />
                     ))}
                   </div>
                 </CardContent>

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 
 function todayISO(): string {
@@ -28,6 +29,7 @@ export function PayCell({
   paidCents,
   paidDate,
   income = false,
+  reserves = [],
 }: {
   entryId: string;
   plannedCents: number;
@@ -36,6 +38,8 @@ export function PayCell({
   paidDate: Date | null;
   /** Receita (categoria INCOME): vocabulário "Receber/Recebido" em vez de "Pagar/Pago". */
   income?: boolean;
+  /** Caixinhas para pagar "pela caixinha" (só faz sentido em despesas). */
+  reserves?: { id: string; name: string }[];
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(markPaid, {});
   useActionToast(state, { success: income ? "Recebimento atualizado." : "Pagamento atualizado." });
@@ -88,6 +92,26 @@ export function PayCell({
             </label>
             <Input id={`paidDate-${entryId}`} type="date" name="paidDate" defaultValue={todayISO()} required />
           </div>
+          {!income && reserves.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor={`reserveId-${entryId}`} className="text-xs text-muted-foreground">
+                De onde sai o dinheiro?
+              </label>
+              <Select name="reserveId" defaultValue="none">
+                <SelectTrigger id={`reserveId-${entryId}`} className="w-full">
+                  <SelectValue placeholder="Do mês" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Do mês</SelectItem>
+                  {reserves.map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      Caixinha · {r.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <Button type="submit" size="sm" disabled={pending}>
             Confirmar
           </Button>

@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useState } from "react";
-import { PiggyBank, Pencil, Trash2 } from "lucide-react";
-import { updateReserve, deleteReserve, type ActionState } from "./actions";
+import { PiggyBank, Pencil, Trash2, Plus } from "lucide-react";
+import { updateReserve, deleteReserve, depositToReserve, type ActionState } from "./actions";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +30,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export function ReserveCard({ reserve }: { reserve: { id: string; name: string; amountCents: number } }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateReserve, {});
   useActionToast(editState, { success: "Caixinha atualizada." });
@@ -41,6 +45,15 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
   if (editState !== seenEdit) {
     setSeenEdit(editState);
     if (editState.ok) setEditOpen(false);
+  }
+
+  const [depositState, depositAction, depositPending] = useActionState<ActionState, FormData>(depositToReserve, {});
+  useActionToast(depositState, { success: "Depósito registrado." });
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [seenDeposit, setSeenDeposit] = useState(depositState);
+  if (depositState !== seenDeposit) {
+    setSeenDeposit(depositState);
+    if (depositState.ok) setDepositOpen(false);
   }
 
   return (
@@ -56,6 +69,45 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
+            <DialogTrigger asChild>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Depositar em ${reserve.name}`}>
+                <Plus className="size-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Depositar em “{reserve.name}”</DialogTitle>
+                <DialogDescription>
+                  O valor soma na caixinha e entra como despesa paga (“Reserva”) no mês da data — assim o
+                  dinheiro não conta duas vezes.
+                </DialogDescription>
+              </DialogHeader>
+              <form action={depositAction} className="flex flex-col gap-3">
+                <input type="hidden" name="id" value={reserve.id} />
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`reserve-deposit-amount-${reserve.id}`}>Valor</Label>
+                  <CurrencyInput id={`reserve-deposit-amount-${reserve.id}`} name="amount" defaultCents={0} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`reserve-deposit-date-${reserve.id}`}>Data</Label>
+                  <Input
+                    id={`reserve-deposit-date-${reserve.id}`}
+                    type="date"
+                    name="date"
+                    defaultValue={todayISO()}
+                    required
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={depositPending}>
+                    Depositar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
           <Dialog open={editOpen} onOpenChange={setEditOpen}>
             <DialogTrigger asChild>
               <Button type="button" variant="ghost" size="icon-sm" aria-label={`Editar ${reserve.name}`}>
