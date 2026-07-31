@@ -38,7 +38,7 @@ export async function resolveCategoryId(spec: {
   type: "INCOME" | "EXPENSE";
   color: string;
 }): Promise<string> {
-  const existing = await prisma.category.findFirst({ where: { name: spec.name } });
+  const existing = await prisma.category.findFirst({ where: { name: spec.name, type: spec.type } });
   if (existing) return existing.id;
   const created = await prisma.category.create({ data: spec });
   return created.id;
