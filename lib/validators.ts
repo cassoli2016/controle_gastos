@@ -8,6 +8,11 @@ export const categorySchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   type: z.enum(["INCOME", "EXPENSE"]),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Cor deve ser hex #RRGGBB"),
+  // Meta mensal em REAIS (CurrencyInput manda decimal); 0/vazio = sem meta.
+  budgetAmount: z.preprocess(
+    (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
+    z.coerce.number().positive("Meta deve ser maior que zero").nullable(),
+  ),
 });
 
 export const itemSchema = z.object({

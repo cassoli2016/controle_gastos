@@ -12,6 +12,7 @@ export const createCategory = guardAction(async function createCategory(_prevSta
     name: formData.get("name"),
     type: formData.get("type"),
     color: formData.get("color"),
+    budgetAmount: formData.get("budgetAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.category.create({ data: parsed.data });
@@ -26,6 +27,7 @@ export const updateCategory = guardAction(async function updateCategory(_prevSta
     name: formData.get("name"),
     type: formData.get("type"),
     color: formData.get("color"),
+    budgetAmount: formData.get("budgetAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.category.update({ where: { id }, data: parsed.data });

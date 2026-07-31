@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { decimalToCents } from "@/lib/money";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components/ui/table";
 import { NewCategoryForm } from "./NewCategoryForm";
@@ -28,7 +29,16 @@ export default async function CategoriasPage() {
             </TableHeader>
             <TableBody>
               {categories.map((c) => (
-                <CategoryRow key={c.id} category={c} />
+                <CategoryRow
+                  key={c.id}
+                  category={{
+                    id: c.id,
+                    name: c.name,
+                    type: c.type,
+                    color: c.color,
+                    budgetCents: c.budgetAmount === null ? null : decimalToCents(String(c.budgetAmount)),
+                  }}
+                />
               ))}
             </TableBody>
           </Table>

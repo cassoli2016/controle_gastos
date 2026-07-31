@@ -2,7 +2,7 @@ import Link from "next/link";
 import { upcomingRenewals, renewalLabel, MONTH_NAMES } from "@/lib/renewals";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
-import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon } from "lucide-react";
+import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -13,6 +13,9 @@ import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
+import { budgetLines } from "@/lib/budget";
+import { usageTone } from "@/lib/card-usage";
+import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
 import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -116,6 +119,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
   // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
   // apenas — o gasto conta no mês em que a fatura vence.
+  // Orçamento do mês: planejado da categoria vs meta (estouro aparece antes).
+  const monthBudgets = budgetLines(
+    views,
+    categories
+      .filter((c) => c.type === "EXPENSE")
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        color: c.color,
+        budgetCents: c.budgetAmount === null ? null : decimalToCents(String(c.budgetAmount)),
+      })),
+  );
+
   const nextThree = new Set(chartMonths.slice(1, 4));
   const upcomingFaturas = upcomingCardCommitments(
     rangeRows
@@ -283,6 +299,54 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             </p>
             <Button asChild variant="outline" size="sm">
               <Link href="/cartoes">Ver cartões</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex items-center justify-between gap-2">
+            <CardTitle>Orçamento do mês</CardTitle>
+            <Target className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {monthBudgets.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhuma categoria com meta ainda. Defina a meta mensal ao editar uma categoria.
+              </p>
+            ) : (
+              <ul className="space-y-2.5">
+                {monthBudgets.map((b) => (
+                  <li key={b.categoryId} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="flex items-center gap-1.5">
+                        <span className="size-2.5 rounded-full" style={{ background: b.color }} aria-hidden />
+                        {b.name}
+                      </span>
+                      <span
+                        className={cn(
+                          "tabular-nums text-xs",
+                          b.pct > 100 ? "font-semibold text-rose-600 dark:text-rose-400" : "text-muted-foreground",
+                        )}
+                      >
+                        {formatCents(b.plannedCents)} de {formatCents(b.budgetCents)} · {b.pct}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full", {
+                          "bg-emerald-500": usageTone(b.pct) === "emerald",
+                          "bg-amber-500": usageTone(b.pct) === "amber",
+                          "bg-rose-500": usageTone(b.pct) === "rose",
+                        })}
+                        style={{ width: `${Math.min(100, b.pct)}%` }}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <Button asChild variant="outline" size="sm">
+              <Link href="/categorias">Definir metas</Link>
             </Button>
           </CardContent>
         </Card>

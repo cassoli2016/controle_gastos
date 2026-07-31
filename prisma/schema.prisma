@@ -16,6 +16,9 @@ model Category {
   name      String
   type      CategoryType
   color     String
+  // Meta MENSAL de gasto da categoria (card "Orçamento do mês" no Dashboard).
+  // null = sem meta; só faz sentido em categorias EXPENSE.
+  budgetAmount Decimal? @db.Decimal(12, 2)
   createdAt DateTime     @default(now())
   items     Item[]
   entries   MonthlyEntry[]
