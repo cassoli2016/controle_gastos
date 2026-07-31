@@ -11,6 +11,7 @@ import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
 import { StatementDialog, type StatementRowView } from "./StatementDialog";
 import { PrepaymentDialog } from "./PrepaymentDialog";
+import { ImportFaturaDialog } from "./ImportFaturaDialog";
 import { SubscriptionsDialog, type SubscriptionView } from "./SubscriptionsDialog";
 import { formatCompetencia } from "@/lib/dates";
 import { PurchaseDialog } from "../mes/PurchaseDialog";
@@ -127,6 +128,7 @@ export default async function CartoesPage({
                     rows={rows}
                   />
                   <PrepaymentDialog cardId={card.id} cardName={card.name} />
+                  <ImportFaturaDialog cardId={card.id} cardName={card.name} />
                   <SubscriptionsDialog cardId={card.id} cardName={card.name} subscriptions={subs} />
                 </div>
                 {rows.length === 0 && (
