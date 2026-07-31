@@ -39,6 +39,8 @@ export const markPaidSchema = z.object({
   paid: z.boolean(),
   paidAmount: z.coerce.number().nonnegative().nullable().optional(),
   paidDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  // Caixinha de onde sai o dinheiro (null = dinheiro do mês).
+  reserveId: z.string().min(1).nullable().optional(),
 });
 
 export const cardSchema = z.object({

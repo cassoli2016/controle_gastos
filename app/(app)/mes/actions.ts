@@ -7,10 +7,11 @@ import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, tr
 import { monthToDate, monthRange, monthStringFromDate } from "@/lib/dates";
 import { adjustedCents, anniversariesBetween } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
-import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId } from "@/lib/purchases";
+import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId, resolveCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay } from "@/lib/fatura";
 import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence } from "@/lib/recurrence";
+import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
 // altera lib/): validam os formulários de excluir lançamento e
@@ -60,21 +61,45 @@ export const upsertEntry = guardAction(async function upsertEntry(_prevState: Ac
 });
 
 export const markPaid = guardAction(async function markPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const rawReserve = formData.get("reserveId");
   const parsed = markPaidSchema.safeParse({
     entryId: formData.get("entryId"),
     paid: formData.get("paid") === "true",
     paidAmount: formData.get("paidAmount") || null,
     paidDate: formData.get("paidDate") || null,
+    reserveId: rawReserve && rawReserve !== "none" ? rawReserve : null,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { entryId, paid, paidAmount, paidDate } = parsed.data;
-  await prisma.monthlyEntry.update({
-    where: { id: entryId },
-    data: {
-      paid,
-      paidAmount: paid ? paidAmount ?? undefined : null,
-      paidDate: paid && paidDate ? new Date(paidDate + "T00:00:00Z") : null,
-    },
+  const { entryId, paid, paidAmount, paidDate, reserveId } = parsed.data;
+  const data = {
+    paid,
+    paidAmount: paid ? paidAmount ?? undefined : null,
+    paidDate: paid && paidDate ? new Date(paidDate + "T00:00:00Z") : null,
+  };
+
+  if (!paid || !reserveId) {
+    await prisma.monthlyEntry.update({ where: { id: entryId }, data });
+    revalidateFinance();
+    return { ok: true };
+  }
+
+  // Pagando pela caixinha: além da baixa, o valor sai da caixinha e uma
+  // retirada (receita já recebida) compensa no mês da conta — sem ela a
+  // despesa descontaria o patrimônio duas vezes (saldo do mês + caixinha).
+  if (paidAmount == null) return { error: "Informe o valor pago." };
+  if (!paidDate) return { error: "Informe a data do pagamento." };
+  const box = await prisma.reserveBox.findUnique({ where: { id: reserveId } });
+  if (!box) return { error: "Caixinha não encontrada." };
+  if (decimalToCents(String(box.amount)) < Math.round(paidAmount * 100))
+    return { error: "Saldo insuficiente na caixinha." };
+
+  const categoryId = await resolveCategoryId(RESERVE_WITHDRAWAL_CATEGORY);
+  await prisma.$transaction(async (tx) => {
+    const entry = await tx.monthlyEntry.update({ where: { id: entryId }, data });
+    await tx.reserveBox.update({ where: { id: reserveId }, data: { amount: { decrement: paidAmount } } });
+    await tx.monthlyEntry.create({
+      data: { categoryId, ...withdrawalEntryData(box.name, paidAmount, entry.month, paidDate) },
+    });
   });
   revalidateFinance();
   return { ok: true };
