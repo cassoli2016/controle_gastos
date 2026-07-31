@@ -4,7 +4,9 @@ import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
-import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction } from "@/lib/card-entry";
+import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
+import { parseBradescoFatura, sumFaturaLines, scheduleWarnings, type FaturaLine } from "@/lib/bradesco-fatura";
+import { applyBradescoFaturaImport } from "@/lib/bradesco-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 
@@ -162,4 +164,104 @@ export const deleteStatementLine = guardAction(async function deleteStatementLin
   if (!r.ok) return { error: r.error };
   revalidateFinance();
   return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+// Importação de fatura PDF (Bradesco) — preview sem gravar + aplicação.
+
+export type FaturaPreview = {
+  cardId: string;
+  faturaMonth: string;
+  dueDateISO: string;
+  closingISO: string;
+  totalCents: number;
+  warnings: string[];
+  lines: FaturaLine[];
+};
+
+export type FaturaPreviewState = { error?: string; preview?: FaturaPreview };
+export type FaturaApplyState = { error?: string; ok?: boolean; summary?: { month: string; totalCents: number }[] };
+
+const MAX_PDF_BYTES = 4 * 1024 * 1024;
+
+const faturaLineSchema = z.object({
+  dateISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  description: z.string().trim().min(1).max(120),
+  cents: z.number().int(),
+  kind: z.enum(["purchase", "refund", "payment"]),
+  installment: z.object({ seq: z.number().int().min(1), count: z.number().int().min(1) }).nullable(),
+});
+const applyPayloadSchema = z.object({
+  cardId: z.string().min(1),
+  faturaMonth: z.string().regex(/^\d{4}-\d{2}$/),
+  closingISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  totalCents: z.number().int(),
+  lines: z.array(faturaLineSchema).min(1).max(500),
+});
+
+/** Lê o PDF da fatura e devolve o preview validado — nada é gravado. */
+export const previewBradescoFatura = guardAction(async function previewBradescoFatura(
+  _prevState: FaturaPreviewState,
+  formData: FormData,
+): Promise<FaturaPreviewState> {
+  const cardId = formData.get("cardId");
+  if (typeof cardId !== "string" || !cardId) return { error: "Cartão inválido." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Selecione o PDF da fatura." };
+  if (file.size > MAX_PDF_BYTES) return { error: "PDF acima de 4MB." };
+
+  // Import dinâmico: o worker do pdfjs só é carregado quando alguém importa
+  // uma fatura, não em todo build da página.
+  const { extractText, getDocumentProxy } = await import("unpdf");
+  let text: string;
+  try {
+    const pdf = await getDocumentProxy(new Uint8Array(await file.arrayBuffer()));
+    text = (await extractText(pdf, { mergePages: true })).text;
+  } catch {
+    return { error: "Não consegui ler o PDF (arquivo corrompido ou protegido)." };
+  }
+
+  const fatura = parseBradescoFatura(text);
+  if ("error" in fatura) return { error: fatura.error };
+  return {
+    preview: {
+      cardId,
+      faturaMonth: fatura.faturaMonth,
+      dueDateISO: fatura.dueDateISO,
+      closingISO: fatura.closingISO,
+      totalCents: fatura.summary.totalCents,
+      warnings: [...fatura.warnings, ...scheduleWarnings(fatura)],
+      lines: fatura.lines,
+    },
+  };
+});
+
+/** Aplica o preview confirmado (descrições possivelmente editadas). */
+export const applyBradescoFatura = guardAction(async function applyBradescoFatura(
+  _prevState: FaturaApplyState,
+  formData: FormData,
+): Promise<FaturaApplyState> {
+  const raw = formData.get("payload");
+  if (typeof raw !== "string") return { error: "Payload ausente." };
+  let json: unknown;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    return { error: "Payload inválido." };
+  }
+  const parsed = applyPayloadSchema.safeParse(json);
+  if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
+  const { cardId, faturaMonth, closingISO, totalCents, lines } = parsed.data;
+
+  // Revalida a soma no servidor: edição só de descrição não muda o total.
+  if (sumFaturaLines(lines) !== totalCents) {
+    return { error: "A soma das linhas não bate com o total da fatura — refaça o preview." };
+  }
+  const cardRow = await prisma.creditCard.findUnique({ where: { id: cardId } });
+  if (!cardRow) return { error: "Cartão não encontrado." };
+  const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
+
+  const { months } = await applyBradescoFaturaImport({ card, faturaMonth, closingISO, lines });
+  revalidateFinance();
+  return { ok: true, summary: months };
 });
