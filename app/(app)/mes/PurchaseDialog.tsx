@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { ShoppingCart } from "lucide-react";
 
 export function PurchaseDialog({
   cards,
@@ -60,7 +61,8 @@ export function PurchaseDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button type="button">
+          <ShoppingCart className="size-4" />
           Lançar compra
         </Button>
       </DialogTrigger>

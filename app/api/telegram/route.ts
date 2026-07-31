@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
 import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@/lib/nubank-share";
 import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
+import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
@@ -37,29 +38,36 @@ type TelegramUpdate = {
 };
 
 const HELP =
-  "Jeitos de lançar:\n" +
-  "• Compartilhe a notificação de compra do Nubank (bloco com valor, data e cartão)\n" +
-  '• Cole o SMS do Bradesco ("CARTAO X: COMPRA APROVADA…") — cartão, data e parcelas saem dele\n' +
-  '• Texto: "descrição valor [cartão] [Nx|mensal]" — uma ou várias linhas\n' +
-  '• "mensal"/"bimestral"/"trimestral"/"anual"/"a cada N meses" = recorrência\n' +
-  '• Recebimento: "recebi freela 500" ou "salário 25000 receita [mensal]"\n' +
-  '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
-  '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
-  '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
-  "• Foto de comprovante: envie a foto (PIX/cartão/cupom) — legenda = cartão/Nx\n" +
-  "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
-  '• "carteira": resumo · "comprei 100 bbse3 41,27" / "vendi …": registra negócio\n' +
-  "• Relatórios da B3 (.xlsx de Negociação/Movimentação): envie o arquivo aqui\n" +
-  "Cartão vira 1 lançamento consolidado por mês; compra após o fechamento cai na fatura seguinte.";
+  "<b>💸 Gastos</b>\n" +
+  "• Texto: <code>mercado 250</code> · <code>posto 200 nubank 3x</code>\n" +
+  "• Várias linhas de uma vez (uma compra por linha)\n" +
+  "• 📸 Foto do comprovante (PIX/cartão/cupom) — legenda vira cartão/parcelas\n" +
+  "• Share do Nubank ou SMS do Bradesco: cole aqui que eu entendo\n" +
+  "\n<b>💰 Recebimentos</b>\n" +
+  "• <code>recebi freela 500</code> · <code>salário 25000 receita mensal 5du</code>\n" +
+  "\n<b>💳 Cartões</b>\n" +
+  "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
+  "• Fatura: envie o .csv do banco (cartão pelo nome do arquivo) — PDF do Bradesco importa pelo app\n" +
+  "• Antecipação: <code>antecipei 500 nubank</code>\n" +
+  "• Assinatura: <code>youtube 24,90 nubank mensal</code> (8x = duração)\n" +
+  "\n<b>🔁 Recorrências</b>\n" +
+  "• <code>mensal</code> / <code>bimestral</code> / <code>anual</code> / <code>a cada 3 meses</code> após o valor\n" +
+  "• Semanal: <code>diarista 150 ter sex</code> · 5º dia útil: <code>5du</code>\n" +
+  "\n<b>📈 Investimentos</b>\n" +
+  "• <code>carteira</code>: resumo · <code>comprei 100 bbse3 41,27</code> / <code>vendi …</code>\n" +
+  "• Relatórios da B3 (.xlsx): envie o arquivo aqui\n" +
+  "\nDigite <b>ajuda</b> a qualquer momento para rever isto.";
 
-async function reply(chatId: number, text: string) {
+async function reply(chatId: number, text: string, opts?: { html?: boolean }) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
   try {
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text }),
+      // parse_mode SÓ quando pedido: mensagens com texto do usuário continuam
+      // texto puro (HTML inválido derruba o sendMessage inteiro).
+      body: JSON.stringify({ chat_id: chatId, text, ...(opts?.html ? { parse_mode: "HTML" } : {}) }),
     });
   } catch (e) {
     console.error("telegram sendMessage falhou:", (e as Error).message);
@@ -280,7 +288,7 @@ async function handleCsvDocument(
 async function handleShareText(chatId: number, parsed: ShareParseResult) {
   const { purchases, failedLines } = parsed;
   if (purchases.length === 0) {
-    await reply(chatId, `Não entendi 🤔\n${HELP}`);
+    await reply(chatId, `Não entendi 🤔\n\n${HELP}`, { html: true });
     return;
   }
 
@@ -334,7 +342,7 @@ async function handleShareText(chatId: number, parsed: ShareParseResult) {
 async function handleBatchText(chatId: number, text: string) {
   const { entries, failedLines } = parseExpenseLines(text);
   if (entries.length === 0) {
-    await reply(chatId, `Não entendi nenhuma linha 🤔\n${HELP}`);
+    await reply(chatId, `Não entendi nenhuma linha 🤔\n\n${HELP}`, { html: true });
     return;
   }
 
@@ -475,9 +483,13 @@ async function handleBatchText(chatId: number, text: string) {
 
 /** Despesa única no formato compacto ("almoço 42,50 nubank 3x"). */
 async function handleSingleText(chatId: number, text: string) {
+  if (isHelpCommand(text)) {
+    await reply(chatId, HELP, { html: true });
+    return;
+  }
   const parsed = parseExpenseMessage(text);
   if (!parsed) {
-    await reply(chatId, `Não entendi 🤔\n${HELP}`);
+    await reply(chatId, `Não entendi 🤔\n\n${HELP}`, { html: true });
     return;
   }
 
@@ -740,7 +752,7 @@ export async function POST(req: Request) {
   if (!text) return NextResponse.json({ ok: true });
 
   if (text === "/start" || text === "/help" || /^ajuda$/i.test(text)) {
-    await reply(chatId, HELP);
+    await reply(chatId, HELP, { html: true });
     return NextResponse.json({ ok: true });
   }
 

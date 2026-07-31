@@ -14,6 +14,7 @@ import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expen
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
 import { budgetLines } from "@/lib/budget";
+import { accumulateBalance } from "@/lib/patrimony";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -21,6 +22,7 @@ import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
 import { MonthlyBalance, type MonthlyBalancePoint } from "@/components/charts/MonthlyBalance";
+import { PatrimonyChart } from "@/components/charts/PatrimonyChart";
 import { RankingBars } from "@/components/charts/RankingBars";
 import { installmentMonths } from "@/lib/installments";
 import { monthStringFromDate } from "@/lib/dates";
@@ -115,6 +117,10 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       balanceCents: plannedBalance(v),
     };
   });
+
+  // Patrimônio projetado: reservas + carteira hoje, somando o saldo previsto
+  // de cada mês do gráfico. Estimativa — investimentos flutuam.
+  const patrimonyData = accumulateBalance(reservesTotalCents + portfolio.valueCents, balanceData);
 
   // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
   // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
@@ -358,6 +364,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         </CardHeader>
         <CardContent>
           <MonthlyBalance data={balanceData} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Patrimônio projetado (12 meses)
+            <span className="ml-2 text-xs font-normal text-muted-foreground">
+              reservas + investimentos + saldos previstos · estimado
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <PatrimonyChart data={patrimonyData} />
         </CardContent>
       </Card>
 
