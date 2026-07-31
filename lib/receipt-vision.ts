@@ -12,8 +12,18 @@ export type ReceiptExtraction = {
   cardHint: string | null;
 };
 
-/** Modelo free com visão (confirmado na API de modelos em 2026-07-30). */
-const DEFAULT_MODEL = "google/gemma-4-31b-it:free";
+/**
+ * Modelos free com visão (confirmados na API de modelos em 2026-07-30), em
+ * ordem de preferência. Endpoints :free saturam por modelo (429 transitório):
+ * tentamos o próximo da lista antes de desistir. OPENROUTER_MODEL, quando
+ * definido, entra na frente.
+ */
+const FREE_VISION_MODELS = [
+  "google/gemma-4-31b-it:free",
+  "google/gemma-4-26b-a4b-it:free",
+  "nvidia/nemotron-nano-12b-v2-vl:free",
+  "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+];
 
 const PROMPT =
   "Você lê comprovantes brasileiros (PIX, cartão de crédito/débito, boleto, cupom fiscal). " +
@@ -69,46 +79,78 @@ export function buildBotText(extraction: ReceiptExtraction, caption: string | un
   return parts.join(" ");
 }
 
-/** Chama o modelo de visão da OpenRouter com a imagem (JPEG base64). */
+/** Detalhe de erro do corpo da OpenRouter (quando JSON), para diagnóstico. */
+function errorDetail(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as { error?: { message?: string } };
+    return parsed.error?.message ?? raw.slice(0, 120);
+  } catch {
+    return raw.slice(0, 120);
+  }
+}
+
+/**
+ * Chama os modelos de visão da OpenRouter com a imagem (JPEG base64),
+ * caindo para o próximo da lista em erro transitório (429/404/5xx).
+ */
 export async function extractReceiptFromImage(
   imageBase64: string,
 ): Promise<ReceiptExtraction | { error: string }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return { error: "Leitura de foto não configurada (OPENROUTER_API_KEY)." };
-  const model = process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL;
+  const override = process.env.OPENROUTER_MODEL;
+  const models = override
+    ? [override, ...FREE_VISION_MODELS.filter((m) => m !== override)]
+    : FREE_VISION_MODELS;
 
-  let res: Response;
-  try {
-    res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0,
-        max_tokens: 300,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: PROMPT },
-              { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
-            ],
-          },
-        ],
-      }),
-    });
-  } catch {
-    return { error: "Não consegui falar com a OpenRouter — tente de novo." };
+  let lastError = "Modelos de visão indisponíveis — tente de novo mais tarde.";
+  for (const model of models) {
+    let res: Response;
+    try {
+      res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0,
+          max_tokens: 300,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: PROMPT },
+                { type: "image_url", image_url: { url: `data:image/jpeg;base64,${imageBase64}` } },
+              ],
+            },
+          ],
+        }),
+      });
+    } catch {
+      lastError = "Não consegui falar com a OpenRouter — tente de novo.";
+      continue;
+    }
+    if (res.status === 401) return { error: "OPENROUTER_API_KEY inválida." };
+    if (!res.ok) {
+      const detail = errorDetail(await res.text());
+      console.error(`[receipt-vision] ${model} → HTTP ${res.status}: ${detail}`);
+      // 429/404/5xx variam por modelo (pool free saturado, modelo removido):
+      // o próximo da lista pode estar de pé.
+      lastError =
+        res.status === 429
+          ? `Modelos gratuitos ocupados ou limite diário atingido (${detail}) — tente de novo em alguns minutos.`
+          : `Modelo de visão indisponível (HTTP ${res.status}: ${detail}).`;
+      continue;
+    }
+    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    const content = body.choices?.[0]?.message?.content;
+    if (!content) {
+      lastError = "O modelo não respondeu — tente de novo.";
+      continue;
+    }
+    return parseReceiptExtraction(content);
   }
-  if (res.status === 401) return { error: "OPENROUTER_API_KEY inválida." };
-  if (res.status === 429) return { error: "Limite diário do modelo gratuito atingido — tente amanhã ou lance por texto." };
-  if (!res.ok) return { error: `Modelo de visão indisponível (HTTP ${res.status}) — tente de novo.` };
-
-  const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const content = body.choices?.[0]?.message?.content;
-  if (!content) return { error: "O modelo não respondeu — tente de novo." };
-  return parseReceiptExtraction(content);
+  return { error: lastError };
 }
