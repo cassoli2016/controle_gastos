@@ -27,6 +27,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 type Card = {
   id: string;
@@ -34,6 +35,7 @@ type Card = {
   color: string;
   closingDay: number | null;
   dueDay: number | null;
+  limitCents: number | null;
   active: boolean;
 };
 
@@ -196,6 +198,13 @@ export function CardRow({ card }: { card: Card }) {
               <p className="text-xs text-muted-foreground">
                 Define em que mês a fatura é paga. Vencimento antes do fechamento (fecha 27, vence 10) =
                 fatura paga no mês seguinte.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-card-limit-${card.id}`}>Limite de compras (opcional)</Label>
+              <CurrencyInput id={`edit-card-limit-${card.id}`} name="limitAmount" defaultCents={card.limitCents ?? 0} />
+              <p className="text-xs text-muted-foreground">
+                Mostra a barra de uso na tela Cartões. A importação da fatura atualiza sozinha.
               </p>
             </div>
             <DialogFooter>

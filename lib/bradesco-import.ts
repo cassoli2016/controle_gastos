@@ -16,9 +16,17 @@ export async function applyBradescoFaturaImport(opts: {
   card: CardRef;
   faturaMonth: string;
   closingISO: string;
+  /** "Limite de compras" da fatura: quando presente, atualiza o cartão. */
+  limitCents?: number | null;
   lines: FaturaLine[];
 }): Promise<{ months: { month: string; totalCents: number }[] }> {
   const { card, faturaMonth, closingISO, lines } = opts;
+  if (opts.limitCents != null && opts.limitCents > 0) {
+    await prisma.creditCard.update({
+      where: { id: card.id },
+      data: { limitAmount: centsToNumber(opts.limitCents) },
+    });
+  }
   const rows: CardMonthRow[] = lines
     .filter((l) => l.kind !== "payment")
     .map((l) => ({ description: l.description, amountCents: l.cents, dateISO: l.dateISO }));

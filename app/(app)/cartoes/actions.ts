@@ -25,6 +25,7 @@ export const createCard = guardAction(async function createCard(_prevState: Acti
     color: formData.get("color"),
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
+    limitAmount: formData.get("limitAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.create({ data: parsed.data });
@@ -40,6 +41,7 @@ export const updateCard = guardAction(async function updateCard(_prevState: Acti
     color: formData.get("color"),
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
+    limitAmount: formData.get("limitAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.update({ where: { id }, data: parsed.data });
@@ -175,6 +177,7 @@ export type FaturaPreview = {
   dueDateISO: string;
   closingISO: string;
   totalCents: number;
+  limitCents: number | null;
   warnings: string[];
   lines: FaturaLine[];
 };
@@ -196,6 +199,7 @@ const applyPayloadSchema = z.object({
   faturaMonth: z.string().regex(/^\d{4}-\d{2}$/),
   closingISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   totalCents: z.number().int(),
+  limitCents: z.number().int().positive().nullable(),
   lines: z.array(faturaLineSchema).min(1).max(500),
 });
 
@@ -230,6 +234,7 @@ export const previewBradescoFatura = guardAction(async function previewBradescoF
       dueDateISO: fatura.dueDateISO,
       closingISO: fatura.closingISO,
       totalCents: fatura.summary.totalCents,
+      limitCents: fatura.limitCents,
       warnings: [...fatura.warnings, ...scheduleWarnings(fatura)],
       lines: fatura.lines,
     },
@@ -251,7 +256,7 @@ export const applyBradescoFatura = guardAction(async function applyBradescoFatur
   }
   const parsed = applyPayloadSchema.safeParse(json);
   if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
-  const { cardId, faturaMonth, closingISO, totalCents, lines } = parsed.data;
+  const { cardId, faturaMonth, closingISO, totalCents, limitCents, lines } = parsed.data;
 
   // Revalida a soma no servidor: edição só de descrição não muda o total.
   if (sumFaturaLines(lines) !== totalCents) {
@@ -261,7 +266,7 @@ export const applyBradescoFatura = guardAction(async function applyBradescoFatur
   if (!cardRow) return { error: "Cartão não encontrado." };
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
-  const { months } = await applyBradescoFaturaImport({ card, faturaMonth, closingISO, lines });
+  const { months } = await applyBradescoFaturaImport({ card, faturaMonth, closingISO, limitCents, lines });
   revalidateFinance();
   return { ok: true, summary: months };
 });

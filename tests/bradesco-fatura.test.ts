@@ -28,6 +28,7 @@ describe("parseBradescoFatura — metadados", () => {
       totalCents: 112832,
     });
   });
+  it("limite de compras", () => expect(fatura.limitCents).toBe(1350000));
   it("total parcelado futuro", () =>
     expect(fatura.upcoming).toEqual({ nextCents: 143198, remainingCents: 762877, totalCents: 906075 }));
 });

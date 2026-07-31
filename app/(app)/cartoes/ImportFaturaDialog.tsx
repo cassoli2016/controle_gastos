@@ -115,6 +115,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
               <span className="font-semibold tabular-nums">{formatCents(preview.totalCents)}</span>
               <span className="text-muted-foreground">
                 · {preview.lines.length} linhas · vence {shortDate(preview.dueDateISO)}
+                {preview.limitCents !== null && ` · limite ${formatCents(preview.limitCents)}`}
               </span>
             </div>
             {preview.warnings.length > 0 && (
@@ -166,6 +167,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                   faturaMonth: preview.faturaMonth,
                   closingISO: preview.closingISO,
                   totalCents: preview.totalCents,
+                  limitCents: preview.limitCents,
                   lines: preview.lines,
                 })}
               />
