@@ -36,11 +36,14 @@ import { Pencil, Trash2 } from "lucide-react";
  */
 export function InstallmentDialog({
   installmentId,
+  entryId,
   plannedCents,
   label,
   categories,
 }: {
   installmentId: string;
+  /** Parcela (lançamento) do mês que abriu o dialog — alvo do escopo "só esta". */
+  entryId: string;
   plannedCents: number;
   label: string;
   /** Categorias para reclassificar o grupo (opcional). */
@@ -89,9 +92,25 @@ export function InstallmentDialog({
           </DialogHeader>
           <form action={editAction} className="flex flex-col gap-3">
             <input type="hidden" name="installmentId" value={installmentId} />
+            <input type="hidden" name="entryId" value={entryId} />
             <div className="flex flex-col gap-1.5">
               <Label htmlFor={fieldId}>Valor da parcela</Label>
               <CurrencyInput id={fieldId} name="amount" defaultCents={plannedCents} />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`installment-scope-${installmentId}`}>Aplicar a</Label>
+              <Select name="scope" defaultValue="all">
+                <SelectTrigger id={`installment-scope-${installmentId}`} className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as parcelas em aberto</SelectItem>
+                  <SelectItem value="one">Só esta parcela (este mês)</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                &quot;Só esta parcela&quot; serve para meses fora da regra — ex.: dezembro com 13º.
+              </p>
             </div>
             {categories && categories.length > 0 && (
               <div className="flex flex-col gap-1.5">
