@@ -4,6 +4,7 @@ import { createCategory, type ActionState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,13 @@ export function NewCategoryForm() {
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="new-category-color">Cor</Label>
             <Input id="new-category-color" name="color" type="color" defaultValue="#3b82f6" className="h-9 w-16 p-1" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-category-budget">Meta mensal (opcional)</Label>
+            <CurrencyInput id="new-category-budget" name="budgetAmount" />
+            <p className="text-xs text-muted-foreground">
+              Aparece no card &quot;Orçamento do mês&quot; do Dashboard (só despesas).
+            </p>
           </div>
           <DialogFooter>
             <Button type="submit" disabled={pending}>

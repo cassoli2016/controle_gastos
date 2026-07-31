@@ -4,6 +4,7 @@ import { updateCategory, deleteCategory, type ActionState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CurrencyInput } from "@/components/ui/currency-input";
 import { Badge } from "@/components/ui/badge";
 import { TableRow, TableCell } from "@/components/ui/table";
 import {
@@ -34,6 +35,7 @@ type Category = {
   name: string;
   type: "INCOME" | "EXPENSE";
   color: string;
+  budgetCents: number | null;
 };
 
 export function CategoryRow({ category }: { category: Category }) {
@@ -174,6 +176,17 @@ export function CategoryRow({ category }: { category: Category }) {
                 defaultValue={category.color}
                 className="h-9 w-16 p-1"
               />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-category-budget-${category.id}`}>Meta mensal (opcional)</Label>
+              <CurrencyInput
+                id={`edit-category-budget-${category.id}`}
+                name="budgetAmount"
+                defaultCents={category.budgetCents ?? 0}
+              />
+              <p className="text-xs text-muted-foreground">
+                Aparece no card &quot;Orçamento do mês&quot; do Dashboard (só despesas).
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={updatePending}>
