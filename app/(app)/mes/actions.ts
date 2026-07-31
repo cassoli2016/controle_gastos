@@ -32,6 +32,10 @@ const updateInstallmentSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   // "keep" = manter a categoria atual (sentinel do Select).
   categoryId: z.string().trim().optional().nullable(),
+  // "all" = todas as parcelas em aberto (comportamento clássico);
+  // "one" = SÓ a parcela do mês que abriu o dialog (ex.: dezembro com 13º).
+  scope: z.enum(["all", "one"]).default("all"),
+  entryId: z.string().trim().optional().nullable(),
 });
 const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
 
@@ -443,10 +447,29 @@ export const updateInstallment = guardAction(async function updateInstallment(_p
     installmentId: formData.get("installmentId"),
     amount: formData.get("amount"),
     categoryId: formData.get("categoryId"),
+    scope: formData.get("scope") ?? "all",
+    entryId: formData.get("entryId"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { installmentId, amount } = parsed.data;
+  const { installmentId, amount, scope, entryId } = parsed.data;
   const categoryId = parsed.data.categoryId && parsed.data.categoryId !== "keep" ? parsed.data.categoryId : null;
+
+  // Só esta parcela: valor muda apenas no mês do dialog (13º do contador em
+  // dezembro etc.); a categoria continua valendo para o grupo inteiro abaixo.
+  if (scope === "one") {
+    if (!entryId) return { error: "Parcela inválida — reabra o diálogo." };
+    const one = await prisma.monthlyEntry.updateMany({
+      where: { id: entryId, installmentId, paid: false },
+      data: { plannedAmount: amount },
+    });
+    if (one.count === 0) return { error: "Parcela já paga — desmarque o pagamento para editar." };
+    if (categoryId) {
+      await prisma.monthlyEntry.updateMany({ where: { installmentId }, data: { categoryId } });
+    }
+    revalidateFinance();
+    return { ok: true, count: one.count };
+  }
+
   const { count } = await prisma.monthlyEntry.updateMany({
     where: { installmentId, paid: false },
     data: { plannedAmount: amount, ...(categoryId ? { categoryId } : {}) },

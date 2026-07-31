@@ -107,6 +107,7 @@ export function EntryActions({
       {installmentId && (
         <InstallmentDialog
           installmentId={installmentId}
+          entryId={entryId}
           plannedCents={plannedCents}
           label={label}
           categories={categories}
