@@ -68,6 +68,9 @@ model CreditCard {
   // significa pagar no mês seguinte ao fechamento (Bradesco: fecha 27, vence
   // 10). null = competência é o próprio mês do fechamento.
   dueDay     Int?
+  // Limite de compras (para a barra de uso na tela Cartões). Auto-atualizado
+  // pela importação da fatura; editável no formulário do cartão.
+  limitAmount Decimal? @db.Decimal(12, 2)
   active    Boolean        @default(true)
   createdAt DateTime       @default(now())
   entries   MonthlyEntry[]

@@ -25,6 +25,7 @@ export const createCard = guardAction(async function createCard(_prevState: Acti
     color: formData.get("color"),
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
+    limitAmount: formData.get("limitAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.create({ data: parsed.data });
@@ -40,6 +41,7 @@ export const updateCard = guardAction(async function updateCard(_prevState: Acti
     color: formData.get("color"),
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
+    limitAmount: formData.get("limitAmount"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await prisma.creditCard.update({ where: { id }, data: parsed.data });

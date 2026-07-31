@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { CurrencyInput } from "@/components/ui/currency-input";
 
 export function NewCardForm() {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(createCard, {});
@@ -79,6 +80,13 @@ export function NewCardForm() {
             <p className="text-xs text-muted-foreground">
               Define em que mês a fatura é paga. Vencimento antes do fechamento (fecha 27, vence 10) =
               fatura paga no mês seguinte.
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="new-card-limit">Limite de compras (opcional)</Label>
+            <CurrencyInput id="new-card-limit" name="limitAmount" />
+            <p className="text-xs text-muted-foreground">
+              Mostra a barra de uso na tela Cartões. A importação da fatura atualiza sozinha.
             </p>
           </div>
           <DialogFooter>

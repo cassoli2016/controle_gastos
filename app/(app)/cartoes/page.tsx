@@ -164,7 +164,18 @@ export default async function CartoesPage({
               </TableHeader>
               <TableBody>
                 {cards.map((c) => (
-                  <CardRow key={c.id} card={c} />
+                  <CardRow
+                    key={c.id}
+                    card={{
+                      id: c.id,
+                      name: c.name,
+                      color: c.color,
+                      closingDay: c.closingDay,
+                      dueDay: c.dueDay,
+                      limitCents: c.limitAmount === null ? null : decimalToCents(String(c.limitAmount)),
+                      active: c.active,
+                    }}
+                  />
                 ))}
               </TableBody>
             </Table>

@@ -59,6 +59,11 @@ export const cardSchema = z.object({
       .max(31, "Dia de vencimento entre 1 e 31")
       .nullable(),
   ),
+  // Limite de compras em REAIS (CurrencyInput manda decimal); 0/vazio = sem limite.
+  limitAmount: z.preprocess(
+    (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
+    z.coerce.number().positive("Limite deve ser maior que zero").nullable(),
+  ),
 });
 
 export const purchaseSchema = z.object({
