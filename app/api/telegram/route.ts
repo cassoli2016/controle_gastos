@@ -3,6 +3,7 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { parseExpenseMessage, parseExpenseLines, type ParsedExpense } from "@/lib/telegram-parse";
 import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@/lib/nubank-share";
+import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
@@ -30,6 +31,8 @@ type TelegramUpdate = {
     caption?: string;
     chat?: { id?: number };
     document?: { file_id?: string; file_name?: string; file_size?: number };
+    /** Telegram manda a MESMA foto em vários tamanhos; o último é o maior. */
+    photo?: { file_id?: string; width?: number; height?: number }[];
   };
 };
 
@@ -43,6 +46,7 @@ const HELP =
   '• Antecipação de fatura: "antecipei 500 nubank" (abate o mês do cartão)\n' +
   '• Assinatura no cartão: "youtube 24,90 nubank mensal [8x=duração]" — linha própria no mês\n' +
   '• Semanal: "diarista 150 ter sex" (um lançamento por dia) · Salário: "recebi gobrax 25000 mensal 5du"\n' +
+  "• Foto de comprovante: envie a foto (PIX/cartão/cupom) — legenda = cartão/Nx\n" +
   "• Fatura: envie o .csv do banco — identifico o cartão pelo nome do arquivo (ou legenda)\n" +
   '• "carteira": resumo · "comprei 100 bbse3 41,27" / "vendi …": registra negócio\n' +
   "• Relatórios da B3 (.xlsx de Negociação/Movimentação): envie o arquivo aqui\n" +
@@ -662,6 +666,29 @@ async function handleSingleText(chatId: number, text: string) {
  * Cartão = 1 lançamento consolidado por mês (texto soma; CSV define o total).
  * Segurança: secret token no header (setWebhook) + allowlist de chat ids.
  */
+/** Foto de comprovante: visão (OpenRouter free) extrai a compra e delega ao fluxo de texto. */
+async function handlePhotoMessage(
+  chatId: number,
+  photo: NonNullable<TelegramUpdate["message"]>["photo"] & object[],
+  caption: string | undefined,
+) {
+  const fileId = photo[photo.length - 1]?.file_id;
+  if (!fileId) return;
+  await reply(chatId, "📸 Lendo o comprovante…");
+  const binary = await downloadTelegramFileBinary(fileId);
+  if (!binary) {
+    await reply(chatId, "Não consegui baixar a foto — tente de novo.");
+    return;
+  }
+  const extraction = await extractReceiptFromImage(binary.toString("base64"));
+  if ("error" in extraction) {
+    await reply(chatId, `⚠️ ${extraction.error}`);
+    return;
+  }
+  // Vira a MESMA linha do fluxo de texto — legenda tem precedência nas dicas.
+  await handleSingleText(chatId, buildBotText(extraction, caption));
+}
+
 export async function POST(req: Request) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (secret && req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
@@ -677,7 +704,8 @@ export async function POST(req: Request) {
   const chatId = update.message?.chat?.id;
   const text = update.message?.text?.trim();
   const doc = update.message?.document;
-  if (!chatId || (!text && !doc?.file_id)) return NextResponse.json({ ok: true });
+  const photo = update.message?.photo;
+  if (!chatId || (!text && !doc?.file_id && !photo?.length)) return NextResponse.json({ ok: true });
 
   const allowed = (process.env.TELEGRAM_ALLOWED_CHAT_IDS ?? "")
     .split(",")
@@ -694,6 +722,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true });
   }
   if (!allowed.includes(String(chatId))) return NextResponse.json({ ok: true }); // silencioso p/ desconhecidos
+
+  if (photo?.length) {
+    await handlePhotoMessage(chatId, photo, update.message?.caption?.trim() || undefined);
+    return NextResponse.json({ ok: true });
+  }
 
   if (doc?.file_id) {
     if (/\.xlsx$/i.test(doc.file_name ?? "")) {
