@@ -4,9 +4,14 @@ import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components
 import { Badge } from "@/components/ui/badge";
 import { MonthNav } from "@/components/MonthNav";
 import { StatCard } from "@/components/StatCard";
-import { monthToDate, sanitizeMonth } from "@/lib/dates";
+import { monthToDate, monthStringFromDate, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { decimalToCents, sumCents, formatCents } from "@/lib/money";
+import { progressPct } from "@/lib/calc";
+import { estimateCardUsage, usageTone } from "@/lib/card-usage";
+import { upcomingCardCommitments } from "@/lib/card-entry";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { cn } from "@/lib/utils";
 import { NewCardForm } from "./NewCardForm";
 import { CardRow } from "./CardRow";
 import { StatementDialog, type StatementRowView } from "./StatementDialog";
@@ -27,7 +32,14 @@ export default async function CartoesPage({
   const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [cards, monthEntries, transactions, categories, subscriptions] = await Promise.all([
+  // Próximas faturas por cartão: os 3 meses seguintes ao mês exibido.
+  const nextThreeMonths = [1, 2, 3].map((delta) => {
+    const d = monthToDate(month);
+    d.setUTCMonth(d.getUTCMonth() + delta);
+    return monthStringFromDate(d);
+  });
+
+  const [cards, monthEntries, transactions, categories, subscriptions, openEntries, upcomingRows] = await Promise.all([
     prisma.creditCard.findMany({ orderBy: { name: "asc" } }),
     prisma.monthlyEntry.findMany({
       where: { month: monthDate, cardId: { not: null } },
@@ -40,6 +52,20 @@ export default async function CartoesPage({
     }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     prisma.cardSubscription.findMany({ where: { active: true }, orderBy: { description: "asc" } }),
+    // Uso do limite: consolidados NÃO PAGOS do mês CORRENTE em diante (o
+    // saldo comprometido é estado presente, independe do mês navegado).
+    prisma.monthlyEntry.findMany({
+      where: {
+        cardId: { not: null },
+        paid: false,
+        month: { gte: monthToDate(todayISOInSaoPaulo().slice(0, 7)) },
+      },
+      select: { cardId: true, plannedAmount: true },
+    }),
+    prisma.monthlyEntry.findMany({
+      where: { cardId: { not: null }, month: { in: nextThreeMonths.map(monthToDate) } },
+      select: { cardId: true, month: true, plannedAmount: true },
+    }),
   ]);
 
   const activeCards = cards.filter((c) => c.active);
@@ -73,7 +99,18 @@ export default async function CartoesPage({
         amountCents: decimalToCents(String(sub.amount)),
         chargeDay: sub.chargeDay,
       }));
-    return { card, rows, totalCents, paid, hasEntry: entries.length > 0, subs };
+    const usedCents = estimateCardUsage(
+      openEntries
+        .filter((e) => e.cardId === card.id)
+        .map((e) => ({ cents: decimalToCents(String(e.plannedAmount)), paid: false })),
+    );
+    const limitCents = card.limitAmount === null ? null : decimalToCents(String(card.limitAmount));
+    const upcoming = upcomingCardCommitments(
+      upcomingRows
+        .filter((r) => r.cardId === card.id)
+        .map((r) => ({ month: monthStringFromDate(r.month), plannedCents: decimalToCents(String(r.plannedAmount)) })),
+    );
+    return { card, rows, totalCents, paid, hasEntry: entries.length > 0, subs, usedCents, limitCents, upcoming };
   });
 
   const dialogCards = activeCards.map((c) => ({ id: c.id, name: c.name }));
@@ -95,16 +132,26 @@ export default async function CartoesPage({
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {invoices.map(({ card, rows, totalCents, paid, hasEntry, subs }) => (
+          {invoices.map(({ card, rows, totalCents, paid, hasEntry, subs, usedCents, limitCents, upcoming }) => (
             <Card key={card.id}>
               <CardHeader className="flex items-center justify-between gap-2 border-b">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span
                     className="size-3 shrink-0 rounded-full ring-1 ring-foreground/10"
                     style={{ background: card.color }}
                     aria-hidden
                   />
                   <span className="font-medium">{card.name}</span>
+                  {(card.closingDay !== null || card.dueDay !== null) && (
+                    <span className="rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+                      {[
+                        card.closingDay !== null ? `Fecha ${card.closingDay}` : null,
+                        card.dueDay !== null ? `vence ${card.dueDay}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                 </div>
                 <PurchaseDialog
                   cards={dialogCards}
@@ -119,6 +166,24 @@ export default async function CartoesPage({
                     <Badge variant={paid ? "default" : "outline"}>{paid ? "Paga" : "Em aberto"}</Badge>
                   )}
                 </div>
+                {limitCents !== null && limitCents > 0 && (
+                  <div className="space-y-1">
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={cn("h-full rounded-full", {
+                          "bg-emerald-500": usageTone(progressPct(usedCents, limitCents)) === "emerald",
+                          "bg-amber-500": usageTone(progressPct(usedCents, limitCents)) === "amber",
+                          "bg-rose-500": usageTone(progressPct(usedCents, limitCents)) === "rose",
+                        })}
+                        style={{ width: `${progressPct(usedCents, limitCents)}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {formatCents(usedCents)} de {formatCents(limitCents)} · disponível{" "}
+                      {formatCents(Math.max(0, limitCents - usedCents))} (estimado)
+                    </p>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <StatementDialog
                     cardName={card.name}
@@ -137,6 +202,21 @@ export default async function CartoesPage({
                       ? "Sem extrato detalhado — lance pelo bot ou reenvie o CSV da fatura para detalhar."
                       : "Sem compras neste mês."}
                   </p>
+                )}
+                {upcoming.length > 0 && (
+                  <div className="border-t pt-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      Próximas faturas
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {upcoming.map((f) => (
+                        <li key={f.month} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="text-muted-foreground">{formatCompetencia(monthToDate(f.month))}</span>
+                          <span className="tabular-nums">{formatCents(f.totalCents)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </CardContent>
             </Card>
