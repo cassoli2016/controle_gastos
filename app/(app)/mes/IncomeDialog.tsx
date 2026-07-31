@@ -39,7 +39,7 @@ export function IncomeDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
+        <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600">
           <TrendingUp className="size-4" />
           Lançar recebimento
         </Button>

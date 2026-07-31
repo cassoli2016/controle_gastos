@@ -269,17 +269,23 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
           <MonthNav month={month} basePath="/mes" />
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <PurchaseDialog
-            cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
-            categories={categories.map((c) => ({ id: c.id, name: c.name }))}
-          />
-          <IncomeDialog />
-          <TransferDialog
-            entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
-          />
-          <CopyPreviousMonthButton month={month} />
-          <CopyYearAgoButton month={month} />
+        {/* Ações em dois grupos: lançar (primárias, sólidas) × utilitárias
+            (outline sm) — hierarquia visual em vez de cinco botões iguais. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <PurchaseDialog
+              cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
+              categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+            />
+            <IncomeDialog />
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <TransferDialog
+              entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+            />
+            <CopyPreviousMonthButton month={month} />
+            <CopyYearAgoButton month={month} />
+          </div>
         </div>
       </div>
 

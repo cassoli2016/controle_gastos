@@ -41,8 +41,8 @@ export function TransferDialog({ entries }: { entries: TransferOption[] }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-          <ArrowLeftRight data-icon="inline-start" className="size-4" />
+        <Button type="button" variant="outline" size="sm">
+          <ArrowLeftRight className="size-4" />
           Transferir
         </Button>
       </DialogTrigger>

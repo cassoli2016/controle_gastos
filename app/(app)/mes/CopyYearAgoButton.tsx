@@ -1,6 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { History } from "lucide-react";
 import { copyYearAgoMonthAction, type ActionState } from "./actions";
 import { useActionToast } from "@/hooks/use-action-toast";
 
@@ -11,7 +12,10 @@ export function CopyYearAgoButton({ month }: { month: string }) {
   return (
     <form action={formAction}>
       <input type="hidden" name="month" value={month} />
-      <Button type="submit" variant="outline" size="sm" disabled={pending}>Copiar mês do ano passado</Button>
+      <Button type="submit" variant="outline" size="sm" disabled={pending}>
+        <History className="size-4" />
+        Copiar mês do ano passado
+      </Button>
     </form>
   );
 }
