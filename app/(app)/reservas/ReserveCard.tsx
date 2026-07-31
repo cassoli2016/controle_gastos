@@ -77,9 +77,9 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Depositar em &quot;{reserve.name}&quot;</DialogTitle>
+                <DialogTitle>Depositar em “{reserve.name}”</DialogTitle>
                 <DialogDescription>
-                  O valor soma na caixinha e entra como despesa paga (&quot;Reserva&quot;) no mês da data — assim o
+                  O valor soma na caixinha e entra como despesa paga (“Reserva”) no mês da data — assim o
                   dinheiro não conta duas vezes.
                 </DialogDescription>
               </DialogHeader>
