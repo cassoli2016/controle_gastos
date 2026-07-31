@@ -32,6 +32,8 @@ export type BradescoFatura = {
     comprasCents: number;
     totalCents: number;
   };
+  /** "Limite de compras" (página 1) — atualiza o cartão na importação. */
+  limitCents: number | null;
   /** "Total parcelado para as próximas faturas" (página 2). */
   upcoming: { nextCents: number; remainingCents: number; totalCents: number } | null;
   lines: FaturaLine[];
@@ -41,6 +43,7 @@ export type BradescoFatura = {
 const DUE_RE = /Vencimento\s+(\d{2})\/(\d{2})\/(\d{4})/;
 const NEXT_CLOSING_RE = /previsão de fechamento[^\d]*(\d{2})\/(\d{2})\/(\d{4})/i;
 const TOTAL_RE = /Total da fatura\s*R\$\s*([\d.,]+)/;
+const LIMIT_RE = /Limite de compras\s*R\$\s*([\d.,]+)/;
 const SALDO_RE = /Saldo anterior\s+R\$\s*([\d.,]+)/;
 const CREDITOS_RE = /Créditos\/Pagamentos\s+R\$\s*([\d.,]+)\s*-/;
 const COMPRAS_RE = /Compras\/Débitos\s+R\$\s*([\d.,]+)/;
@@ -136,7 +139,17 @@ export function parseBradescoFatura(text: string): BradescoFatura | { error: str
     };
   }
 
-  return { faturaMonth, dueDateISO, closingISO, totalCents, summary, upcoming, lines, warnings };
+  return {
+    faturaMonth,
+    dueDateISO,
+    closingISO,
+    totalCents,
+    summary,
+    limitCents: money(text, LIMIT_RE),
+    upcoming,
+    lines,
+    warnings,
+  };
 }
 
 /** Soma líquida dos lançamentos SEM o pagamento da fatura anterior. */
