@@ -130,3 +130,10 @@ export const reserveSchema = z.object({
 export const dailyBudgetSchema = z.object({
   amountPerDay: z.coerce.number().positive("Valor por dia deve ser maior que zero"),
 });
+
+/** Depósito numa caixinha: vira lançamento de despesa já pago no mês da data. */
+export const depositSchema = z.object({
+  id: z.string().min(1, "Caixinha inválida"),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+});
