@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
-import { monthToDate, formatCompetencia } from "@/lib/dates";
+import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
@@ -24,7 +24,7 @@ import { monthStringFromDate } from "@/lib/dates";
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
-  const month = qMonth ?? (await resolveDefaultMonth());
+  const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
   const rows = await prisma.monthlyEntry.findMany({
@@ -68,11 +68,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const budgetLine = budget && realViews.length > 0 ? dailyBudgetLine(month, today, budget.perDayCents) : null;
   const views = budgetLine ? [...realViews, dailyBudgetEntryView(budgetLine)] : realViews;
 
-  const catColor = new Map(categories.map((c) => [c.name, c.color]));
+  // Cor por ID: categorias homônimas não disputam a mesma cor/fatia (a linha
+  // derivada da reserva usa id sintético e cai no cinza de fallback).
+  const catColor = new Map(categories.map((c) => [c.id, c.color]));
   const pieData = expenseByCategory(views).map((x) => ({
     categoryName: x.categoryName,
     value: x.cents,
-    color: catColor.get(x.categoryName) ?? "#64748b",
+    color: catColor.get(x.categoryId) ?? "#64748b",
   }));
   const ranking = expenseRanking(views).slice(0, 10);
   const hasExpenses = ranking.length > 0;

@@ -1,4 +1,5 @@
 "use server";
+import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
@@ -16,7 +17,7 @@ const prepaymentSchema = z.object({
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
 export type ActionState = { error?: string; ok?: boolean };
 
-export async function createCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createCard = guardAction(async function createCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = cardSchema.safeParse({
     name: formData.get("name"),
     color: formData.get("color"),
@@ -27,9 +28,9 @@ export async function createCard(_prevState: ActionState, formData: FormData): P
   await prisma.creditCard.create({ data: parsed.data });
   revalidateFinance();
   return { ok: true };
-}
+});
 
-export async function updateCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateCard = guardAction(async function updateCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Cartão inválido." };
   const parsed = cardSchema.safeParse({
@@ -42,10 +43,10 @@ export async function updateCard(_prevState: ActionState, formData: FormData): P
   await prisma.creditCard.update({ where: { id }, data: parsed.data });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /** Registra pagamento antecipado: abate a fatura em aberto do cartão. */
-export async function registerPrepayment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const registerPrepayment = guardAction(async function registerPrepayment(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = prepaymentSchema.safeParse({
     cardId: formData.get("cardId"),
     amount: formData.get("amount"),
@@ -62,7 +63,7 @@ export async function registerPrepayment(_prevState: ActionState, formData: Form
   );
   revalidateFinance();
   return { ok: true };
-}
+});
 
 const subscriptionSchema = z.object({
   cardId: z.string().min(1),
@@ -73,7 +74,7 @@ const subscriptionSchema = z.object({
 });
 
 /** Cria assinatura do cartão e provisiona as próximas faturas. */
-export async function createSubscription(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const createSubscription = guardAction(async function createSubscription(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = subscriptionSchema.safeParse({
     cardId: formData.get("cardId"),
     description: formData.get("description"),
@@ -94,10 +95,10 @@ export async function createSubscription(_prevState: ActionState, formData: Form
   if ("error" in created) return { error: created.error };
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /** Cancela assinatura: remove provisões da fatura em aberto em diante. */
-export async function cancelSubscription(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const cancelSubscription = guardAction(async function cancelSubscription(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const subscriptionId = formData.get("subscriptionId");
   if (typeof subscriptionId !== "string" || !subscriptionId) return { error: "Assinatura inválida." };
   const sub = await prisma.cardSubscription.findUnique({ where: { id: subscriptionId }, include: { card: true } });
@@ -111,20 +112,20 @@ export async function cancelSubscription(_prevState: ActionState, formData: Form
   await cancelCardSubscription(subscriptionId, fromMonth);
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /**
  * Alterna active em vez de excluir: um cartão pode ter lançamentos (compras
  * parceladas) associados, então arquivar preserva o histórico.
  */
-export async function archiveCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const archiveCard = guardAction(async function archiveCard(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("id");
   if (typeof id !== "string" || !id) return { error: "Cartão inválido." };
   const active = formData.get("active") === "true";
   await prisma.creditCard.update({ where: { id }, data: { active } });
   revalidateFinance();
   return { ok: true };
-}
+});
 
 const statementLineSchema = z.object({
   txId: z.string().min(1),
@@ -134,7 +135,7 @@ const statementLineSchema = z.object({
 });
 
 /** Edita uma linha do extrato (descrição/valor/fatura) ajustando o consolidado. */
-export async function updateStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const updateStatementLine = guardAction(async function updateStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = statementLineSchema.safeParse({
     txId: formData.get("txId"),
     description: formData.get("description"),
@@ -151,14 +152,14 @@ export async function updateStatementLine(_prevState: ActionState, formData: For
   if (!r.ok) return { error: r.error };
   revalidateFinance();
   return { ok: true };
-}
+});
 
 /** Exclui uma linha do extrato abatendo o valor da fatura. */
-export async function deleteStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+export const deleteStatementLine = guardAction(async function deleteStatementLine(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const txId = formData.get("txId");
   if (typeof txId !== "string" || !txId) return { error: "Lançamento inválido." };
   const r = await deleteCardTransaction(txId);
   if (!r.ok) return { error: r.error };
   revalidateFinance();
   return { ok: true };
-}
+});

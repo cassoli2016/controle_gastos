@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { monthToDate, monthStringFromDate, formatCompetencia, monthRange } from "@/lib/dates";
+import { monthToDate, monthStringFromDate, formatCompetencia, monthRange, sanitizeMonth } from "@/lib/dates";
 
 describe("dates", () => {
   it("monthToDate cria dia 1 UTC", () => {
@@ -24,4 +24,18 @@ describe("monthRange", () => {
     expect(monthRange("2026-08", "2026-08")).toEqual(["2026-08"]);
     expect(monthRange("2026-11", "2026-08")).toEqual([]);
   });
+});
+
+describe("sanitizeMonth", () => {
+  it("aceita YYYY-MM válido", () => expect(sanitizeMonth("2026-08")).toBe("2026-08"));
+  it("rejeita mês 13/00", () => {
+    expect(sanitizeMonth("2026-13")).toBeNull();
+    expect(sanitizeMonth("2026-00")).toBeNull();
+  });
+  it("rejeita lixo e formatos parciais", () => {
+    expect(sanitizeMonth("abc")).toBeNull();
+    expect(sanitizeMonth("2026-8")).toBeNull();
+    expect(sanitizeMonth("2026-08-01")).toBeNull();
+  });
+  it("undefined → null", () => expect(sanitizeMonth(undefined)).toBeNull());
 });
