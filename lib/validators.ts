@@ -144,3 +144,21 @@ export const depositSchema = z.object({
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
 });
+
+/** Recebimento avulso ou recorrente (tela Mês → "Lançar recebimento"). */
+export const incomeSchema = z.object({
+  description: z.string().trim().min(1, "Descrição obrigatória"),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+  recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  fifthBusinessDay: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
+  intervalMonths: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 1 : v),
+    z.coerce.number().int().min(1).max(12),
+  ),
+  // Duração da recorrência em MESES (campo ausente/vazio → 12), igual à compra.
+  recurrenceMonths: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 12 : v),
+    z.coerce.number().int().min(2, "Duração entre 2 e 60 meses").max(60, "Duração entre 2 e 60 meses"),
+  ),
+});

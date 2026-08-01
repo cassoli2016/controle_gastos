@@ -8,6 +8,7 @@ import {
   cardSchema,
   purchaseSchema,
   dailyBudgetSchema,
+  incomeSchema,
 } from "@/lib/validators";
 
 describe("validators", () => {
@@ -161,5 +162,45 @@ describe("dailyBudgetSchema", () => {
   it("rejeita zero e negativo", () => {
     expect(dailyBudgetSchema.safeParse({ amountPerDay: "0" }).success).toBe(false);
     expect(dailyBudgetSchema.safeParse({ amountPerDay: "-10" }).success).toBe(false);
+  });
+
+  it("incomeSchema usa 12 meses quando a duração não vem no FormData", () => {
+    const parsed = incomeSchema.safeParse({
+      description: "Salário",
+      amount: 25000,
+      date: "2026-08-05",
+      recurring: "on",
+      fifthBusinessDay: null,
+      intervalMonths: "1",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurrenceMonths).toBe(12);
+  });
+
+  it("incomeSchema aceita duração de 24 meses", () => {
+    const parsed = incomeSchema.safeParse({
+      description: "Salário",
+      amount: 25000,
+      date: "2026-08-05",
+      recurring: "on",
+      fifthBusinessDay: null,
+      intervalMonths: "1",
+      recurrenceMonths: "24",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurrenceMonths).toBe(24);
+  });
+
+  it("incomeSchema rejeita duração fora de 2..60", () => {
+    const campos = {
+      description: "Salário",
+      amount: 25000,
+      date: "2026-08-05",
+      recurring: "on",
+      fifthBusinessDay: null,
+      intervalMonths: "1",
+    };
+    expect(incomeSchema.safeParse({ ...campos, recurrenceMonths: "1" }).success).toBe(false);
+    expect(incomeSchema.safeParse({ ...campos, recurrenceMonths: "61" }).success).toBe(false);
   });
 });
