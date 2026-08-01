@@ -6,6 +6,7 @@ import {
   hiddenMonthsSummary,
   matrixColumns,
   sumMonths,
+  sumMonthsOrNull,
   rowRemainingTotal,
 } from "@/lib/matrix";
 
@@ -290,5 +291,25 @@ describe("rowRemainingTotal", () => {
 
   it("célula quitada contribui zero", () => {
     expect(rowRemainingTotal(row, ["2026-02"])).toBe(0);
+  });
+});
+
+describe("sumMonthsOrNull", () => {
+  const byMonth = { "2026-01": 1000, "2026-02": 0 };
+
+  it("nenhum mês do intervalo tem chave → null (a UI mostra '—')", () => {
+    expect(sumMonthsOrNull(byMonth, ["2027-01", "2027-02"])).toBeNull();
+  });
+
+  it("mês com chave zerada soma 0, não null (quitado ≠ sem dado)", () => {
+    expect(sumMonthsOrNull(byMonth, ["2026-02"])).toBe(0);
+  });
+
+  it("soma normalmente quando há dado, ignorando meses ausentes", () => {
+    expect(sumMonthsOrNull(byMonth, ["2026-01", "2027-05"])).toBe(1000);
+  });
+
+  it("lista vazia → null", () => {
+    expect(sumMonthsOrNull(byMonth, [])).toBeNull();
   });
 });

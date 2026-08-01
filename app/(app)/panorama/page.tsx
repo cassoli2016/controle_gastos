@@ -9,6 +9,7 @@ import {
   hiddenMonthsSummary,
   matrixColumns,
   sumMonths,
+  sumMonthsOrNull,
   rowRemainingTotal,
   shortMonthLabel,
   type MatrixColumn,
@@ -174,12 +175,10 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
                       A receber
                     </td>
                     {columns.map((col) => {
-                      const v =
-                        col.kind === "month"
-                          ? col.monthISO in matrix.toReceiveByMonth
-                            ? matrix.toReceiveByMonth[col.monthISO]
-                            : null
-                          : sumMonths(matrix.toReceiveByMonth, col.months);
+                      const v = sumMonthsOrNull(
+                        matrix.toReceiveByMonth,
+                        col.kind === "month" ? [col.monthISO] : col.months,
+                      );
                       return (
                         <td
                           key={colKey(col)}
@@ -193,12 +192,10 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
                   <tr className="border-b">
                     <td className="sticky left-0 z-10 bg-card px-4 py-2 text-rose-600 dark:text-rose-400">A pagar</td>
                     {columns.map((col) => {
-                      const v =
-                        col.kind === "month"
-                          ? col.monthISO in matrix.toPayByMonth
-                            ? matrix.toPayByMonth[col.monthISO]
-                            : null
-                          : sumMonths(matrix.toPayByMonth, col.months);
+                      const v = sumMonthsOrNull(
+                        matrix.toPayByMonth,
+                        col.kind === "month" ? [col.monthISO] : col.months,
+                      );
                       return (
                         <td
                           key={colKey(col)}
@@ -285,14 +282,18 @@ function SectionRows({
               const has = col.months.some((m) => m in row.cells);
               return (
                 <td key={colKey(col)} className={`px-3 py-1.5 text-right tabular-nums ${colBg(col, currentMonth)}`}>
-                  {has ? fmt(rowRemainingTotal(row, col.months)) : <span className="text-muted-foreground/40">—</span>}
+                  {has ? (
+                    fmt(rowRemainingTotal(row, col.months))
+                  ) : (
+                    <span className="px-1 text-muted-foreground/40">—</span>
+                  )}
                 </td>
               );
             }
             const m = col.monthISO;
             const cell = row.cells[m];
             return (
-              <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${m === currentMonth ? "bg-primary/5" : ""}`}>
+              <td key={m} className={`px-2 py-0.5 text-right tabular-nums ${colBg(col, currentMonth)}`}>
                 {cell ? (
                   <CellAction
                     cents={cell.cents}

@@ -197,6 +197,14 @@ export function sumMonths(byMonth: Record<string, number>, months: string[]): nu
   return months.reduce((acc, m) => acc + (byMonth[m] ?? 0), 0);
 }
 
+/**
+ * Como `sumMonths`, mas devolve null quando NENHUM dos meses tem chave no
+ * mapa: a UI distingue "sem lançamento" (—) de "tudo quitado" (0,00).
+ */
+export function sumMonthsOrNull(byMonth: Record<string, number>, months: string[]): number | null {
+  return months.some((m) => m in byMonth) ? sumMonths(byMonth, months) : null;
+}
+
 /** Soma o que ainda falta nas células de uma linha, nos meses pedidos. */
 export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[]): number {
   return months.reduce((acc, m) => acc + (row.cells[m]?.remainingCents ?? 0), 0);
