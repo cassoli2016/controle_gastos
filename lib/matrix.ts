@@ -164,3 +164,40 @@ export function hiddenMonthsSummary(hidden: string[]): string {
   const noun = hidden.length === 1 ? "mês quitado" : "meses quitados";
   return `Ocultando ${hidden.length} ${noun}: ${labels}${rest > 0 ? ` +${rest}` : ""}`;
 }
+
+/** Coluna da matriz: mês real, fechamento de ano ou total geral. */
+export type MatrixColumn =
+  | { kind: "month"; monthISO: string }
+  | { kind: "year"; year: string; months: string[] }
+  | { kind: "total"; months: string[] };
+
+/**
+ * Colunas a partir dos meses visíveis (ordenados): cada mês, uma coluna ao
+ * fim de cada ano e o total geral. Ano com um único mês visível e total geral
+ * de um ano só ficam de fora — repetiriam a coluna vizinha.
+ */
+export function matrixColumns(visibleMonths: string[]): MatrixColumn[] {
+  const out: MatrixColumn[] = [];
+  const years: string[] = [];
+  for (let i = 0; i < visibleMonths.length; i++) {
+    const monthISO = visibleMonths[i];
+    out.push({ kind: "month", monthISO });
+    const year = monthISO.slice(0, 4);
+    if (visibleMonths[i + 1]?.slice(0, 4) === year) continue; // ainda não fechou o ano
+    years.push(year);
+    const months = visibleMonths.filter((m) => m.startsWith(`${year}-`));
+    if (months.length > 1) out.push({ kind: "year", year, months });
+  }
+  if (years.length > 1) out.push({ kind: "total", months: visibleMonths });
+  return out;
+}
+
+/** Soma um mapa mês→valor nos meses pedidos (chave ausente conta zero). */
+export function sumMonths(byMonth: Record<string, number>, months: string[]): number {
+  return months.reduce((acc, m) => acc + (byMonth[m] ?? 0), 0);
+}
+
+/** Soma o que ainda falta nas células de uma linha, nos meses pedidos. */
+export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[]): number {
+  return months.reduce((acc, m) => acc + (row.cells[m]?.remainingCents ?? 0), 0);
+}
