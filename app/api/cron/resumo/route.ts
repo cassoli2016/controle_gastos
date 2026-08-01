@@ -35,7 +35,7 @@ export async function GET(req: Request) {
     include: {
       item: { select: { name: true, dueDay: true, category: { select: { type: true } } } },
       category: { select: { type: true } },
-      card: { select: { name: true } },
+      card: { select: { name: true, dueDay: true } },
     },
   });
 
@@ -45,7 +45,8 @@ export async function GET(req: Request) {
     paid: r.paid,
     categoryType: (r.item?.category?.type ?? r.category?.type ?? "EXPENSE") as "INCOME" | "EXPENSE",
     monthISO: r.month.toISOString().slice(0, 7),
-    dueDay: r.item?.dueDay ?? null,
+    // Consolidado do cartão não tem item nem purchaseDate: vence pelo dueDay do cartão.
+    dueDay: r.item?.dueDay ?? (r.purchaseDate === null ? r.card?.dueDay ?? null : null),
     purchaseDate: r.purchaseDate,
   }));
 
