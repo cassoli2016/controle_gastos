@@ -324,6 +324,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
     date: formData.get("date"),
     recurring: formData.get("recurring"),
     intervalMonths: formData.get("intervalMonths"),
+    recurrenceMonths: formData.get("recurrenceMonths"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { description, amount, installments, date, recurring } = parsed.data;
@@ -351,6 +352,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       amount,
       weekdays,
       startISO: date,
+      months: parsed.data.recurrenceMonths,
       categoryId,
     });
     revalidateFinance();
@@ -364,6 +366,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
     if (dup) return { error: `Já existe a conta recorrente "${dup.name}" — edite em Itens.` };
     const categoryId =
       parsed.data.categoryId && parsed.data.categoryId !== "default" ? parsed.data.categoryId : null;
+    const interval = Math.max(1, parsed.data.intervalMonths);
     const { count } = await createRecurrence({
       name: description,
       amount,
@@ -371,6 +374,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       categoryId,
       dueDay: Number(date.slice(8, 10)),
       intervalMonths: parsed.data.intervalMonths,
+      months: Math.max(2, Math.round(parsed.data.recurrenceMonths / interval)),
     });
     revalidateFinance();
     return { ok: true, count };

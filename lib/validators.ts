@@ -91,6 +91,11 @@ export const purchaseSchema = z.object({
     (v) => (v === "" || v === null || v === undefined ? 1 : v),
     z.coerce.number().int().min(0).max(12),
   ),
+  // Duração da recorrência em MESES (campo ausente/vazio → 12).
+  recurrenceMonths: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 12 : v),
+    z.coerce.number().int().min(2, "Duração entre 2 e 60 meses").max(60, "Duração entre 2 e 60 meses"),
+  ),
 });
 
 export const applyRangeSchema = z
