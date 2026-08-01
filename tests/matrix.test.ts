@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { buildMatrix, shortMonthLabel, settledPastMonths, hiddenMonthsSummary } from "@/lib/matrix";
+import {
+  buildMatrix,
+  shortMonthLabel,
+  settledPastMonths,
+  hiddenMonthsSummary,
+  matrixColumns,
+  sumMonths,
+  sumMonthsOrNull,
+  rowRemainingTotal,
+} from "@/lib/matrix";
 
 describe("buildMatrix", () => {
   const entries = [
@@ -195,5 +204,112 @@ describe("hiddenMonthsSummary", () => {
     expect(hiddenMonthsSummary(["2026-12", "2027-01"])).toBe(
       "Ocultando 2 meses quitados: dez/26, jan/27",
     );
+  });
+});
+
+describe("matrixColumns", () => {
+  /** Rótulo de cada coluna, para comparar a sequência inteira de uma vez. */
+  const seq = (months: string[]) =>
+    matrixColumns(months).map((c) => (c.kind === "month" ? c.monthISO : c.kind === "year" ? c.year : "TOTAL"));
+
+  it("lista vazia não gera coluna nenhuma", () => {
+    expect(matrixColumns([])).toEqual([]);
+  });
+
+  it("dois anos: coluna ao fim de cada ano e total geral no fim", () => {
+    expect(seq(["2026-11", "2026-12", "2027-01", "2027-02"])).toEqual([
+      "2026-11",
+      "2026-12",
+      "2026",
+      "2027-01",
+      "2027-02",
+      "2027",
+      "TOTAL",
+    ]);
+  });
+
+  it("cada coluna carrega os meses que soma", () => {
+    const cols = matrixColumns(["2026-11", "2026-12", "2027-01", "2027-02"]);
+    expect(cols.find((c) => c.kind === "year" && c.year === "2026")).toMatchObject({
+      months: ["2026-11", "2026-12"],
+    });
+    expect(cols.find((c) => c.kind === "total")).toMatchObject({
+      months: ["2026-11", "2026-12", "2027-01", "2027-02"],
+    });
+  });
+
+  it("um ano só: sem total geral (repetiria a coluna do ano)", () => {
+    const cols = matrixColumns(["2026-01", "2026-02"]);
+    expect(cols.some((c) => c.kind === "total")).toBe(false);
+    expect(cols.filter((c) => c.kind === "year")).toHaveLength(1);
+  });
+
+  it("ano com um único mês visível não vira coluna", () => {
+    expect(seq(["2026-12", "2027-01", "2027-02"])).toEqual(["2026-12", "2027-01", "2027-02", "2027", "TOTAL"]);
+  });
+
+  it("mês único: só a coluna do mês", () => {
+    expect(seq(["2026-05"])).toEqual(["2026-05"]);
+  });
+});
+
+describe("sumMonths", () => {
+  const byMonth = { "2026-01": 1000, "2026-02": 500, "2027-01": 250 };
+
+  it("soma só os meses pedidos", () => {
+    expect(sumMonths(byMonth, ["2026-01", "2026-02"])).toBe(1500);
+  });
+
+  it("mês ausente conta zero", () => {
+    expect(sumMonths(byMonth, ["2026-01", "2026-03"])).toBe(1000);
+  });
+
+  it("lista vazia soma zero", () => {
+    expect(sumMonths(byMonth, [])).toBe(0);
+  });
+});
+
+describe("rowRemainingTotal", () => {
+  const cell = (remainingCents: number) => ({
+    cents: remainingCents,
+    remainingCents,
+    allPaid: remainingCents === 0,
+    paidCount: 0,
+    count: 1,
+    entries: [],
+    kind: "item" as const,
+  });
+  const row = { cells: { "2026-01": cell(1000), "2026-02": cell(0), "2026-03": cell(700) } };
+
+  it("soma o que falta nas células existentes", () => {
+    expect(rowRemainingTotal(row, ["2026-01", "2026-02", "2026-03"])).toBe(1700);
+  });
+
+  it("mês sem célula não soma", () => {
+    expect(rowRemainingTotal(row, ["2026-01", "2026-09"])).toBe(1000);
+  });
+
+  it("célula quitada contribui zero", () => {
+    expect(rowRemainingTotal(row, ["2026-02"])).toBe(0);
+  });
+});
+
+describe("sumMonthsOrNull", () => {
+  const byMonth = { "2026-01": 1000, "2026-02": 0 };
+
+  it("nenhum mês do intervalo tem chave → null (a UI mostra '—')", () => {
+    expect(sumMonthsOrNull(byMonth, ["2027-01", "2027-02"])).toBeNull();
+  });
+
+  it("mês com chave zerada soma 0, não null (quitado ≠ sem dado)", () => {
+    expect(sumMonthsOrNull(byMonth, ["2026-02"])).toBe(0);
+  });
+
+  it("soma normalmente quando há dado, ignorando meses ausentes", () => {
+    expect(sumMonthsOrNull(byMonth, ["2026-01", "2027-05"])).toBe(1000);
+  });
+
+  it("lista vazia → null", () => {
+    expect(sumMonthsOrNull(byMonth, [])).toBeNull();
   });
 });
