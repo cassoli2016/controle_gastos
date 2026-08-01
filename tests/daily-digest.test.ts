@@ -3,6 +3,9 @@ import { dueDateISO, buildDailyDigest, digestMessage, type DigestInput } from "@
 
 const HOJE = "2026-08-15";
 
+/** Normaliza non-breaking space (Intl pt-BR) para regular space. */
+const norm = (s: string) => s.replace(/ /g, " ");
+
 /** Despesa não paga do mês corrente, com vencimento no dia informado. */
 const conta = (line: string, cents: number, dueDay: number | null, extra: Partial<DigestInput> = {}): DigestInput => ({
   line,
@@ -134,6 +137,6 @@ describe("digestMessage", () => {
 
   it("atrasada mostra o dia em que venceu", () => {
     const texto = digestMessage(buildDailyDigest([conta("Internet", 10990, 10)], HOJE, 0), HOJE);
-    expect(texto).toContain("Internet — R$ 109,90 (venceu dia 10)");
+    expect(norm(texto)).toContain("Internet — R$ 109,90 (venceu dia 10)");
   });
 });

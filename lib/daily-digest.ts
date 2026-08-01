@@ -96,14 +96,10 @@ const dataCurta = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
 /** Bloco com título, total e até LIST_LIMIT linhas; vazio devolve string vazia. */
 function bloco(titulo: string, items: DigestItem[], linha: (i: DigestItem) => string): string {
   if (items.length === 0) return "";
-  const visiveis = items.slice(0, LIST_LIMIT).map((i) => {
-    const linhaStr = linha(i);
-    // Normaliza non-breaking space (Intl pt-BR) para regular space
-    return `• ${linhaStr.replace(/ /g, " ")}`;
-  });
+  const visiveis = items.slice(0, LIST_LIMIT).map((i) => `• ${linha(i)}`);
   const resto = items.length - LIST_LIMIT;
   if (resto > 0) visiveis.push(`• +${resto} ${resto === 1 ? "outra" : "outras"}`);
-  return `${titulo} (${items.length}) — ${formatCents(soma(items)).replace(/ /g, " ")}\n${visiveis.join("\n")}`;
+  return `${titulo} (${items.length}) — ${formatCents(soma(items))}\n${visiveis.join("\n")}`;
 }
 
 /** Texto pronto do Telegram (blocos vazios somem). */
