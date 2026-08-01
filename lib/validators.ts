@@ -162,3 +162,10 @@ export const incomeSchema = z.object({
     z.coerce.number().int().min(2, "Duração entre 2 e 60 meses").max(60, "Duração entre 2 e 60 meses"),
   ),
 });
+
+/** Retirada avulsa de uma caixinha: vira receita já recebida no mês da data. */
+export const withdrawalSchema = z.object({
+  id: z.string().min(1, "Caixinha inválida"),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+});
