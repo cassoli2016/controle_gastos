@@ -4,7 +4,6 @@ import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { refreshAllQuotes } from "@/lib/quote-refresh";
-import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
 import { parseB3Report } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
 import type { B3Trade } from "@/lib/b3-report";
@@ -65,26 +64,13 @@ export const refreshQuotes = guardAction(async function refreshQuotes(_prevState
   return { ok: true, count: r.updated };
 });
 
-/**
- * Marca um provento como recebido e lança no fluxo do mês (categoria
- * Dividendos, INCOME, já pago). entryId evita duplicar; desmarcar remove o
- * lançamento.
- */
+/** Alterna o "recebido" de um provento — só o controle da tela Investimentos (dividendos não geram lançamento mensal; o usuário reinveste tudo). */
 export const toggleDividendReceived = guardAction(async function toggleDividendReceived(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("dividendId");
   if (typeof id !== "string" || !id) return { error: "Provento inválido." };
-  const dividend = await prisma.dividend.findUnique({ where: { id }, include: { asset: true } });
+  const dividend = await prisma.dividend.findUnique({ where: { id } });
   if (!dividend) return { error: "Provento não encontrado." };
-
-  if (!dividend.received) {
-    const entryId = await createDividendMonthlyEntry(dividend);
-    await prisma.dividend.update({ where: { id }, data: { received: true, entryId } });
-  } else {
-    if (dividend.entryId) {
-      await prisma.monthlyEntry.deleteMany({ where: { id: dividend.entryId } });
-    }
-    await prisma.dividend.update({ where: { id }, data: { received: false, entryId: null } });
-  }
+  await prisma.dividend.update({ where: { id }, data: { received: !dividend.received } });
   revalidateFinance();
   return { ok: true };
 });
@@ -132,8 +118,6 @@ export const createDividend = guardAction(async function createDividend(_prevSta
 export const deleteDividend = guardAction(async function deleteDividend(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const id = formData.get("dividendId");
   if (typeof id !== "string" || !id) return { error: "Provento inválido." };
-  const dividend = await prisma.dividend.findUnique({ where: { id } });
-  if (dividend?.entryId) await prisma.monthlyEntry.deleteMany({ where: { id: dividend.entryId } });
   await prisma.dividend.delete({ where: { id } });
   revalidateFinance();
   return { ok: true };

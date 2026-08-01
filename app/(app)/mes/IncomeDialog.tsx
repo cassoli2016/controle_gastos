@@ -48,8 +48,8 @@ export function IncomeDialog() {
         <DialogHeader>
           <DialogTitle>Lançar recebimento</DialogTitle>
           <DialogDescription>
-            Salário, freela, dividendos… Entra na categoria Recebimentos (Receita) e aparece
-            com o botão &quot;Receber&quot; no mês.
+            Salário, freela e outras entradas do mês. Entra na categoria Recebimentos (Receita) e
+            aparece com o botão &quot;Receber&quot; no mês.
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-3">

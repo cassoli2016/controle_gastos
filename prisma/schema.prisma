@@ -213,9 +213,10 @@ model InvestmentTransaction {
   @@index([assetId, date])
 }
 
-// Evento de provento (dividendo/JSCP): agenda + recebimento. Ao marcar
-// recebido vira um MonthlyEntry (categoria Dividendos, INCOME) — entryId
-// evita duplicar.
+// Evento de provento (dividendo/JSCP): agenda + recebimento.
+// LEGADO (2026-08-01): dividendos não geram mais lançamento mensal (o usuário
+// reinveste tudo — spec dividendos-sem-receita). entryId fica só para evitar
+// migração; nada lê ou escreve a coluna.
 model Dividend {
   id        String          @id @default(cuid())
   asset     InvestmentAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)

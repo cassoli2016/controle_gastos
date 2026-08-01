@@ -17,11 +17,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useActionToast } from "@/hooks/use-action-toast";
 import { Plus, X } from "lucide-react";
 
-/** Botão "Receber"/"Desfazer" de um provento (lança/remove no fluxo do mês). */
+/** Botão "Receber"/"Desfazer" de um provento (só o controle de recebido — sem lançamento no mês). */
 export function DividendReceiveButton({ dividendId, received }: { dividendId: string; received: boolean }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(toggleDividendReceived, {});
   useActionToast(state, {
-    success: received ? "Recebimento desfeito." : "Provento recebido — lançado no mês. 💰",
+    success: received ? "Recebimento desfeito." : "Provento marcado como recebido. 💰",
   });
   return (
     <form action={formAction}>
@@ -33,7 +33,7 @@ export function DividendReceiveButton({ dividendId, received }: { dividendId: st
   );
 }
 
-/** Exclui um provento (e o lançamento do mês, se já recebido). */
+/** Exclui um provento. */
 export function DividendDeleteButton({ dividendId, label }: { dividendId: string; label: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(deleteDividend, {});
   useActionToast(state, { success: "Provento excluído." });
