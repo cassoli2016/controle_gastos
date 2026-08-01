@@ -4,7 +4,7 @@ import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
-import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema } from "@/lib/validators";
+import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema, incomeSchema } from "@/lib/validators";
 import { monthToDate, monthRange, monthStringFromDate } from "@/lib/dates";
 import { adjustedCents, anniversariesBetween } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
@@ -14,21 +14,9 @@ import { nthBusinessDay } from "@/lib/fatura";
 import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth } from "@/lib/recurrence";
 import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
 
-// Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
-// altera lib/): validam os formulários de excluir lançamento e
-// editar/excluir parcelamento.
+// Schemas locais: validam os formulários de excluir lançamento e
+// editar/excluir parcelamento (os compartilhados vivem em lib/validators.ts).
 const deleteEntrySchema = z.object({ entryId: z.string().min(1) });
-const incomeSchema = z.object({
-  description: z.string().trim().min(1, "Descrição obrigatória"),
-  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
-  recurring: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
-  fifthBusinessDay: z.preprocess((v) => v === "on" || v === "true", z.boolean()),
-  intervalMonths: z.preprocess(
-    (v) => (v === "" || v === null || v === undefined ? 1 : v),
-    z.coerce.number().int().min(1).max(12),
-  ),
-});
 const updateInstallmentSchema = z.object({
   installmentId: z.string().min(1),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
@@ -433,6 +421,7 @@ export const createIncome = guardAction(async function createIncome(_prevState: 
     recurring: formData.get("recurring"),
     fifthBusinessDay: formData.get("fifthBusinessDay"),
     intervalMonths: formData.get("intervalMonths"),
+    recurrenceMonths: formData.get("recurrenceMonths"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { description, amount, date, recurring, fifthBusinessDay } = parsed.data;
@@ -441,6 +430,7 @@ export const createIncome = guardAction(async function createIncome(_prevState: 
   if (recurring || fifthBusinessDay) {
     const dup = await findActiveItemByName(description);
     if (dup) return { error: `Já existe a conta recorrente "${dup.name}" — edite em Itens.` };
+    const interval = Math.max(1, parsed.data.intervalMonths);
     const { count } = await createRecurrence({
       name: description,
       amount,
@@ -449,6 +439,7 @@ export const createIncome = guardAction(async function createIncome(_prevState: 
       dueDay: Number(date.slice(8, 10)),
       businessDay: fifthBusinessDay ? 5 : null,
       intervalMonths: parsed.data.intervalMonths,
+      months: Math.max(2, Math.round(parsed.data.recurrenceMonths / interval)),
     });
     revalidateFinance();
     return { ok: true, count };

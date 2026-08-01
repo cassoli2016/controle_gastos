@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { TrendingUp } from "lucide-react";
 
@@ -22,6 +23,7 @@ import { TrendingUp } from "lucide-react";
 export function IncomeDialog() {
   const [recurring, setRecurring] = useState(false);
   const [fifthBusinessDay, setFifthBusinessDay] = useState(false);
+  const [durationMonths, setDurationMonths] = useState("12");
   const [state, formAction, pending] = useActionState<ActionState, FormData>(createIncome, {});
   useActionToast(state, {
     success: (s) =>
@@ -68,7 +70,7 @@ export function IncomeDialog() {
                 id="income-date"
                 type="date"
                 name="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={todayISOInSaoPaulo()}
                 required
               />
             </div>
@@ -84,9 +86,10 @@ export function IncomeDialog() {
               }}
               className="size-4 accent-primary"
             />
-            Recorrência mensal (salário — provisiona os próximos 12 meses)
+            Recorrência (salário e afins — escolha a frequência e a duração)
           </label>
           {recurring && (
+            <>
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="income-interval">Frequência</Label>
                 <Select name="intervalMonths" defaultValue="1">
@@ -102,6 +105,22 @@ export function IncomeDialog() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="income-duration">Duração (meses)</Label>
+                <Input
+                  id="income-duration"
+                  type="number"
+                  name="recurrenceMonths"
+                  min={2}
+                  max={60}
+                  value={durationMonths}
+                  onChange={(e) => setDurationMonths(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Por quantos meses provisionar. Depois desse prazo, use “Copiar mês anterior”.
+                </p>
+              </div>
+            </>
           )}
           <label className="flex items-center gap-2 text-sm">
             <input

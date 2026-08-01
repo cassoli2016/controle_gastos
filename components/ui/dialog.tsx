@@ -74,7 +74,8 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-2 right-2"
+              // z-20 > z-10 do cabeçalho sticky, que senão pinta por cima do X.
+              className="absolute top-2 right-2 z-20"
               size="icon-sm"
             >
               <XIcon
@@ -92,7 +93,14 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      // sticky + full-bleed: em formulário alto (que rola dentro do diálogo) o
+      // título continua visível no topo em vez de sumir com a rolagem.
+      className={cn(
+        // -top-4 compensa o -mt-4: sem isso sobra uma faixa da área rolada
+        // aparecendo acima do título.
+        "sticky -top-4 z-10 -mx-4 -mt-4 flex flex-col gap-2 rounded-t-xl bg-popover px-4 pt-4",
+        className,
+      )}
       {...props}
     />
   )
@@ -110,7 +118,8 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // sticky: o botão de enviar fica alcançável mesmo com o formulário rolando.
+        "sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}

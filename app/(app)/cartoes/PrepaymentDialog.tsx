@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { HandCoins } from "lucide-react";
 
@@ -58,7 +59,7 @@ export function PrepaymentDialog({ cardId, cardName }: { cardId: string; cardNam
               id={`prepay-date-${cardId}`}
               type="date"
               name="date"
-              defaultValue={new Date().toISOString().slice(0, 10)}
+              defaultValue={todayISOInSaoPaulo()}
               required
             />
           </div>

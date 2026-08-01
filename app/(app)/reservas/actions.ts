@@ -2,9 +2,11 @@
 import { guardAction } from "@/lib/action-guard";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
-import { reserveSchema, dailyBudgetSchema, depositSchema } from "@/lib/validators";
+import { reserveSchema, dailyBudgetSchema, depositSchema, withdrawalSchema } from "@/lib/validators";
 import { resolveCategoryId } from "@/lib/purchases";
-import { RESERVE_CATEGORY, depositEntryData } from "@/lib/reserve-flow";
+import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY, depositEntryData, withdrawalEntryData } from "@/lib/reserve-flow";
+import { monthToDate } from "@/lib/dates";
+import { decimalToCents } from "@/lib/money";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -74,6 +76,36 @@ export const setDailyBudget = guardAction(async function setDailyBudget(_prevSta
     where: { id: "default" },
     create: { id: "default", amountPerDay: parsed.data.amountPerDay },
     update: { amountPerDay: parsed.data.amountPerDay },
+  });
+  revalidateFinance();
+  return { ok: true };
+});
+
+/**
+ * Retirada avulsa: tira da caixinha sem estar amarrada ao pagamento de uma
+ * conta. Debita o amount E cria a receita já recebida no mês da data — numa
+ * transação só, para o dinheiro nunca contar duas vezes.
+ */
+export const withdrawFromReserve = guardAction(async function withdrawFromReserve(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = withdrawalSchema.safeParse({
+    id: formData.get("id"),
+    amount: formData.get("amount"),
+    date: formData.get("date"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { id, amount, date } = parsed.data;
+
+  const box = await prisma.reserveBox.findUnique({ where: { id } });
+  if (!box) return { error: "Caixinha não encontrada." };
+  if (decimalToCents(String(box.amount)) < Math.round(amount * 100))
+    return { error: "Saldo insuficiente na caixinha." };
+
+  const categoryId = await resolveCategoryId(RESERVE_WITHDRAWAL_CATEGORY);
+  await prisma.$transaction(async (tx) => {
+    await tx.reserveBox.update({ where: { id }, data: { amount: { decrement: amount } } });
+    await tx.monthlyEntry.create({
+      data: { categoryId, ...withdrawalEntryData(box.name, amount, monthToDate(date.slice(0, 7)), date) },
+    });
   });
   revalidateFinance();
   return { ok: true };

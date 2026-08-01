@@ -1,8 +1,15 @@
 "use client";
 import { useActionState, useState } from "react";
-import { PiggyBank, Pencil, Trash2, Plus } from "lucide-react";
-import { updateReserve, deleteReserve, depositToReserve, type ActionState } from "./actions";
+import { PiggyBank, Pencil, Trash2, Plus, Minus } from "lucide-react";
+import {
+  updateReserve,
+  deleteReserve,
+  depositToReserve,
+  withdrawFromReserve,
+  type ActionState,
+} from "./actions";
 import { formatCents } from "@/lib/money";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -30,10 +37,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export function ReserveCard({ reserve }: { reserve: { id: string; name: string; amountCents: number } }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateReserve, {});
   useActionToast(editState, { success: "Caixinha atualizada." });
@@ -54,6 +57,18 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
   if (depositState !== seenDeposit) {
     setSeenDeposit(depositState);
     if (depositState.ok) setDepositOpen(false);
+  }
+
+  const [withdrawState, withdrawAction, withdrawPending] = useActionState<ActionState, FormData>(
+    withdrawFromReserve,
+    {},
+  );
+  useActionToast(withdrawState, { success: "Retirada registrada." });
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [seenWithdraw, setSeenWithdraw] = useState(withdrawState);
+  if (withdrawState !== seenWithdraw) {
+    setSeenWithdraw(withdrawState);
+    if (withdrawState.ok) setWithdrawOpen(false);
   }
 
   return (
@@ -95,13 +110,56 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
                     id={`reserve-deposit-date-${reserve.id}`}
                     type="date"
                     name="date"
-                    defaultValue={todayISO()}
+                    defaultValue={todayISOInSaoPaulo()}
                     required
                   />
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={depositPending}>
                     Depositar
+                  </Button>
+                </DialogFooter>
+              </form>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog open={withdrawOpen} onOpenChange={setWithdrawOpen}>
+            <DialogTrigger asChild>
+              <Button type="button" variant="ghost" size="icon-sm" aria-label={`Retirar de ${reserve.name}`}>
+                <Minus className="size-4" />
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Retirar de “{reserve.name}”</DialogTitle>
+                <DialogDescription>
+                  O valor sai da caixinha e entra como receita recebida (“Retirada da reserva”) no mês
+                  da data — o dinheiro volta a contar no mês, uma vez só.
+                </DialogDescription>
+              </DialogHeader>
+              <form action={withdrawAction} className="flex flex-col gap-3">
+                <input type="hidden" name="id" value={reserve.id} />
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`reserve-withdraw-amount-${reserve.id}`}>Valor</Label>
+                  <CurrencyInput
+                    id={`reserve-withdraw-amount-${reserve.id}`}
+                    name="amount"
+                    defaultCents={0}
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`reserve-withdraw-date-${reserve.id}`}>Data</Label>
+                  <Input
+                    id={`reserve-withdraw-date-${reserve.id}`}
+                    type="date"
+                    name="date"
+                    defaultValue={todayISOInSaoPaulo()}
+                    required
+                  />
+                </div>
+                <DialogFooter>
+                  <Button type="submit" disabled={withdrawPending}>
+                    Retirar
                   </Button>
                 </DialogFooter>
               </form>
