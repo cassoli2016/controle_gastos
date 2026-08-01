@@ -74,7 +74,8 @@ function DialogContent({
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
               variant="ghost"
-              className="absolute top-2 right-2"
+              // z-20 > z-10 do cabeçalho sticky, que senão pinta por cima do X.
+              className="absolute top-2 right-2 z-20"
               size="icon-sm"
             >
               <XIcon
