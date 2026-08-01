@@ -1,7 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToCents, centsToNumber } from "@/lib/money";
-import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { createDividendMonthlyEntry } from "@/lib/dividend-entry";
 import type { B3Trade, B3Income } from "@/lib/b3-report";
 
 /**
@@ -91,14 +89,12 @@ export type IncomeImportResult = {
   duplicated: number;
   skippedOld: number;
   totalCents: number;
-  monthEntries: number;
 };
 
 /**
  * Aplica os proventos do relatório de Movimentação: casa com a agenda "a
  * receber" (mesmo ativo, valor ±2%) marcando como recebido, ou cria um
- * provento recebido novo. Lançamento no fluxo do mês só para pagamentos do
- * mês corrente em diante (histórico não polui meses passados).
+ * provento recebido novo.
  */
 export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportResult> {
   const result: IncomeImportResult = {
@@ -107,9 +103,7 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
     duplicated: 0,
     skippedOld: 0,
     totalCents: 0,
-    monthEntries: 0,
   };
-  const currentMonth = todayISOInSaoPaulo().slice(0, 7);
 
   for (const income of incomes) {
     if (income.dateISO < INITIAL_LOAD_CUTOFF) {
@@ -139,16 +133,14 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
     const tolerance = Math.max(2, Math.round(valueCents * 0.02));
     const match = pending.find((d) => Math.abs(decimalToCents(String(d.net)) - valueCents) <= tolerance);
 
-    let dividendId: string;
     if (match) {
       await prisma.dividend.update({
         where: { id: match.id },
         data: { received: true, payDate, net: centsToNumber(valueCents) },
       });
-      dividendId = match.id;
       result.matched++;
     } else {
-      const created = await prisma.dividend.create({
+      await prisma.dividend.create({
         data: {
           assetId: asset.id,
           type: income.type,
@@ -160,22 +152,9 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
           received: true,
         },
       });
-      dividendId = created.id;
       result.created++;
     }
     result.totalCents += valueCents;
-
-    // Fluxo do mês: só do mês corrente em diante.
-    if (income.dateISO.slice(0, 7) >= currentMonth) {
-      const entryId = await createDividendMonthlyEntry({
-        type: income.type,
-        net: centsToNumber(valueCents),
-        payDate,
-        asset: { ticker: income.ticker },
-      });
-      await prisma.dividend.update({ where: { id: dividendId }, data: { entryId } });
-      result.monthEntries++;
-    }
   }
   return result;
 }

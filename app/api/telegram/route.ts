@@ -187,7 +187,6 @@ async function handleB3Document(
   let msg = `💰 ${label}: ${r.matched + r.created} proventos — ${formatCents(r.totalCents)}`;
   if (r.matched > 0) msg += `\n✅ ${r.matched} casados com a agenda (marcados recebidos)`;
   if (r.created > 0) msg += `\n➕ ${r.created} novos registrados`;
-  if (r.monthEntries > 0) msg += `\n📅 ${r.monthEntries} lançados no fluxo do mês`;
   if (r.duplicated > 0) msg += `\n♻️ ${r.duplicated} já importados (ignorados)`;
   if (r.skippedOld > 0) msg += `\nℹ️ ${r.skippedOld} anteriores à carga inicial (ignorados)`;
   await reply(chatId, msg);
