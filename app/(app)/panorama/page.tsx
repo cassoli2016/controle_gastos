@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
-import { buildMatrix, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
+import { buildMatrix, settledPastMonths, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
@@ -17,7 +17,10 @@ function fmt(cents: number): string {
   return (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export default async function PanoramaPage() {
+export default async function PanoramaPage({ searchParams }: { searchParams: Promise<{ quitados?: string }> }) {
+  const { quitados } = await searchParams;
+  const showSettled = quitados === "1";
+
   const [rows, budget] = await Promise.all([
     prisma.monthlyEntry.findMany({
       include: { item: { include: { category: true } }, category: true, card: true },
@@ -63,6 +66,9 @@ export default async function PanoramaPage() {
 
   const matrix = buildMatrix(entries);
 
+  const hidden = settledPastMonths(matrix, currentMonth);
+  const visibleMonths = showSettled ? matrix.months : matrix.months.filter((m) => !hidden.includes(m));
+
   const monthTh = (m: string) => (
     <th
       key={m}
@@ -84,6 +90,16 @@ export default async function PanoramaPage() {
           Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
           clique no valor para editar ou dar baixa
         </p>
+        {hidden.length > 0 && (
+          <Link
+            href={showSettled ? "/panorama" : "/panorama?quitados=1"}
+            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          >
+            {showSettled
+              ? "Ocultar meses quitados"
+              : `Mostrar ${hidden.length} ${hidden.length === 1 ? "mês quitado" : "meses quitados"}`}
+          </Link>
+        )}
       </div>
 
       {matrix.months.length === 0 ? (
@@ -102,12 +118,12 @@ export default async function PanoramaPage() {
                     <th className="sticky left-0 z-10 bg-card px-4 py-2 text-left font-medium text-muted-foreground min-w-44">
                       Conta
                     </th>
-                    {matrix.months.map(monthTh)}
+                    {visibleMonths.map(monthTh)}
                   </tr>
                 </thead>
                 <tbody>
                   {matrix.sections.map((section) => (
-                    <SectionRows key={section.categoryName} section={section} months={matrix.months} currentMonth={currentMonth} />
+                    <SectionRows key={section.categoryName} section={section} months={visibleMonths} currentMonth={currentMonth} />
                   ))}
                 </tbody>
                 <tfoot className="border-t-2 font-semibold">
@@ -115,7 +131,7 @@ export default async function PanoramaPage() {
                     <td className="sticky left-0 z-10 bg-card px-4 py-2 text-emerald-600 dark:text-emerald-400">
                       A receber
                     </td>
-                    {matrix.months.map((m) => (
+                    {visibleMonths.map((m) => (
                       <td key={m} className={`px-3 py-2 text-right tabular-nums text-emerald-600 dark:text-emerald-400 ${m === currentMonth ? "bg-primary/5" : ""}`}>
                         {m in matrix.toReceiveByMonth ? fmt(matrix.toReceiveByMonth[m]) : "—"}
                       </td>
@@ -123,7 +139,7 @@ export default async function PanoramaPage() {
                   </tr>
                   <tr className="border-b">
                     <td className="sticky left-0 z-10 bg-card px-4 py-2 text-rose-600 dark:text-rose-400">A pagar</td>
-                    {matrix.months.map((m) => (
+                    {visibleMonths.map((m) => (
                       <td key={m} className={`px-3 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400 ${m === currentMonth ? "bg-primary/5" : ""}`}>
                         {m in matrix.toPayByMonth ? fmt(matrix.toPayByMonth[m]) : "—"}
                       </td>
@@ -131,7 +147,7 @@ export default async function PanoramaPage() {
                   </tr>
                   <tr>
                     <td className="sticky left-0 z-10 bg-card px-4 py-2">Saldo a realizar</td>
-                    {matrix.months.map((m) => {
+                    {visibleMonths.map((m) => {
                       const v = matrix.balanceByMonth[m] ?? 0;
                       return (
                         <td
