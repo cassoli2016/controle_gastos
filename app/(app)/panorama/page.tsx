@@ -1,11 +1,13 @@
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
-import { buildMatrix, settledPastMonths, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
+import { buildMatrix, settledPastMonths, hiddenMonthsSummary, shortMonthLabel, type MatrixEntry } from "@/lib/matrix";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CellAction } from "./CellAction";
@@ -90,16 +92,6 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
           Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
           clique no valor para editar ou dar baixa
         </p>
-        {hidden.length > 0 && (
-          <Link
-            href={showSettled ? "/panorama" : "/panorama?quitados=1"}
-            className="text-sm text-muted-foreground underline-offset-4 hover:underline"
-          >
-            {showSettled
-              ? "Ocultar meses quitados"
-              : `Mostrar ${hidden.length} ${hidden.length === 1 ? "mês quitado" : "meses quitados"}`}
-          </Link>
-        )}
       </div>
 
       {matrix.months.length === 0 ? (
@@ -111,6 +103,22 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
       ) : (
         <Card>
           <CardContent className="px-0">
+            {hidden.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+                <span className="text-xs text-muted-foreground">
+                  {showSettled ? "Exibindo todos os meses" : hiddenMonthsSummary(hidden)}
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link
+                    href={showSettled ? "/panorama" : "/panorama?quitados=1"}
+                    aria-label={showSettled ? "Ocultar meses quitados" : "Mostrar meses quitados"}
+                  >
+                    {showSettled ? <EyeOff /> : <Eye />}
+                    {showSettled ? "Ocultar quitados" : "Mostrar quitados"}
+                  </Link>
+                </Button>
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
