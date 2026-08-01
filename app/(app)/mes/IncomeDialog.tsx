@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { TrendingUp } from "lucide-react";
 
@@ -68,7 +69,7 @@ export function IncomeDialog() {
                 id="income-date"
                 type="date"
                 name="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={todayISOInSaoPaulo()}
                 required
               />
             </div>

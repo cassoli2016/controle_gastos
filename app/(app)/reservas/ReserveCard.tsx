@@ -3,6 +3,7 @@ import { useActionState, useState } from "react";
 import { PiggyBank, Pencil, Trash2, Plus } from "lucide-react";
 import { updateReserve, deleteReserve, depositToReserve, type ActionState } from "./actions";
 import { formatCents } from "@/lib/money";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -29,10 +30,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
-
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function ReserveCard({ reserve }: { reserve: { id: string; name: string; amountCents: number } }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateReserve, {});
@@ -95,7 +92,7 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
                     id={`reserve-deposit-date-${reserve.id}`}
                     type="date"
                     name="date"
-                    defaultValue={todayISO()}
+                    defaultValue={todayISOInSaoPaulo()}
                     required
                   />
                 </div>

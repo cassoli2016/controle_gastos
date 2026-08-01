@@ -2,6 +2,7 @@
 import { useActionState, useState } from "react";
 import { markPaid, type ActionState } from "./actions";
 import { formatCents } from "@/lib/money";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -9,12 +10,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
+/** Data já gravada (meia-noite UTC) formatada; sem data, hoje em São Paulo. */
 function toDateInputValue(d: Date | null): string {
-  return d ? d.toISOString().slice(0, 10) : todayISO();
+  return d ? d.toISOString().slice(0, 10) : todayISOInSaoPaulo();
 }
 
 function formatDateBR(iso: string): string {
@@ -90,7 +88,7 @@ export function PayCell({
             <label htmlFor={`paidDate-${entryId}`} className="text-xs text-muted-foreground">
               {income ? "Data do recebimento" : "Data do pagamento"}
             </label>
-            <Input id={`paidDate-${entryId}`} type="date" name="paidDate" defaultValue={todayISO()} required />
+            <Input id={`paidDate-${entryId}`} type="date" name="paidDate" defaultValue={todayISOInSaoPaulo()} required />
           </div>
           {!income && reserves.length > 0 && (
             <div className="flex flex-col gap-1">
