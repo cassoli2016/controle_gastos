@@ -1,4 +1,5 @@
 "use server";
+import type { Prisma } from "@prisma/client";
 import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
@@ -10,7 +11,7 @@ import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId, resolveCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay } from "@/lib/fatura";
-import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence } from "@/lib/recurrence";
+import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth } from "@/lib/recurrence";
 import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
 
 // Schemas locais (não fazem parte de lib/validators.ts — task FA-T5 não
@@ -129,6 +130,44 @@ export const applyRange = guardAction(async function applyRange(_prevState: Acti
   return { ok: true, count: months.length };
 });
 
+/**
+ * Recria no mês de destino as recorrências SEMANAIS presentes nos lançamentos
+ * de origem (a Diarista e afins não têm Item, então o laço das contas fixas
+ * não as alcança). Reaproveita o installmentId para o grupo seguir coeso e
+ * pula o grupo que já tenha qualquer lançamento no destino (idempotência).
+ * Devolve quantas ocorrências criou.
+ */
+async function copyWeeklyGroups(
+  tx: Prisma.TransactionClient,
+  sourceEntries: Parameters<typeof weeklyGroupsFrom>[0],
+  targetMonth: string,
+): Promise<number> {
+  const groups = weeklyGroupsFrom(sourceEntries);
+  if (groups.length === 0) return 0;
+  const target = monthToDate(targetMonth);
+  let created = 0;
+  for (const g of groups) {
+    const existing = await tx.monthlyEntry.count({
+      where: { installmentId: g.installmentId, month: target },
+    });
+    if (existing > 0) continue;
+    const dates = weekdayDatesInMonth(targetMonth, g.weekdays);
+    if (dates.length === 0) continue;
+    await tx.monthlyEntry.createMany({
+      data: dates.map((purchaseDate) => ({
+        installmentId: g.installmentId,
+        description: g.description,
+        categoryId: g.categoryId,
+        month: target,
+        plannedAmount: g.amount,
+        purchaseDate,
+      })),
+    });
+    created += dates.length;
+  }
+  return created;
+}
+
 export const copyPreviousMonth = guardAction(async function copyPreviousMonth(month: string) {
   const target = monthToDate(month);
   const prev = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() - 1, 1));
@@ -195,6 +234,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
       });
       copied++;
     }
+    copied += await copyWeeklyGroups(tx, prevEntries, month);
   });
   revalidateFinance();
   return { ok: true, copied };
@@ -229,7 +269,11 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
       item: { select: { active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true } },
     },
   });
-  if (sourceEntries.length === 0) return { error: `Nenhuma conta fixa em ${sourceMonth} para copiar.` };
+  const looseSource = await prisma.monthlyEntry.findMany({
+    where: { month: source, itemId: null, cardId: null, installmentId: { not: null }, installmentSeq: null },
+  });
+  if (sourceEntries.length === 0 && looseSource.length === 0)
+    return { error: `Nenhuma conta fixa em ${sourceMonth} para copiar.` };
 
   let copied = 0;
   await prisma.$transaction(async (tx) => {
@@ -259,6 +303,7 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
       });
       copied++;
     }
+    copied += await copyWeeklyGroups(tx, looseSource, month);
   });
   revalidateFinance();
   return { ok: true, count: copied };
@@ -279,6 +324,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
     date: formData.get("date"),
     recurring: formData.get("recurring"),
     intervalMonths: formData.get("intervalMonths"),
+    recurrenceMonths: formData.get("recurrenceMonths"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { description, amount, installments, date, recurring } = parsed.data;
@@ -306,6 +352,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       amount,
       weekdays,
       startISO: date,
+      months: parsed.data.recurrenceMonths,
       categoryId,
     });
     revalidateFinance();
@@ -319,6 +366,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
     if (dup) return { error: `Já existe a conta recorrente "${dup.name}" — edite em Itens.` };
     const categoryId =
       parsed.data.categoryId && parsed.data.categoryId !== "default" ? parsed.data.categoryId : null;
+    const interval = Math.max(1, parsed.data.intervalMonths);
     const { count } = await createRecurrence({
       name: description,
       amount,
@@ -326,6 +374,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       categoryId,
       dueDay: Number(date.slice(8, 10)),
       intervalMonths: parsed.data.intervalMonths,
+      months: Math.max(2, Math.round(parsed.data.recurrenceMonths / interval)),
     });
     revalidateFinance();
     return { ok: true, count };

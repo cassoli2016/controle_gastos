@@ -110,6 +110,82 @@ export async function createWeekdayRecurrence(opts: {
   };
 }
 
+/** Um grupo de recorrência semanal como ele aparece num mês. */
+export type WeeklyGroup = {
+  installmentId: string;
+  description: string;
+  categoryId: string | null;
+  /** Valor por ocorrência, em reais (o da ocorrência mais recente do mês). */
+  amount: number;
+  /** Dias da semana usados no mês (0=dom … 6=sáb), ordenados. */
+  weekdays: number[];
+};
+
+/** Lançamento como vem do banco, no mínimo que os helpers precisam. */
+export type WeeklyEntryInput = {
+  itemId: string | null;
+  cardId: string | null;
+  installmentId: string | null;
+  installmentSeq: number | null;
+  description: string | null;
+  categoryId: string | null;
+  plannedAmount: unknown;
+  purchaseDate: Date | null;
+};
+
+/** Datas do mês (YYYY-MM) que caem nos dias da semana pedidos, em UTC. */
+export function weekdayDatesInMonth(month: string, weekdays: number[]): Date[] {
+  if (weekdays.length === 0) return [];
+  const wanted = new Set(weekdays);
+  const [y, m] = month.split("-").map(Number);
+  const out: Date[] = [];
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate(); // último dia do mês
+  for (let day = 1; day <= last; day++) {
+    const d = new Date(Date.UTC(y, m - 1, day));
+    if (wanted.has(d.getUTCDay())) out.push(d);
+  }
+  return out;
+}
+
+/**
+ * Extrai os grupos de recorrência semanal de um mês. Marcador: sem item, sem
+ * cartão, com installmentId e SEM installmentSeq — parcelamentos sempre
+ * gravam seq, então não se confundem com recorrência.
+ */
+export function weeklyGroupsFrom(entries: WeeklyEntryInput[]): WeeklyGroup[] {
+  const byGroup = new Map<string, { last: Date; group: WeeklyGroup; days: Set<number> }>();
+  for (const e of entries) {
+    if (e.itemId || e.cardId || !e.installmentId || e.installmentSeq !== null) continue;
+    if (!e.purchaseDate || !e.description) continue;
+    const amount = Number(String(e.plannedAmount));
+    if (!Number.isFinite(amount)) continue;
+    const found = byGroup.get(e.installmentId);
+    if (!found) {
+      byGroup.set(e.installmentId, {
+        last: e.purchaseDate,
+        days: new Set([e.purchaseDate.getUTCDay()]),
+        group: {
+          installmentId: e.installmentId,
+          description: e.description,
+          categoryId: e.categoryId,
+          amount,
+          weekdays: [],
+        },
+      });
+      continue;
+    }
+    found.days.add(e.purchaseDate.getUTCDay());
+    if (e.purchaseDate.getTime() > found.last.getTime()) {
+      found.last = e.purchaseDate;
+      found.group.amount = amount; // o valor mais recente manda
+    }
+  }
+  return [...byGroup.values()].map(({ group, days }) => ({
+    ...group,
+    weekdays: [...days].sort((a, b) => a - b),
+  }));
+}
+
 /**
  * Converte um lançamento avulso (sem item e sem cartão) em recorrência
  * mensal: cria o Item a partir do lançamento, vincula o lançamento existente

@@ -41,6 +41,7 @@ export function PurchaseDialog({
   const [open, setOpen] = useState(false);
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState("1");
+  const [durationMonths, setDurationMonths] = useState("12");
   const WEEKDAYS = [
     { value: 1, label: "Seg" },
     { value: 2, label: "Ter" },
@@ -166,6 +167,21 @@ export function PurchaseDialog({
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="purchase-duration">Duração (meses)</Label>
+                <Input
+                  id="purchase-duration"
+                  type="number"
+                  name="recurrenceMonths"
+                  min={2}
+                  max={60}
+                  value={durationMonths}
+                  onChange={(e) => setDurationMonths(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Por quantos meses provisionar. Depois desse prazo, use “Copiar mês anterior”.
+                </p>
+              </div>
               {frequency === "0" && (
                 <div className="flex flex-col gap-1.5">
                   <Label>Dias da semana</Label>
@@ -182,7 +198,7 @@ export function PurchaseDialog({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Um lançamento por ocorrência (com a data de cada dia), a partir da data da
-                    compra, pelos próximos 12 meses.
+                    compra, pelos próximos {durationMonths} meses.
                   </p>
                 </div>
               )}

@@ -106,6 +106,37 @@ describe("validators", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("purchaseSchema usa 12 meses quando a duração não vem no FormData", () => {
+    const parsed = purchaseSchema.safeParse({
+      description: "Diarista",
+      amount: 220,
+      date: "2026-08-04",
+      recurring: "on",
+      intervalMonths: "0",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurrenceMonths).toBe(12);
+  });
+
+  it("purchaseSchema aceita duração de 24 meses", () => {
+    const parsed = purchaseSchema.safeParse({
+      description: "Diarista",
+      amount: 220,
+      date: "2026-08-04",
+      recurring: "on",
+      intervalMonths: "0",
+      recurrenceMonths: "24",
+    });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.recurrenceMonths).toBe(24);
+  });
+
+  it("purchaseSchema rejeita duração fora de 2..60", () => {
+    const campos = { description: "X", amount: 10, date: "2026-08-04", recurring: "on", intervalMonths: "1" };
+    expect(purchaseSchema.safeParse({ ...campos, recurrenceMonths: "1" }).success).toBe(false);
+    expect(purchaseSchema.safeParse({ ...campos, recurrenceMonths: "61" }).success).toBe(false);
+  });
 });
 
 describe("purchaseSchema com recorrência", () => {
