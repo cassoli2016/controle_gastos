@@ -129,6 +129,22 @@ export function buildMatrix(entries: MatrixEntry[]): Matrix {
   return { months, sections: orderedSections, toReceiveByMonth, toPayByMonth, balanceByMonth };
 }
 
+/**
+ * Meses anteriores a currentMonth com nada a pagar E nada a receber — podem
+ * ser ocultados na visão do Panorama (mês com QUALQUER pendência fica).
+ */
+export function settledPastMonths(
+  matrix: Pick<Matrix, "months" | "toPayByMonth" | "toReceiveByMonth">,
+  currentMonth: string,
+): string[] {
+  return matrix.months.filter(
+    (m) =>
+      m < currentMonth &&
+      (matrix.toPayByMonth[m] ?? 0) === 0 &&
+      (matrix.toReceiveByMonth[m] ?? 0) === 0,
+  );
+}
+
 const MONTH_SHORT = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
 /** "2026-08" → "ago/26" (cabeçalho compacto da matriz). */

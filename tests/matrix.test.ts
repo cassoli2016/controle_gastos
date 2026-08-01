@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMatrix, shortMonthLabel } from "@/lib/matrix";
+import { buildMatrix, shortMonthLabel, settledPastMonths } from "@/lib/matrix";
 
 describe("buildMatrix", () => {
   const entries = [
@@ -136,5 +136,36 @@ describe("shortMonthLabel", () => {
   it("formata compacto", () => {
     expect(shortMonthLabel("2026-08")).toBe("ago/26");
     expect(shortMonthLabel("2027-01")).toBe("jan/27");
+  });
+});
+
+describe("settledPastMonths", () => {
+  const base = {
+    months: ["2026-06", "2026-07", "2026-08", "2026-09"],
+    toPayByMonth: {} as Record<string, number>,
+    toReceiveByMonth: {} as Record<string, number>,
+  };
+
+  it("mês passado com tudo quitado é listado", () => {
+    const m = { ...base, toPayByMonth: { "2026-06": 0 }, toReceiveByMonth: { "2026-06": 0 } };
+    expect(settledPastMonths(m, "2026-08")).toEqual(["2026-06", "2026-07"]);
+  });
+
+  it("mês passado com despesa pendente NÃO é listado", () => {
+    const m = { ...base, toPayByMonth: { "2026-06": 5000 } };
+    expect(settledPastMonths(m, "2026-08")).toEqual(["2026-07"]);
+  });
+
+  it("mês passado com receita pendente NÃO é listado", () => {
+    const m = { ...base, toReceiveByMonth: { "2026-07": 100 } };
+    expect(settledPastMonths(m, "2026-08")).toEqual(["2026-06"]);
+  });
+
+  it("mês corrente e futuros nunca são listados, mesmo quitados", () => {
+    expect(settledPastMonths(base, "2026-06")).toEqual([]);
+  });
+
+  it("mês sem chave nos buckets conta como zerado", () => {
+    expect(settledPastMonths(base, "2026-09")).toEqual(["2026-06", "2026-07", "2026-08"]);
   });
 });
