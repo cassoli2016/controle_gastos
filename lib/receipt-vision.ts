@@ -28,8 +28,9 @@ const FREE_VISION_MODELS = [
 const PROMPT =
   "Você lê comprovantes brasileiros (PIX, cartão de crédito/débito, boleto, cupom fiscal). " +
   "Extraia da imagem e responda APENAS o JSON, sem comentários: " +
-  '{"description": "estabelecimento ou descrição curta", "amount": valor total em reais (número), ' +
-  '"installments": número de parcelas (número, ou null se à vista), ' +
+  '{"description": "estabelecimento ou descrição curta", ' +
+  '"amount": valor TOTAL da compra em reais (número; se o comprovante mostrar "Nx de V", amount = N × V), ' +
+  '"installments": número de parcelas (número; se mostrar "Nx de V", installments = N; null se à vista), ' +
   '"card": "banco/cartão se visível (ex.: nubank, bradesco), senão null"}';
 
 /**
@@ -63,19 +64,26 @@ export function parseReceiptExtraction(raw: string): ReceiptExtraction | { error
 }
 
 /**
- * Linha no formato do bot ("descrição valor [cartão] [Nx]"). A LEGENDA da
- * foto, quando existe, substitui as dicas extraídas — mesma convenção do CSV
- * (o usuário sabe mais que o modelo).
+ * Linha no formato do bot ("descrição valor [cartão] [Nx]"). A LEGENDA vence
+ * a extração NAQUILO que ela diz (o usuário sabe mais que o modelo), mas não
+ * apaga o resto: "nubank" na legenda troca só o cartão — as parcelas lidas
+ * da imagem continuam valendo. Como a visão devolve o valor TOTAL e a linha
+ * do bot fala em valor POR PARCELA, o total é dividido pelas parcelas finais
+ * (arredondado por centavos).
  */
 export function buildBotText(extraction: ReceiptExtraction, caption: string | undefined): string {
-  const parts = [extraction.description, String(extraction.amountReais)];
-  const hint = caption?.trim();
-  if (hint) {
-    parts.push(hint);
-  } else {
-    if (extraction.cardHint) parts.push(extraction.cardHint);
-    if (extraction.installments) parts.push(`${extraction.installments}x`);
-  }
+  const captionTokens = (caption ?? "").trim().split(/\s+/).filter(Boolean);
+  const captionNx = captionTokens.find((t) => /^\d{1,3}x$/i.test(t));
+  const captionRest = captionTokens.filter((t) => t !== captionNx);
+
+  const installments = captionNx ? Math.max(1, parseInt(captionNx, 10)) : (extraction.installments ?? 1);
+  const perInstallmentReais =
+    installments > 1 ? Math.round((extraction.amountReais * 100) / installments) / 100 : extraction.amountReais;
+
+  const parts = [extraction.description, String(perInstallmentReais)];
+  if (captionRest.length > 0) parts.push(captionRest.join(" "));
+  else if (extraction.cardHint) parts.push(extraction.cardHint);
+  if (installments > 1) parts.push(`${installments}x`);
   return parts.join(" ");
 }
 
