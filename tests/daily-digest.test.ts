@@ -111,6 +111,16 @@ describe("buildDailyDigest", () => {
     expect([...d.overdue, ...d.today, ...d.week]).toEqual([]);
     expect(d.toPayCents).toBe(4000);
   });
+
+  it("mês vazio não soma a reserva do dia a dia (espelha o isEmpty da tela Mês)", () => {
+    const d = buildDailyDigest([], HOJE, 150000);
+    expect(d.toPayCents).toBe(0);
+  });
+
+  it("mês com um lançamento soma a reserva do dia a dia", () => {
+    const d = buildDailyDigest([conta("Luz", 2000, 10)], HOJE, 150000);
+    expect(d.toPayCents).toBe(2000 + 150000);
+  });
 });
 
 describe("digestMessage", () => {

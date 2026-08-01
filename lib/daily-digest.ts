@@ -62,7 +62,11 @@ export function buildDailyDigest(
   const overdue: DigestItem[] = [];
   const today: DigestItem[] = [];
   const week: DigestItem[] = [];
-  let toPayCents = dailyReserveCents;
+  // Espelha o guard `isEmpty` da tela Mês: a reserva do dia a dia só entra na
+  // conta quando o mês corrente tem ao menos um lançamento real na lista —
+  // mês vazio não deve "inventar" um falta-pagar que a tela não mostra.
+  const hasCurrentMonthEntry = entries.some((e) => e.monthISO === currentMonth);
+  let toPayCents = hasCurrentMonthEntry ? dailyReserveCents : 0;
   let toReceiveCents = 0;
 
   for (const e of entries) {

@@ -31,7 +31,15 @@ export async function GET(req: Request) {
   const months = installmentMonths(currentMonth, 2);
 
   const rows = await prisma.monthlyEntry.findMany({
-    where: { month: { in: months.map(monthToDate) } },
+    where: {
+      OR: [
+        { month: { in: months.map(monthToDate) } },
+        // Atrasadas esquecidas de baixar em meses passados também precisam
+        // aparecer em "🔴 Atrasadas" — buildDailyDigest soma "falta pagar" só
+        // do mês corrente (filtra por monthISO), então isso não infla o total.
+        { month: { lt: monthToDate(currentMonth) }, paid: false },
+      ],
+    },
     include: {
       item: { select: { name: true, dueDay: true, category: { select: { type: true } } } },
       category: { select: { type: true } },
@@ -55,11 +63,15 @@ export async function GET(req: Request) {
 
   const text = digestMessage(buildDailyDigest(entries, todayISO, reserveCents), todayISO);
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: Number(chatId), text }),
     });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error("cron resumo: sendMessage falhou:", res.status, body.slice(0, 300));
+    }
   } catch (e) {
     console.error("cron resumo: sendMessage falhou:", (e as Error).message);
   }
