@@ -152,3 +152,15 @@ export function shortMonthLabel(monthISO: string): string {
   const [y, m] = monthISO.split("-").map(Number);
   return `${MONTH_SHORT[m - 1]}/${String(y).slice(2)}`;
 }
+
+/** Quantos meses o resumo nomeia antes de condensar o resto em "+N". */
+const SUMMARY_MONTH_LIMIT = 3;
+
+/** "Ocultando 1 mês quitado: jul/26" — lista até 3 meses, resto vira "+N". */
+export function hiddenMonthsSummary(hidden: string[]): string {
+  if (hidden.length === 0) return "";
+  const labels = hidden.slice(0, SUMMARY_MONTH_LIMIT).map(shortMonthLabel).join(", ");
+  const rest = hidden.length - SUMMARY_MONTH_LIMIT;
+  const noun = hidden.length === 1 ? "mês quitado" : "meses quitados";
+  return `Ocultando ${hidden.length} ${noun}: ${labels}${rest > 0 ? ` +${rest}` : ""}`;
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildMatrix, shortMonthLabel, settledPastMonths } from "@/lib/matrix";
+import { buildMatrix, shortMonthLabel, settledPastMonths, hiddenMonthsSummary } from "@/lib/matrix";
 
 describe("buildMatrix", () => {
   const entries = [
@@ -167,5 +167,33 @@ describe("settledPastMonths", () => {
 
   it("mês sem chave nos buckets conta como zerado", () => {
     expect(settledPastMonths(base, "2026-09")).toEqual(["2026-06", "2026-07", "2026-08"]);
+  });
+});
+
+describe("hiddenMonthsSummary", () => {
+  it("lista vazia devolve string vazia", () => {
+    expect(hiddenMonthsSummary([])).toBe("");
+  });
+
+  it("um mês usa singular e nomeia o mês", () => {
+    expect(hiddenMonthsSummary(["2026-07"])).toBe("Ocultando 1 mês quitado: jul/26");
+  });
+
+  it("três meses: plural e lista completa", () => {
+    expect(hiddenMonthsSummary(["2026-01", "2026-02", "2026-03"])).toBe(
+      "Ocultando 3 meses quitados: jan/26, fev/26, mar/26",
+    );
+  });
+
+  it("mais de três: corta em três e soma o resto", () => {
+    expect(hiddenMonthsSummary(["2026-01", "2026-02", "2026-03", "2026-04", "2026-05"])).toBe(
+      "Ocultando 5 meses quitados: jan/26, fev/26, mar/26 +2",
+    );
+  });
+
+  it("virada de ano na formatação dos rótulos", () => {
+    expect(hiddenMonthsSummary(["2026-12", "2027-01"])).toBe(
+      "Ocultando 2 meses quitados: dez/26, jan/27",
+    );
   });
 });
