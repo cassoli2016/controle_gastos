@@ -7,27 +7,43 @@ import { monthStringFromDate } from "@/lib/dates";
 import { addPurchaseToCard, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
 
 /**
- * Ajuste único (2026-07-31): a compra "Mercado Livre" (3× R$ 46,33 no Nubank)
- * foi lançada pela FOTO como cobrança única de R$ 138,98 na fatura de ago/26,
- * porque a legenda "nubank" substituía as dicas extraídas da imagem e as
- * parcelas se perdiam (corrigido em fix/foto-parcelas). Este script apaga a
- * cobrança única e relança como 3× de R$ 46,33 a partir de ago/26.
+ * Ajuste único (2026-07-31, 2ª passada): a compra "Mercado Livre" no Nubank
+ * (4× R$ 34,74, conforme a imagem do comprovante) foi lançada pela FOTO como
+ * cobrança única de R$ 138,98 (a legenda "nubank" descartava as parcelas
+ * extraídas da imagem — corrigido em fix/foto-parcelas). A 1ª passada deste
+ * script relançou como 3× R$ 46,33 (inferência errada a partir do total);
+ * esta versão apaga o que houver da compra e relança como 4× R$ 34,74 a
+ * partir de ago/26.
  */
-async function main() {
-  const tx = await prisma.cardTransaction.findFirst({
-    where: { description: "Mercado Livre", amount: 138.98, card: { name: "Nubank" } },
-    include: { card: true },
-  });
-  if (!tx) throw new Error("Cobrança única do Mercado Livre não encontrada — nada a fazer.");
-  console.log(`Apagando ${tx.description} ${formatCents(13898)} na fatura ${monthStringFromDate(tx.month)}…`);
-  const del = await deleteCardTransaction(tx.id);
-  if (!del.ok) throw new Error(del.error);
+const DESCRIPTION = "Mercado Livre";
+const START_MONTH = "2026-08";
+const PER_INSTALLMENT_CENTS = 3474;
+const INSTALLMENTS = 4;
 
-  const card: CardRef = { id: tx.card.id, name: tx.card.name, closingDay: tx.card.closingDay, dueDay: tx.card.dueDay };
-  const { months, firstMonthTotalCents } = await addPurchaseToCard(card, monthStringFromDate(tx.month), 4633, 3, {
-    description: "Mercado Livre",
+async function main() {
+  const existing = await prisma.cardTransaction.findMany({
+    where: { description: DESCRIPTION, card: { name: "Nubank" } },
+    include: { card: true },
+    orderBy: { month: "asc" },
   });
-  console.log(`Relançado 3x de ${formatCents(4633)} em ${months.join(", ")} (fatura ${months[0]}: ${formatCents(firstMonthTotalCents)}).`);
+  if (existing.length === 0) throw new Error("Nenhum lançamento do Mercado Livre encontrado — nada a fazer.");
+
+  for (const tx of existing) {
+    console.log(
+      `Apagando ${tx.description} ${formatCents(Math.round(Number(tx.amount) * 100))} na fatura ${monthStringFromDate(tx.month)}…`,
+    );
+    const del = await deleteCardTransaction(tx.id);
+    if (!del.ok) throw new Error(del.error);
+  }
+
+  const c = existing[0].card;
+  const card: CardRef = { id: c.id, name: c.name, closingDay: c.closingDay, dueDay: c.dueDay };
+  const { months, firstMonthTotalCents } = await addPurchaseToCard(card, START_MONTH, PER_INSTALLMENT_CENTS, INSTALLMENTS, {
+    description: DESCRIPTION,
+  });
+  console.log(
+    `Relançado ${INSTALLMENTS}x de ${formatCents(PER_INSTALLMENT_CENTS)} em ${months.join(", ")} (fatura ${months[0]}: ${formatCents(firstMonthTotalCents)}).`,
+  );
 }
 
 main()
