@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Download } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
@@ -227,6 +227,25 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
                   </tr>
                 </tfoot>
               </table>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                Exportar — uma cópia dos seus dados em CSV (abre no Excel).
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <a href="/api/export/lancamentos" download>
+                    <Download />
+                    Lançamentos
+                  </a>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a href="/api/export/extrato" download>
+                    <Download />
+                    Extrato de cartão
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
