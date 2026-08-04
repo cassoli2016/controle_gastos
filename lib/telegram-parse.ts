@@ -1,3 +1,5 @@
+import { stripDiacritics } from "@/lib/text";
+
 export type ParsedExpense = {
   description: string;
   amountReais: number;
@@ -42,10 +44,6 @@ const WEEKDAYS: Record<string, number> = {
   sex: 5, sexta: 5,
   sab: 6, sabado: 6,
 };
-
-function stripAccents(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
 
 function parseAmount(token: string): number {
   // "1.299,90" (pt-BR) ou "512.30"/"300" (decimal com ponto)
@@ -96,7 +94,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
   const weekdaySet = new Set<number>();
   const cardWords: string[] = [];
   for (const t of tokens.slice(amountIdx + 1)) {
-    const norm = stripAccents(t.toLowerCase());
+    const norm = stripDiacritics(t.toLowerCase());
     const m = INSTALLMENTS_RE.exec(t);
     const bd = BUSINESS_DAY_RE.exec(t);
     if (m) installments = Math.max(1, parseInt(m[1], 10));
@@ -114,7 +112,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
   // Frase "quinto dia util" (vira businessDay=5 e sai do cardHint).
   let cardHint = cardWords.length > 0 ? cardWords.join(" ").toLowerCase() : null;
   if (cardHint) {
-    const normalized = stripAccents(cardHint).replace(/\s+/g, " ").trim();
+    const normalized = stripDiacritics(cardHint).replace(/\s+/g, " ").trim();
     if (/\bquinto dia util\b/.test(normalized)) {
       businessDay = 5;
       const rest = normalized.replace(/\bquinto dia util\b/, " ").replace(/\s+/g, " ").trim();
@@ -122,7 +120,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     }
   }
   if (cardHint) {
-    const normalized = stripAccents(cardHint).replace(/\s+/g, " ").trim();
+    const normalized = stripDiacritics(cardHint).replace(/\s+/g, " ").trim();
     const m = /\b(?:a )?cada (\d{1,2}) mes(?:es)?\b/.exec(normalized);
     if (m) {
       recurring = true;

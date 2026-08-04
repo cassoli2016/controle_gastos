@@ -1,10 +1,4 @@
-/** Normaliza para busca: minúsculas e sem acentos ("Crédito" → "credito"). */
-export function normalizeText(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
+import { normalizeText } from "@/lib/text";
 
 /** Linhas cujo nome contém a busca (sem acentos/caixa). Query vazia → tudo. */
 export function filterViews<T extends { itemName: string }>(views: T[], query: string): T[] {

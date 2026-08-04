@@ -1,5 +1,7 @@
 import * as XLSX from "xlsx";
 
+import { normalizeText } from "@/lib/text";
+
 /**
  * Parser dos relatórios .xlsx da Área do Investidor B3:
  * - "Negociação" (extrato de negociação): compras/vendas → trades
@@ -39,11 +41,7 @@ export type B3ParseResult = {
 const TICKER_RE = /^[A-Z]{4}\d{1,2}$/;
 
 function normalizeHeader(s: unknown): string {
-  return String(s ?? "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
+  return normalizeText(String(s ?? "")).trim();
 }
 
 /** "BBSE3F" (fracionário) → "BBSE3"; valida o formato de ticker. */
