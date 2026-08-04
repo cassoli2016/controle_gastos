@@ -142,6 +142,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
 
           <MonthEntryList
+            key={month}
             views={views}
             month={month}
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}

@@ -203,7 +203,7 @@ export function MonthEntryList({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar conta…"
           aria-label="Buscar conta"
-          className="pl-9 pr-8"
+          className="pl-9 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
         />
         {searching && (
           <button
@@ -261,7 +261,13 @@ export function MonthEntryList({
                   <button
                     type="button"
                     aria-expanded={expanded}
-                    onClick={() => setManuallyOpen((s) => ({ ...s, [g.categoryName]: !expanded }))}
+                    // Durante a busca `expanded` já é forçado a true; deixar o clique
+                    // gravar o estado manual apagaria silenciosamente a expansão que
+                    // valeria ao limpar a busca.
+                    onClick={() => {
+                      if (searching) return;
+                      setManuallyOpen((s) => ({ ...s, [g.categoryName]: !expanded }));
+                    }}
                     className="flex w-full items-center justify-between gap-2 text-left"
                   >
                     <span className="font-medium">{g.categoryName}</span>

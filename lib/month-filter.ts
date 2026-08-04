@@ -3,7 +3,7 @@ export function normalizeText(s: string): string {
   return s
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "");
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 /** Linhas cujo nome contém a busca (sem acentos/caixa). Query vazia → tudo. */
