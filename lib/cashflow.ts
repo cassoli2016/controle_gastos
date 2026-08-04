@@ -100,7 +100,14 @@ export function dailyCashflow(
     else negativeRanges.push({ from: d.day, to: d.day });
   }
 
-  const min = days.reduce((a, b) => (b.cumulativeCents < a.cumulativeCents ? b : a));
+  // Seed defensivo: com `days` vazio (só alcançável com mês inválido — hoje
+  // barrado por `sanitizeMonth` — daysInMonth nunca devolve 0) o reduce sem
+  // valor inicial lançaria. O seed não muda o resultado em nenhum caso normal:
+  // é o próprio days[0], então a primeira comparação é `days[0]` contra si mesmo.
+  const min = days.reduce(
+    (a, b) => (b.cumulativeCents < a.cumulativeCents ? b : a),
+    days[0] ?? { day: 1, inCents: 0, outCents: 0, cumulativeCents: 0 },
+  );
   const verdict: CashflowVerdict =
     negativeRanges.length === 0
       ? { alwaysPositive: true, minCents: min.cumulativeCents, minDay: min.day }

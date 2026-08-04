@@ -31,7 +31,7 @@
 - `lib/cashflow.ts` (novo, puro): recebe as linhas já montadas pela página (mesma fonte de `views`, incluindo a linha derivada da reserva via `budgetLine`), `month` e `todayISO`; devolve série + veredito. Sem query nova.
 - `app/(app)/mes/CashflowCard.tsx` (novo, client): colapso + veredito + frase-resumo. A página passa a série/veredito prontos (serializáveis).
 - `app/(app)/mes/CashflowChart.tsx` (novo, client): concentra TODOS os imports do Recharts e é carregado por `next/dynamic` (`ssr: false`) só quando o card é expandido — a tela mais usada do app não paga ~1,9 MB de JS por um card que começa recolhido.
-- `app/(app)/mes/page.tsx`: calcula no server e renderiza o card entre os stat cards e o `MonthEntryList`, com `key={month}` (recolher ao trocar de mês, já que a navegação é soft).
+- `app/(app)/mes/page.tsx`: calcula no server e renderiza o card entre os stat cards e o `MonthEntryList`, com `key={`cashflow-${month}`}` (recolher ao trocar de mês, já que a navegação é soft). *Prefixo obrigatório:* `MonthEntryList` é irmão no mesmo nível com `key={month}` — key idêntica entre irmãos fazia o React manter os dois cards no DOM na troca de mês.
 - Sem mudança de schema ou actions.
 
 ## Testes e verificação

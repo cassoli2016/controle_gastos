@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { cashflowGradient, dailyCashflow, verdictSentence, type CashflowRow } from "@/lib/cashflow";
 import { dailyBudgetLine } from "@/lib/daily-budget";
+import { dailyBudgetEntryView } from "@/lib/entries";
+import { plannedBalance, plannedIncome, plannedExpense, type EntryView } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
 
 const base = { paid: false, paidDate: null, dueDay: null, purchaseDate: null };
@@ -184,6 +186,79 @@ describe("dailyCashflow", () => {
       minDay: 20,
     });
   });
+});
+
+describe("reconciliação com app/(app)/mes/page.tsx", () => {
+  // Estas linhas precisam satisfazer os DOIS tipos: `CashflowRow` (o que
+  // `dailyCashflow` consome) e `EntryView` (o que `plannedIncome`/
+  // `plannedExpense`/`plannedBalance` de lib/calc consomem) — é o mesmo objeto
+  // que `realViews` é em app/(app)/mes/page.tsx.
+  type Row = CashflowRow & EntryView;
+  const rowBase = {
+    itemName: "Linha",
+    categoryId: "cat",
+    categoryName: "Categoria",
+    paid: false,
+    paidCents: null,
+    paidDate: null,
+    dueDay: null,
+    purchaseDate: null,
+  };
+  const rowIncome = (over: Partial<Row>): Row => ({ ...rowBase, categoryType: "INCOME", plannedCents: 0, ...over });
+  const rowExpense = (over: Partial<Row>): Row => ({ ...rowBase, categoryType: "EXPENSE", plannedCents: 0, ...over });
+
+  /** "2026-08" → "2026-07": mês anterior, para a linha paga fora da competência. */
+  function prevMonth(month: string): string {
+    const [y, m] = month.split("-").map(Number);
+    const d = new Date(Date.UTC(y, m - 2, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+  }
+
+  /** Conjunto variado: receita/despesa × paga/aberta, sem data, e paga fora do mês de competência. */
+  function buildRows(month: string): Row[] {
+    return [
+      rowIncome({ plannedCents: 800_00, dueDay: 5, paid: true, paidCents: 800_00, paidDate: new Date(`${month}-05T00:00:00Z`) }),
+      rowIncome({ plannedCents: 120_00, dueDay: 20 }), // receita em aberto
+      rowIncome({ plannedCents: 60_00 }), // receita sem data
+      rowExpense({ plannedCents: 250_00, dueDay: 12 }), // despesa em aberto
+      rowExpense({ plannedCents: 90_00, paid: true, paidCents: 90_00, dueDay: 20, paidDate: new Date(`${month}-02T00:00:00Z`) }),
+      rowExpense({ plannedCents: 40_00, purchaseDate: new Date(`${month}-22T00:00:00Z`) }), // avulso em aberto
+      rowExpense({ plannedCents: 30_00 }), // despesa sem data
+      rowExpense({
+        plannedCents: 15_00,
+        paid: true,
+        paidCents: 15_00,
+        dueDay: 10,
+        paidDate: new Date(`${prevMonth(month)}-28T00:00:00Z`), // paga fora do mês de competência
+      }),
+    ];
+  }
+
+  const cenarios: Array<[string, string, string]> = [
+    ["mês passado", "2026-06", "2026-08-15"],
+    ["mês corrente", "2026-08", "2026-08-15"],
+    ["mês futuro", "2026-10", "2026-08-15"],
+  ];
+
+  for (const [rotulo, month, todayISO] of cenarios) {
+    it(`bate com plannedIncome/plannedExpense/plannedBalance (${rotulo})`, () => {
+      const perDayCents = 100_00;
+      // Montagem IDÊNTICA à da página: `views` inclui a linha derivada da
+      // reserva, `dailyCashflow` recebe só `realViews` (a reserva entra pelo
+      // parâmetro `budget` à parte).
+      const realViews = buildRows(month);
+      const budgetLine = dailyBudgetLine(month, todayISO, perDayCents);
+      const views: EntryView[] = [...realViews, dailyBudgetEntryView(budgetLine)];
+
+      const { days } = dailyCashflow(realViews, month, todayISO, { perDayCents });
+      const totalIn = days.reduce((acc, d) => acc + d.inCents, 0);
+      const totalOut = days.reduce((acc, d) => acc + d.outCents, 0);
+
+      expect(totalIn).toBe(plannedIncome(views));
+      expect(totalOut).toBe(plannedExpense(views));
+      expect(days[days.length - 1].cumulativeCents).toBe(plannedBalance(views));
+    });
+  }
 });
 
 describe("verdictSentence", () => {
