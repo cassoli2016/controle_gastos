@@ -7,6 +7,7 @@ import { getDailyBudget, getReserves } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { isOverdue } from "@/lib/calc";
+import { dailyCashflow } from "@/lib/cashflow";
 import { MonthNav } from "@/components/MonthNav";
 import { MonthStatCards } from "@/components/MonthStatCards";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,6 +19,7 @@ import { PurchaseDialog } from "./PurchaseDialog";
 import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
+import { CashflowCard } from "./CashflowCard";
 
 export default async function MesPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
@@ -91,6 +93,10 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
       ]
     : realViews;
 
+  // Fluxo diário usa realViews + reserva à parte — `views` duplicaria a linha derivada.
+  const cashflow = dailyCashflow(realViews, month, today, budgetLine ? { perDayCents: budgetLine.perDayCents } : null);
+  const todayDay = month === today.slice(0, 7) ? Number(today.slice(8, 10)) : null;
+
   const entryItemIds = new Set(views.map((v) => v.itemId));
   const availableItems = activeItems
     .filter((i) => !entryItemIds.has(i.id))
@@ -140,6 +146,19 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
       ) : (
         <>
           <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
+
+          {/* A key com o mês recolhe o card ao trocar de mês: sem ela o estado
+              do useState sobrevive à soft navigation (mesmo motivo do
+              MonthEntryList). Precisa do prefixo: dois irmãos com a MESMA key
+              fazem o React perder o nó antigo na troca (o card ficava duplicado
+              na tela junto com o do mês anterior). */}
+          <CashflowCard
+            key={`cashflow-${month}`}
+            month={month}
+            days={cashflow.days}
+            verdict={cashflow.verdict}
+            todayDay={todayDay}
+          />
 
           <MonthEntryList
             key={month}
