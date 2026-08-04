@@ -202,7 +202,8 @@ export default async function InvestimentosPage() {
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Cotas</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">PM</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Cotação</th>
-                    <th className="px-3 py-1.5 font-medium text-muted-foreground">Valor</th>
+                    <th className="px-3 py-1.5 font-medium text-muted-foreground">Investido</th>
+                    <th className="px-3 py-1.5 font-medium text-muted-foreground">Valor atual</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Resultado</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">% cart.</th>
                     <th className="px-3 py-1.5 font-medium text-muted-foreground">Renda 12m</th>
@@ -225,8 +226,9 @@ export default async function InvestimentosPage() {
                       <td className="px-3 py-1.5 tabular-nums">{p.asset.quantity.toLocaleString("pt-BR")}</td>
                       <td className="px-3 py-1.5 tabular-nums">{fmtPrice(p.avgPriceCents)}</td>
                       <td className="px-3 py-1.5 tabular-nums">{fmtPrice(p.lastPriceCents)}</td>
+                      <td className="px-3 py-1.5 tabular-nums">{formatCents(p.costCents)}</td>
                       <td className="px-3 py-1.5 tabular-nums">
-                        {p.valueCents !== null ? formatCents(p.valueCents) : formatCents(p.costCents)}
+                        {p.valueCents !== null ? formatCents(p.valueCents) : <span className="text-muted-foreground">—</span>}
                       </td>
                       <td
                         className={`px-3 py-1.5 tabular-nums ${
