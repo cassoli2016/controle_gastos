@@ -26,8 +26,10 @@ expandido em um arquivo de conceito próprio via `/mega-brain:migrate` ou `/mega
 
 ## Metrics
 
+- [saldo-previsto](saldo-previsto.md) — resultado planejado do mês inteiro (receitas − despesas previstas, pagas ou não); card "Saldo" do Mês/Dashboard
+- [saldo-a-realizar](saldo-a-realizar.md) — o que ainda falta no mês (a receber − a pagar dos lançamentos em aberto); rodapé do Panorama
+
 <!-- Métricas derivadas a documentar conforme forem definidas na aplicação. Ex.: -->
-<!-- [saldo-mensal](saldo-mensal.md) — receitas - despesas por competência -->
 <!-- [yield-carteira](yield-carteira.md) — dividendos / valor investido -->
 
 ## APIs
