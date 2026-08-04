@@ -147,7 +147,18 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
         <>
           <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
 
-          <CashflowCard days={cashflow.days} verdict={cashflow.verdict} todayDay={todayDay} />
+          {/* A key com o mês recolhe o card ao trocar de mês: sem ela o estado
+              do useState sobrevive à soft navigation (mesmo motivo do
+              MonthEntryList). Precisa do prefixo: dois irmãos com a MESMA key
+              fazem o React perder o nó antigo na troca (o card ficava duplicado
+              na tela junto com o do mês anterior). */}
+          <CashflowCard
+            key={`cashflow-${month}`}
+            month={month}
+            days={cashflow.days}
+            verdict={cashflow.verdict}
+            todayDay={todayDay}
+          />
 
           <MonthEntryList
             key={month}

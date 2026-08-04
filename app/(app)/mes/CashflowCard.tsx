@@ -1,70 +1,39 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { ChevronDown, TrendingDown, TrendingUp } from "lucide-react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import type { CashflowDay, CashflowVerdict } from "@/lib/cashflow";
+import { verdictSentence, type CashflowDay, type CashflowVerdict } from "@/lib/cashflow";
 import { formatCents } from "@/lib/money";
+import { monthLabel } from "@/lib/month-nav";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
-const POSITIVE = "#10b981"; // emerald-500 (tom de receita do app)
-const NEGATIVE = "#f43f5e"; // rose-500 (tom de despesa do app)
-
-function FlowTooltip({
-  active,
-  payload,
-}: {
-  active?: boolean;
-  payload?: ReadonlyArray<{ payload: CashflowDay }>;
-}) {
-  if (!active || !payload || payload.length === 0) return null;
-  const p = payload[0].payload;
-  return (
-    <div className="rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
-      <div className="mb-1 font-medium">Dia {p.day}</div>
-      <div className="space-y-0.5 tabular-nums">
-        <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Entradas</span>
-          <span>{formatCents(p.inCents)}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Saídas</span>
-          <span>{formatCents(p.outCents)}</span>
-        </div>
-        <div className="flex justify-between gap-4 font-medium">
-          <span>Acumulado</span>
-          <span style={{ color: p.cumulativeCents < 0 ? NEGATIVE : POSITIVE }}>{formatCents(p.cumulativeCents)}</span>
-        </div>
-      </div>
-    </div>
-  );
-}
+/**
+ * O gráfico (e com ele o recharts, ~1,9 MB de JS) chega por import dinâmico:
+ * como só é renderizado com o card expandido, a tela Mês — a mais usada do app
+ * — não paga esse bundle enquanto o usuário não abrir o card. `ssr: false`
+ * porque o recharts mede o container no cliente. O placeholder tem a MESMA
+ * altura do gráfico (220px) para o layout não pular quando ele chega.
+ */
+const CashflowChart = dynamic(() => import("./CashflowChart"), {
+  ssr: false,
+  loading: () => <div className="h-[220px] animate-pulse rounded-md bg-muted/50" aria-hidden="true" />,
+});
 
 /** Card recolhível do fluxo de caixa: veredito sempre visível, gráfico ao expandir. */
 export function CashflowCard({
   days,
   verdict,
   todayDay,
+  month,
 }: {
   days: CashflowDay[];
   verdict: CashflowVerdict;
   todayDay: number | null;
+  month: string;
 }) {
   const [open, setOpen] = useState(false);
-
-  // Gradiente dividido no zero: verde acima, vermelho abaixo (proporção pela amplitude).
-  const max = Math.max(...days.map((d) => d.cumulativeCents), 0);
-  const min = Math.min(...days.map((d) => d.cumulativeCents), 0);
-  const zeroOffset = max === min ? 1 : max / (max - min);
+  const sentence = verdictSentence(verdict);
 
   return (
     <Card>
@@ -77,13 +46,15 @@ export function CashflowCard({
         >
           <span className="font-medium">Fluxo de caixa</span>
           <span className="flex items-center gap-2">
+            {/* Tons -700 no claro: em text-xs sobre o card branco, o -600 fica
+                abaixo do 4,5:1 exigido pelo AA. No escuro o -400 já passa. */}
             {verdict.alwaysPositive ? (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
                 <TrendingUp className="size-3.5" />
                 Positivo o mês todo
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+              <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
                 <TrendingDown className="size-3.5" />
                 {formatCents(verdict.minCents)} no dia {verdict.minDay}
               </span>
@@ -94,62 +65,14 @@ export function CashflowCard({
       </CardHeader>
       {open && (
         <CardContent className="text-muted-foreground">
-          {!verdict.alwaysPositive && (
-            <p className="mb-2 text-xs">
-              Fica negativo do dia {verdict.firstNegativeDay} ao dia {verdict.lastNegativeDay}; pior momento:{" "}
-              {formatCents(verdict.minCents)} no dia {verdict.minDay}.
-            </p>
-          )}
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={days} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-              <defs>
-                {/* Um único CashflowCard por página: ids fixos não colidem. */}
-                <linearGradient id="cashflow-stroke" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset={zeroOffset} stopColor={POSITIVE} stopOpacity={0.9} />
-                  <stop offset={zeroOffset} stopColor={NEGATIVE} stopOpacity={0.9} />
-                </linearGradient>
-                <linearGradient id="cashflow-fill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset={zeroOffset} stopColor={POSITIVE} stopOpacity={0.18} />
-                  <stop offset={zeroOffset} stopColor={NEGATIVE} stopOpacity={0.18} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-              <XAxis
-                dataKey="day"
-                tick={{ fill: "currentColor", fontSize: 12 }}
-                tickLine={false}
-                axisLine={false}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tick={{ fill: "currentColor", fontSize: 12 }}
-                tickLine={false}
-                axisLine={false}
-                tickFormatter={(v: number) =>
-                  (Number(v) / 100).toLocaleString("pt-BR", { maximumFractionDigits: 0, notation: "compact" })
-                }
-              />
-              <Tooltip content={<FlowTooltip />} cursor={{ stroke: "currentColor", strokeOpacity: 0.2 }} />
-              <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.35} />
-              {todayDay !== null && (
-                <ReferenceLine
-                  x={todayDay}
-                  stroke="currentColor"
-                  strokeOpacity={0.3}
-                  strokeDasharray="4 4"
-                  label={{ value: "hoje", position: "top", fill: "currentColor", fontSize: 11 }}
-                />
-              )}
-              <Area
-                type="monotone"
-                dataKey="cumulativeCents"
-                stroke="url(#cashflow-stroke)"
-                strokeWidth={2}
-                fill="url(#cashflow-fill)"
-                dot={false}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
+          {/* Sempre presente (inclusive no mês positivo): é o resumo em texto do
+              que a curva mostra, e a alternativa de quem usa leitor de tela. */}
+          <p className="mb-2 text-xs">{sentence}</p>
+          <CashflowChart
+            days={days}
+            todayDay={todayDay}
+            ariaLabel={`Saldo acumulado dia a dia de ${monthLabel(month)}. ${sentence}`}
+          />
         </CardContent>
       )}
     </Card>
