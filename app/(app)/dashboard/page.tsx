@@ -202,7 +202,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               <p className="text-xs text-muted-foreground">
                 {investAssets.length === 0
                   ? "Nenhuma posição ainda"
-                  : `${investAssets.length} ativos · resultado ${formatCents(portfolio.resultCents)} (${formatPct(portfolio.resultPct)})`}
+                  : `${investAssets.length} ativos · investido ${formatCents(portfolio.costCents)} · resultado ${formatCents(portfolio.resultCents)} (${formatPct(portfolio.resultPct)})`}
               </p>
             </div>
             <Button asChild variant="outline" size="sm">

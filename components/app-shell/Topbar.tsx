@@ -8,6 +8,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from 
 import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./NavItems";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { version } from "@/package.json";
 
 export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }) {
   const path = usePathname();
@@ -40,6 +41,13 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
                 );
               })}
             </nav>
+            <Link
+              href="/novidades"
+              onClick={() => setOpen(false)}
+              className="mt-auto block border-t px-2 py-3 text-[11px] text-muted-foreground hover:text-foreground"
+            >
+              Grana · cassolitech · <span className="tabular-nums">v{version}</span> — Novidades
+            </Link>
           </SheetContent>
         </Sheet>
       </div>
