@@ -11,6 +11,8 @@
  * Vários blocos podem vir colados na mesma mensagem.
  */
 
+import { stripDiacritics } from "@/lib/text";
+
 export type ParsedShare = {
   description: string;
   /** Valor POR parcela em reais (na compra à vista = valor total). */
@@ -50,10 +52,6 @@ const MONTHS: Record<string, number> = {
   dezembro: 12,
 };
 
-function stripAccents(s: string): string {
-  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
-
 function parseBRL(token: string): number {
   return Number(token.replace(/\./g, "").replace(",", "."));
 }
@@ -62,7 +60,7 @@ function parseShareDate(line: string): string | undefined {
   const m = DATE_LINE_RE.exec(line);
   if (!m) return undefined;
   const day = Number(m[1]);
-  const month = MONTHS[stripAccents(m[2].toLowerCase())];
+  const month = MONTHS[stripDiacritics(m[2].toLowerCase())];
   if (!month || day < 1 || day > 31) return undefined;
   return `${m[3]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }

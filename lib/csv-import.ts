@@ -1,3 +1,5 @@
+import { normalizeText } from "@/lib/text";
+
 export type CsvRow = {
   description: string;
   amountReais: number;
@@ -39,11 +41,7 @@ function parseDateCell(cell: string): string | undefined {
 }
 
 function normalizeHeader(cell: string): string {
-  return cell
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
+  return normalizeText(cell).trim();
 }
 
 /** Divide uma linha CSV respeitando aspas duplas ("Mercado, SP" é uma célula só). */

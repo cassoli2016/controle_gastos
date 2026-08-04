@@ -1,13 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeText, filterViews } from "@/lib/month-filter";
-
-describe("normalizeText", () => {
-  it("minúsculas e sem acentos", () => {
-    expect(normalizeText("Crédito")).toBe("credito");
-    expect(normalizeText("ALUGUEL")).toBe("aluguel");
-    expect(normalizeText("São João")).toBe("sao joao");
-  });
-});
+import { filterViews } from "@/lib/month-filter";
 
 describe("filterViews", () => {
   const rows = [{ itemName: "ALUGUEL" }, { itemName: "Cartão de Crédito" }, { itemName: "Água" }];

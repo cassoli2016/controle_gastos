@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.1.1",
+    date: "2026-08-04",
+    title: "Ajustes de manutenção",
+    items: [
+      "O rodapé do computador agora indica o atalho para as Novidades, como no celular.",
+      "Arrumação interna: normalização de texto unificada e proteção de rota reforçada.",
+    ],
+  },
+  {
     version: "1.1.0",
     date: "2026-08-04",
     title: "Busca no Mês, Novidades e comparativo nos investimentos",

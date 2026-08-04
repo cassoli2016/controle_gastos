@@ -44,6 +44,7 @@ export function Sidebar() {
           {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA
             ? ` · ${process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.slice(0, 7)}`
             : ""}
+          {" — Novidades"}
         </div>
       </Link>
     </aside>

@@ -1,11 +1,8 @@
+import { normalizeText } from "@/lib/text";
+
 /** Comparação de descrições sem caixa/acentos (provisão × cobrança real). */
 export function normalizeDescription(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeText(s).replace(/\s+/g, " ").trim();
 }
 
 /** "Iguais o suficiente": uma contém a outra ("Google YouTube Premium" × "YouTube Premium"). */
