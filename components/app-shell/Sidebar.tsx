@@ -34,7 +34,10 @@ export function Sidebar() {
           );
         })}
       </nav>
-      <div className="mt-auto border-t p-4 text-[11px] text-muted-foreground">
+      <Link
+        href="/novidades"
+        className="mt-auto block border-t p-4 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      >
         <div>Grana · cassolitech</div>
         <div className="tabular-nums">
           v{version}
@@ -42,7 +45,7 @@ export function Sidebar() {
             ? ` · ${process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA.slice(0, 7)}`
             : ""}
         </div>
-      </div>
+      </Link>
     </aside>
   );
 }
