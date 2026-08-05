@@ -336,7 +336,7 @@ export const applyFatura = guardAction(async function applyFatura(
   }
   const parsed = applyPayloadSchema.safeParse(json);
   if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
-  const { cardId, bank, faturaMonth, closingISO, expectedLinesCents, limitCents, lines } = parsed.data;
+  const { cardId, bank, faturaMonth, expectedLinesCents, limitCents, lines } = parsed.data;
 
   // Revalida a soma no servidor: edição só de descrição não muda o total.
   // Compara com expectedLinesCents, NÃO com totalCents — os dois só coincidem no
@@ -349,14 +349,7 @@ export const applyFatura = guardAction(async function applyFatura(
   if (!cardRow) return { error: "Cartão não encontrado." };
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
-  const { months } = await applyFaturaImport({
-    card,
-    bank,
-    faturaMonth,
-    closingISO,
-    limitCents,
-    lines,
-  });
+  const { months } = await applyFaturaImport({ card, bank, faturaMonth, limitCents, lines });
   revalidateFinance();
   return { ok: true, summary: months };
 });

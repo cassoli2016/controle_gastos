@@ -16,11 +16,24 @@ const NUBANK_MARKER_RE = / - Parcela (\d+)\/(\d+)$/;
 const BRADESCO_MARKER_RE = /\((\d{2})\/(\d{2})\)$/;
 const ANTECIPADA_PREFIX_RE = /^antecipada - /;
 
-/** Descrição comparável entre app e fatura. */
+const NORMALIZED_MARKER_RE = / - parcela \d+\/\d+$/;
+
+/**
+ * Descrição comparável entre app e fatura.
+ *
+ * O apelido é aplicado só à parte do ESTABELECIMENTO: o sufixo de parcela é
+ * separado antes e recolocado depois. Sem isso o apelido engoliria o " - parcela
+ * n/n", e duas parcelas diferentes do mesmo plano com o mesmo valor virariam a
+ * mesma chave em `matchKey` — a detecção de órfãs passaria a casar a parcela 1
+ * com a 3.
+ */
 export function canonicalFaturaDescription(description: string): string {
   const d = normalizeDescription(description).replace(ANTECIPADA_PREFIX_RE, "");
+  const marker = NORMALIZED_MARKER_RE.exec(d);
+  const suffix = marker ? marker[0] : "";
+  const base = suffix ? d.slice(0, -suffix.length) : d;
   for (const { pattern, canonical } of FATURA_ALIASES) {
-    if (pattern.test(d)) return canonical;
+    if (pattern.test(base)) return canonical + suffix;
   }
   return d;
 }

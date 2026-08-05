@@ -14,4 +14,14 @@ export const FATURA_ALIASES: { pattern: RegExp; canonical: string }[] = [
   // "Transação de NuTag".
   { pattern: /^nutag\*/, canonical: "transacao de nutag" },
   { pattern: /^transacao de nutag$/, canonical: "transacao de nutag" },
+
+  // Divergências medidas entre o que o bot gravou (share, nome digitado pelo
+  // app do banco) e o que a fatura fechada traz. Padrões ANCORADOS de propósito:
+  // "Drogarias Pacheco S.A." é outro lançamento, à vista, e não pode casar aqui.
+  { pattern: /^mercado livre$/, canonical: "mercado*mercadolivre" },
+  { pattern: /^beto carrero world$/, canonical: "beto carrero*beto carr" },
+  { pattern: /^raiadrogasil$/, canonical: "raia drogasil" },
+  { pattern: /^drogarias pacheco$/, canonical: "drogarias pacheco - nupay" },
+  // O app guardou o código da transação; a fatura traz o estabelecimento.
+  { pattern: /^\*4606387432$/, canonical: "hugo boss" },
 ];
