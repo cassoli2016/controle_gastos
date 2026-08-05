@@ -177,6 +177,11 @@ export type CardMonthRow = {
   /** Negativo = estorno. */
   amountCents: number;
   dateISO?: string;
+  /**
+   * Texto original do banco. Guardado para o casamento com a fatura seguinte
+   * sobreviver a você renomear a linha.
+   */
+  bankDescription?: string;
 };
 
 /**
@@ -214,6 +219,7 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
         cardId: card.id,
         month: monthDate,
         description: r.description,
+        bankDescription: r.bankDescription ?? null,
         amount: centsToNumber(r.amountCents),
         purchaseDate: r.dateISO ? new Date(r.dateISO + "T00:00:00Z") : null,
         subscriptionId,

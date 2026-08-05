@@ -3,7 +3,7 @@ import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import type { FaturaBank, FaturaLine } from "@/lib/fatura-core";
-import { findOrphans, readInstallment, type AppRow } from "@/lib/fatura-match";
+import { findOrphans, toAppRow, type AppRow } from "@/lib/fatura-match";
 import { faturaPlanStates, reconcileTail, shiftMonthISO } from "@/lib/fatura-plan";
 
 /**
@@ -41,29 +41,28 @@ export async function applyFaturaImport(opts: {
     });
   }
 
-  const toAppRow = (r: {
-    id: string;
-    description: string;
-    amount: unknown;
-    installmentSeq: number | null;
-    installmentCount: number | null;
-  }): AppRow => ({
-    id: r.id,
-    description: r.description,
-    cents: decimalToCents(String(r.amount)),
-    installment: readInstallment(r),
-  });
-
   // O que o app tinha no mês ANTES do replace — é dele que saem as órfãs.
   const beforeReplace = await prisma.cardTransaction.findMany({
     where: { cardId: card.id, month: monthToDate(faturaMonth), prepayment: false },
-    select: { id: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const orphans = findOrphans(beforeReplace.map(toAppRow), lines);
 
   const rows: CardMonthRow[] = lines
     .filter((l) => l.kind !== "payment")
-    .map((l) => ({ description: l.description, amountCents: l.cents, dateISO: l.dateISO }));
+    .map((l) => ({
+      description: l.description,
+      bankDescription: l.description,
+      amountCents: l.cents,
+      dateISO: l.dateISO,
+    }));
   const target = await replaceCardMonth(card, faturaMonth, rows);
   const months = [{ month: faturaMonth, totalCents: target.totalCents }];
 
@@ -89,7 +88,15 @@ export async function applyFaturaImport(opts: {
   const states = faturaPlanStates(lines, orphans);
   const future = await prisma.cardTransaction.findMany({
     where: { cardId: card.id, month: { gt: monthToDate(faturaMonth) }, prepayment: false },
-    select: { id: true, month: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      month: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const existingByMonth = new Map<string, AppRow[]>();
   for (const r of future) {
@@ -107,6 +114,8 @@ export async function applyFaturaImport(opts: {
         cardId: card.id,
         month: monthToDate(a.month),
         description: a.description,
+        // A cauda é derivada da fatura, então o texto gerado JÁ é o do banco.
+        bankDescription: a.description,
         amount: centsToNumber(a.cents),
         installmentSeq: a.seq,
         installmentCount: a.count,

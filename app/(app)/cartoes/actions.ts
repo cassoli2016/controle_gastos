@@ -7,7 +7,7 @@ import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
 import { sumFaturaLines, type FaturaBank, type FaturaLine, type ParsedFatura } from "@/lib/fatura-core";
-import { findOrphans, readInstallment, type AppRow } from "@/lib/fatura-match";
+import { findOrphans, toAppRow, type AppRow } from "@/lib/fatura-match";
 import { faturaPlanStates, reconcileTail, shiftMonthISO } from "@/lib/fatura-plan";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
@@ -290,29 +290,31 @@ async function previewMonthsImpact(
   cardId: string,
   fatura: ParsedFatura,
 ): Promise<FaturaPreview["monthsImpact"]> {
-  const toAppRow = (r: {
-    id: string;
-    description: string;
-    amount: unknown;
-    installmentSeq: number | null;
-    installmentCount: number | null;
-  }): AppRow => ({
-    id: r.id,
-    description: r.description,
-    cents: decimalToCents(String(r.amount)),
-    installment: readInstallment(r),
-  });
-
   const mesRows = await prisma.cardTransaction.findMany({
     where: { cardId, month: monthToDate(fatura.faturaMonth), prepayment: false },
-    select: { id: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const orphans = findOrphans(mesRows.map(toAppRow), fatura.lines);
   const states = faturaPlanStates(fatura.lines, orphans);
 
   const future = await prisma.cardTransaction.findMany({
     where: { cardId, month: { gt: monthToDate(fatura.faturaMonth) }, prepayment: false },
-    select: { id: true, month: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      month: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const existingByMonth = new Map<string, AppRow[]>();
   const centsById = new Map<string, number>();

@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { canonicalFaturaDescription, readInstallment, matchKey, findOrphans, type AppRow } from "@/lib/fatura-match";
+import {
+  canonicalFaturaDescription,
+  readInstallment,
+  matchKey,
+  findOrphans,
+  toAppRow,
+  type AppRow,
+} from "@/lib/fatura-match";
 import type { FaturaLine } from "@/lib/fatura-core";
 
 describe("canonicalFaturaDescription", () => {
@@ -115,6 +122,49 @@ function inv(description: string, cents: number, seq?: number, count?: number): 
     installment: seq && count ? { seq, count } : null,
   };
 }
+
+describe("toAppRow", () => {
+  it("usa o texto do banco quando existe, não o apelido do usuário", () => {
+    // Você renomeou a linha para algo legível; o casamento tem que continuar
+    // olhando o nome do banco, senão a fatura seguinte duplica a cauda.
+    const row = toAppRow({
+      id: "1",
+      description: "Parcelas Amazon (apelido teste)",
+      bankDescription: "AMAZON RETAIL CPI SAO PAULO(09/12)",
+      amount: "15.94",
+      installmentSeq: null,
+      installmentCount: null,
+    });
+    expect(row.description).toBe("AMAZON RETAIL CPI SAO PAULO(09/12)");
+    // E a parcela sai do marcador do texto do BANCO, não do apelido.
+    expect(row.installment).toEqual({ seq: 9, count: 12 });
+  });
+
+  it("cai na descrição visível quando não há texto do banco", () => {
+    const row = toAppRow({
+      id: "1",
+      description: "Es Estacionamento",
+      bankDescription: null,
+      amount: "230.00",
+      installmentSeq: null,
+      installmentCount: null,
+    });
+    expect(row.description).toBe("Es Estacionamento");
+    expect(row.cents).toBe(23000);
+  });
+
+  it("coluna de parcela ganha do marcador, mesmo com texto do banco", () => {
+    const row = toAppRow({
+      id: "1",
+      description: "Beto Carrero World",
+      bankDescription: "Beto Carrero*Beto Carr - Parcela 1/10",
+      amount: "63.47",
+      installmentSeq: 3,
+      installmentCount: 10,
+    });
+    expect(row.installment).toEqual({ seq: 3, count: 10 });
+  });
+});
 
 describe("findOrphans", () => {
   it("linha com par na fatura não é órfã", () => {

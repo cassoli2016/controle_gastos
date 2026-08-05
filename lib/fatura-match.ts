@@ -9,6 +9,7 @@
  *      antecipada e usa outro nome para o NuTag.
  */
 import { normalizeDescription } from "@/lib/description-match";
+import { decimalToCents } from "@/lib/money";
 import { FATURA_ALIASES } from "@/lib/fatura-aliases";
 import type { FaturaLine } from "@/lib/fatura-core";
 
@@ -84,6 +85,35 @@ export type AppRow = {
   cents: number;
   installment: { seq: number; count: number } | null;
 };
+
+/**
+ * Linha do banco de dados → linha comparável com a fatura.
+ *
+ * Usa `bankDescription` quando existe: `description` é livre para o usuário
+ * renomear (apelido legível), e renomear NÃO pode desligar a identidade do
+ * plano. Sem isso, um plano renomeado deixa de casar e a fatura seguinte
+ * duplica a cauda inteira — medido em R$ 63,76 num plano do Bradesco.
+ */
+export function toAppRow(row: {
+  id: string;
+  description: string;
+  bankDescription?: string | null;
+  amount: unknown;
+  installmentSeq?: number | null;
+  installmentCount?: number | null;
+}): AppRow {
+  const description = row.bankDescription ?? row.description;
+  return {
+    id: row.id,
+    description,
+    cents: decimalToCents(String(row.amount)),
+    installment: readInstallment({
+      description,
+      installmentSeq: row.installmentSeq,
+      installmentCount: row.installmentCount,
+    }),
+  };
+}
 
 /**
  * Linhas do app no mês da fatura que a fatura NÃO cobrou. Cada par é consumido

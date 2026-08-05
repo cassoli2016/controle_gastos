@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 
 import { prisma } from "@/lib/prisma";
 import { parseFatura } from "@/lib/fatura-parse";
-import { findOrphans, readInstallment, type AppRow } from "@/lib/fatura-match";
+import { findOrphans, toAppRow, type AppRow } from "@/lib/fatura-match";
 import { faturaPlanStates, reconcileTail, shiftMonthISO, allPlans } from "@/lib/fatura-plan";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
-import { formatCents, decimalToCents } from "@/lib/money";
+import { formatCents } from "@/lib/money";
 
 /**
  * Simulação READ-ONLY do fechamento de fatura: mostra as órfãs e o que cada mês
@@ -30,22 +30,16 @@ async function main() {
   });
   if (!card) throw new Error(`cartão ${f.bank} não encontrado`);
 
-  const toAppRow = (r: {
-    id: string;
-    description: string;
-    amount: unknown;
-    installmentSeq: number | null;
-    installmentCount: number | null;
-  }): AppRow => ({
-    id: r.id,
-    description: r.description,
-    cents: decimalToCents(String(r.amount)),
-    installment: readInstallment(r),
-  });
-
   const mesRows = await prisma.cardTransaction.findMany({
     where: { cardId: card.id, month: monthToDate(f.faturaMonth), prepayment: false },
-    select: { id: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const orphans = findOrphans(mesRows.map(toAppRow), f.lines);
 
@@ -59,7 +53,15 @@ async function main() {
   const states = faturaPlanStates(f.lines, orphans);
   const future = await prisma.cardTransaction.findMany({
     where: { cardId: card.id, month: { gt: monthToDate(f.faturaMonth) }, prepayment: false },
-    select: { id: true, month: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      id: true,
+      month: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
   });
   const existingByMonth = new Map<string, AppRow[]>();
   const centsById = new Map<string, number>();
