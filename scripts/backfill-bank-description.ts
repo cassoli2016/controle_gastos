@@ -136,9 +136,11 @@ async function main() {
     }
     const plan = candidates[0];
     // A coluna `installmentSeq` ganha de qualquer marcador em `readInstallment`.
-    // Se ela discorda da parcela que a fatura implica, app e banco discordam de
-    // ONDE o plano começou — escrever bankDescription aqui faria a reconciliação
-    // apagar a linha sem repor. Fica para decisão humana.
+    // Discordância dela com a parcela que a fatura implica quase sempre significa
+    // que o casamento frouxo pegou PLANOS DIFERENTES com o mesmo valor e o mesmo
+    // total — foi o caso medido: um "AMAZON BR" 5x de R$ 15,19 comprado em 04/08
+    // (parcela 1 em setembro) e um "AMAZON BR SAO PAULO(03/05)" de igual valor na
+    // fatura fechada. Escrever aqui faria a reconciliação apagar sem repor.
     if (row.installmentSeq != null) {
       let off = 0;
       while (shiftMonthISO(fatura.faturaMonth, off) < monthStringFromDate(row.month) && off < 60) off++;
@@ -165,7 +167,7 @@ async function main() {
   console.log(`A GRAVAR: ${writes.length}`);
   for (const w of writes) console.log(`  ${w.month} "${w.from}" → bankDescription "${w.bankDescription}"`);
   if (conflicts.length > 0) {
-    console.log(`\nCONFLITO app x banco (não gravadas): ${conflicts.length}`);
+    console.log(`\nDESCARTADAS por conflito de parcela (provável plano homônimo): ${conflicts.length}`);
     for (const c of conflicts) console.log(`  ${c}`);
   }
   if (ambiguous.length > 0) {
