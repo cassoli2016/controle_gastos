@@ -130,9 +130,14 @@ Layout documentado em `docs/fatura-nubank.md`. Fatura-modelo: fechada em
 | `dueDateISO` | `Data de vencimento: 12 AGO 2026` |
 | `faturaMonth` | mês do vencimento |
 | `closingISO` | `Fechamento da próxima fatura 05 SET 2026` menos 1 mês; fallback pelo fim de `Período vigente: 05 JUL a 05 AGO` |
-| `totalCents` | `Total a pagar R$ 17.884,29` |
+| `totalCents` | `^Total a pagar R$ 17.884,29$` — **ancorado na linha e sem dois-pontos** |
 | `limitCents` | `Limite total do cartão de crédito: R$ 51.550,00` (página 1) |
 | `upcoming` | `Saldo em aberto da próxima fatura` / `Saldo em aberto total` |
+
+A âncora de `totalCents` precisa ser ancorada na linha porque o detalhe do
+parcelamento traz `Total a pagar: R$ 83,74` (com dois-pontos) no meio das
+transações, e a tabela de alternativas de pagamento traz `Total a pagar` como
+rótulo solto. `^Total a pagar R\$ ([\d.,]+)$` separa os três casos.
 
 Meses vêm abreviados em português maiúsculo (`JAN FEV MAR ABR MAI JUN JUL AGO
 SET OUT NOV DEZ`).
@@ -182,22 +187,99 @@ só como termos da identidade; nenhuma asserção é feita sobre eles isoladamen
 Formato: `dd MMM  •••• NNNN  Descrição  R$ valor`, com variações — NuPay e NuTag
 não têm cartão mascarado.
 
-- Regex ancorada em `^dd MMM` no início da linha. Isso é o que protege das
-  linhas que também contêm `R$` mas não são lançamento: subtotais por pessoa
-  (`Cristian Cassoli R$ 15.097,66`), a conversão de compra internacional
-  (`USD 3.00` / `Conversão: USD 1 = R$ 5,25`) e o detalhe do parcelamento
-  (`↳ Total a pagar: R$ 83,74 … 4 parcelas de R$ 20,94.`).
-- **Negativos usam o sinal Unicode U+2212 (`−`), não o hífen ASCII.** Aceitar os
-  dois. Isso vale para `Crédito de "X"`, `Desconto Antecipação X`,
-  `IOF de volta de X` e as linhas de pagamento.
+Verificado contra a extração real do `unpdf` (prototipagem, 2026-08-05): as
+páginas 2–3 (alternativas de pagamento) saem fragmentadas, com rótulo e valor em
+linhas separadas, mas **o resumo e as transações saem como linhas limpas**. As
+páginas 2–3 não são usadas.
+
+- Regex ancorada em `^dd MMM`. É o que protege das linhas que também contêm `R$`
+  mas não são lançamento: subtotais por pessoa (`Cristian Cassoli R$ 15.097,66`),
+  cabeçalho repetido (`TRANSAÇÕES DE 05 JUL A 05 AGO`) e rodapé de página.
+- **Valor deslocado — dois casos reais em que o valor NÃO está na linha da data:**
+
+  ```
+  16 JUL •••• 9784 Interserver.Net          ← sem valor
+  USD 3.00
+  Conversão: USD 1 = R$ 5,25
+  R$ 15,75                                   ← o valor
+
+  05 JUL Privalia Br I - Parcela 4/4        ← sem valor
+  Total a pagar: R$ 83,74 (valor da transação de R$ 80,05 + R$ 0,69 de IOF +
+  R$ 3,00 de juros) divididos em 4 parcelas de R$ 20,94.
+  R$ 20,94                                   ← o valor
+  ```
+
+  Regra: se a linha `^dd MMM` não termina em valor, varre até 4 linhas adiante
+  procurando a primeira que seja **só** um valor (`^[−-]?R\$ [\d.,]+$`), parando
+  se outra linha `^dd MMM` aparecer antes. Ignorar essas linhas custaria
+  R$ 15,75 + R$ 20,94 e faria a checagem de transcrição abortar a importação
+  inteira — o erro seria "a soma não bate", sem dizer por quê.
+- **Negativos usam U+2212 (`−`), não hífen ASCII** — 10 ocorrências no documento,
+  em `Crédito de "X"`, `Desconto Antecipação X`, `IOF de volta de X` e nas linhas
+  de pagamento. O subtotal `Pagamentos e Financiamentos -R$ 12.969,91` usa hífen
+  ASCII (1 ocorrência) e não é parseado, mas aceitar os dois sinais é barato.
 - `- Parcela pp/tt` no fim da descrição ⇒ `installment` (sem zero à esquerda).
 - `Pagamento em dd MMM` ⇒ `kind: "payment"` (fora da soma e não gravado como
   linha). Cobre tanto o pagamento da fatura anterior quanto a antecipação — a
   antecipação vive no banco como `CardTransaction.prepayment`, preservada pelo
   `replaceCardMonth`.
-- `Saldo restante da fatura anterior R$ 0,00` ⇒ ignorar.
+- `Saldo restante da fatura anterior R$ 0,00` ⇒ ignorar (aparece duas vezes).
+- Prefixo de cartão mascarado (`•••• 8088 `) sai da descrição.
 - **Duas seções de compras** (titular e adicional). Ambas entram no mesmo
   consolidado; os subtotais servem só de conferência humana.
+
+Resultado da prototipagem sobre a fatura-modelo: **230 linhas** (222 `purchase`,
+6 `refund`, 2 `payment`), 0 puladas, e `soma(purchase+refund) = 18.339,54`
+exatamente igual às duas rotas do resumo.
+
+### Cronograma: agrupar por plano, não por linha
+
+`buildInstallmentSchedule` hoje projeta `seq+1..count` **para cada linha**. Isso
+está errado quando a mesma fatura cobra mais de uma parcela do mesmo plano — que
+é exatamente o que o Nubank faz na quitação antecipada:
+
+```
+05 JUL Nescafe Dolce Gusto - Parcela 2/10             R$ 33,80
+07 JUL Antecipada - Nescafe Dolce Gusto - Parcela 3/10 R$ 33,80
+07 JUL Antecipada - Nescafe Dolce Gusto - Parcela 4/10 R$ 33,80
+…                                                      (até 10/10)
+07 JUL Desconto Antecipação Nescafe Dolce Gusto       −R$ 9,96
+```
+
+As 10 parcelas foram pagas neste ciclo; nada resta para o futuro. A projeção por
+linha recria 3..10 a partir da parcela 2, 4..10 a partir da 3, e assim por diante.
+Medido: **R$ 26.234,86** projetados contra **R$ 20.969,07** de "Saldo em aberto
+total" do PDF.
+
+Correção: agrupar por **plano** — chave `(descrição sem o prefixo "Antecipada - "
+e sem o sufixo "- Parcela n/N", count, valor por parcela)` — e projetar só a
+partir do **maior `seq`** presente na fatura. O valor por parcela entra na chave
+porque a mesma loja pode ter dois planos simultâneos (na fatura-modelo,
+`Associacao Franciscana` tem um de 9× R$ 30,88 e outro de 12× R$ 17,99).
+
+Com o agrupamento: **R$ 20.028,97** projetados, e mês a mês contra o que já está
+no banco — out/2026 R$ 5.198,17 vs R$ 5.197,94; nov R$ 4.361,21 vs R$ 4.361,03;
+dez R$ 2.768,23 vs R$ 2.768,10 — diferenças de centavos.
+
+**Impacto no Bradesco: nenhum.** A fixture tem 45 planos e **zero** com mais de
+uma parcela na mesma fatura, então o agrupamento é no-op ali e
+`tests/bradesco-fatura.test.ts` continua válido sem mudar asserção. A mudança é
+estritamente mais correta para os dois bancos.
+
+### `upcoming` do Nubank não é comparável ao cronograma
+
+Para o Bradesco, `scheduleWarnings` compara a projeção com "Total parcelado para
+as próximas faturas" — que é explicitamente **só parcelamento**, logo comparável.
+
+No Nubank, "Saldo em aberto da próxima fatura" **já inclui compras do ciclo novo**
+que a fatura fechada não lista (o documento foi emitido 05/08 às 03:31, com
+compras de 04–05/08 já lançadas). Medido: projeção de setembro R$ 6.716,86 +
+R$ 941,28 de compras do ciclo novo = R$ 7.658,14, contra R$ 7.657,56 do PDF.
+
+Portanto, no Nubank o `upcoming` é **informativo, não validação**: nada de
+tolerância nem de aviso de divergência por ele. A validação exata do Nubank são
+as checagens 1–3 do resumo e das linhas. `scheduleWarnings` passa a ser aplicado
+somente quando `bank === "bradesco"`.
 
 ### Inferência de ano
 
@@ -284,11 +366,16 @@ usuário está exportando).
   `totalCents === 1788429`, `expectedLinesCents === 1833954`, `limitCents`,
   `upcoming`, nº de linhas e a distribuição por `kind`.
 - Casos de borda do parser, cada um com sua asserção: sinal U+2212; linha NuPay
-  sem cartão mascarado; a linha de conversão internacional e o detalhe
-  `↳ Total a pagar:` **não** virando lançamento; subtotal por pessoa idem;
-  `Saldo restante da fatura anterior` ignorado.
-- Cronograma: projeção de setembro derivada da fatura ≈ "Saldo em aberto da
-  próxima fatura" do PDF, dentro da tolerância existente.
+  sem cartão mascarado; **valor deslocado** na compra internacional (R$ 15,75) e
+  na parcela financiada (R$ 20,94); `Total a pagar: R$ 83,74` **não** sendo lido
+  como total da fatura; subtotal por pessoa e cabeçalho de página não virando
+  lançamento; `Saldo restante da fatura anterior` ignorado.
+- Cronograma agrupado por plano: a quitação antecipada da `Nescafe Dolce Gusto`
+  (10 parcelas no mesmo ciclo) projeta **zero** para o futuro, e o total
+  projetado fica em R$ 20.028,97. Um teste dedicado trava que a projeção por
+  linha (26.234,86) não voltou.
+- `upcoming` do Nubank é exposto mas **não** gera aviso de divergência;
+  `scheduleWarnings` só roda para Bradesco.
 - `tests/fatura-parse.test.ts` — dispatcher: texto Nubank → parser Nubank;
   fixture Bradesco → parser Bradesco; lixo → erro.
 - Guard do CSV: CSV dividido entre meses substitui só o majoritário e
