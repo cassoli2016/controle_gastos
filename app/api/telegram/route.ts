@@ -7,6 +7,8 @@ import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
+import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
+import { applyFaturaImport } from "@/lib/fatura-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -47,7 +49,8 @@ const HELP =
   "• <code>recebi freela 500</code> · <code>salário 25000 receita mensal 5du</code>\n" +
   "\n<b>💳 Cartões</b>\n" +
   "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
-  "• Fatura: envie o .csv do banco (cartão pelo nome do arquivo) — PDF do Bradesco importa pelo app\n" +
+  "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total e travo o mês\n" +
+  "• Fatura em aberto: envie o .csv do banco (cartão pelo nome do arquivo)\n" +
   "• Antecipação: <code>antecipei 500 nubank</code>\n" +
   "• Assinatura: <code>youtube 24,90 nubank mensal</code> (8x = duração)\n" +
   "\n<b>🔁 Recorrências</b>\n" +
@@ -281,6 +284,90 @@ async function handleCsvDocument(
   if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s) de fatura ignorado(s).`;
   if (failed > 0) msg += `\n⚠️ ${failed} linha(s) não entendida(s).`;
   await reply(chatId, msg);
+}
+
+const MAX_FATURA_PDF_BYTES = 4_000_000;
+
+/**
+ * Fatura FECHADA em PDF (Nubank ou Bradesco): valida contra o total do próprio
+ * documento e, se fechar, grava o mês e reconstrói as parcelas futuras. Falha
+ * fechada — divergência de transcrição não grava nada.
+ */
+async function handleFaturaPdfDocument(
+  chatId: number,
+  doc: NonNullable<TelegramUpdate["message"]>["document"] & { file_id: string },
+  caption: string | undefined,
+) {
+  if ((doc.file_size ?? 0) > MAX_FATURA_PDF_BYTES) {
+    await reply(chatId, "PDF acima de 4 MB — baixe a fatura direto do app do banco.");
+    return;
+  }
+  const buffer = await downloadTelegramFileBinary(doc.file_id);
+  if (!buffer) {
+    await reply(chatId, "Não consegui baixar o arquivo. Tente enviar de novo.");
+    return;
+  }
+
+  // Import dinâmico: o worker do pdfjs só carrega quando alguém manda fatura.
+  let text: string;
+  try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    text = (await extractText(pdf, { mergePages: true })).text;
+  } catch {
+    await reply(chatId, "Não consegui ler o PDF (arquivo corrompido ou protegido).");
+    return;
+  }
+
+  const fatura = parseFatura(text);
+  if ("error" in fatura) {
+    await reply(chatId, `❌ ${fatura.error}`);
+    return;
+  }
+
+  // Cartão: a legenda ganha; sem ela, o banco que o parser identificou — então
+  // não é preciso renomear o arquivo do banco.
+  const hint = caption?.trim().toLowerCase() || fatura.bank;
+  const card = await findCardByHint(hint);
+  if (!card) {
+    await reply(chatId, CARD_NOT_FOUND(hint));
+    return;
+  }
+
+  const { months } = await applyFaturaImport({
+    card,
+    bank: fatura.bank,
+    faturaMonth: fatura.faturaMonth,
+    closingISO: fatura.closingISO,
+    limitCents: fatura.limitCents,
+    lines: fatura.lines,
+  });
+  revalidateFinance();
+
+  const entries = fatura.lines.filter((l) => l.kind !== "payment").length;
+  const parts = [
+    `✅ Fatura ${card.name} — ${fmtMonth(fatura.faturaMonth)}`,
+    `Total: ${formatCents(fatura.totalCents)}`,
+    `${entries} lançamentos`,
+    "",
+    "Meses atualizados:",
+    ...months.filter((m) => m.totalCents !== 0).map((m) => `• ${fmtMonth(m.month)} — ${formatCents(m.totalCents)}`),
+  ];
+
+  // A fatura foi lida certa; se o mês fechou em outro valor, falta um dado no
+  // app — tipicamente a antecipação que o banco já abateu.
+  const applied = months.find((m) => m.month === fatura.faturaMonth);
+  if (applied && applied.totalCents !== fatura.totalCents) {
+    const diff = applied.totalCents - fatura.totalCents;
+    parts.push(
+      "",
+      `⚠️ O mês fechou em ${formatCents(applied.totalCents)}, ${formatCents(Math.abs(diff))} ${diff > 0 ? "acima" : "abaixo"} do total da fatura.`,
+      `Se você antecipou pagamento neste ciclo, registre com "antecipei <valor> ${card.name.toLowerCase()}".`,
+    );
+  }
+  for (const w of [...fatura.warnings, ...scheduleWarnings(fatura)]) parts.push(`⚠️ ${w}`);
+
+  await reply(chatId, parts.join("\n"));
 }
 
 /** Compras parseadas de notificações (share do Nubank ou SMS do Bradesco). */
@@ -740,8 +827,11 @@ export async function POST(req: Request) {
   }
 
   if (doc?.file_id) {
-    if (/\.xlsx$/i.test(doc.file_name ?? "")) {
+    const name = doc.file_name ?? "";
+    if (/\.xlsx$/i.test(name)) {
       await handleB3Document(chatId, { ...doc, file_id: doc.file_id });
+    } else if (/\.pdf$/i.test(name)) {
+      await handleFaturaPdfDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
     } else {
       await handleCsvDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
     }
