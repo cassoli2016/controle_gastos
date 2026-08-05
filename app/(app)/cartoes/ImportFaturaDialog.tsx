@@ -151,6 +151,11 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                               {formatCents(diff)})
                             </span>
                           )}
+                          {(m.removed > 0 || m.added > 0) && (
+                            <span className="ml-1 text-muted-foreground">
+                              −{m.removed} +{m.added}
+                            </span>
+                          )}
                         </span>
                       </li>
                     );

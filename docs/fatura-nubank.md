@@ -169,45 +169,77 @@ simultâneos (`Associacao Franciscana`: 9× R$ 30,88 e 12× R$ 17,99).
 1. **Fatura fechada — conferir:** envie o PDF no Telegram. O bot valida o total
    contra o documento e compara com o que o app tem no mês, **sem gravar**.
 2. **Fatura fechada — gravar:** tela **Cartões → Importar fatura**. O preview
-   mostra as linhas e o **impacto mês a mês** antes de confirmar (ver a dívida
-   aberta abaixo — é o que torna essa confirmação necessária).
+   mostra as linhas, o impacto mês a mês (com quantas linhas entram e saem) e
+   um campo de data para dar baixa na hora.
 3. **Fatura aberta:** envie o `.csv` no Telegram. O handler substitui só o mês
    majoritário e insere (sem apagar) o resíduo que cair em outro mês — ver
    "corte intradiário".
 4. Reconciliação manual pontual: `scripts/fix-fatura-nubank-ago-2026.ts` (simula
    por padrão, grava só com `--apply`).
+5. Simulação read-only de qualquer fatura antes de gravar:
+   `npx tsx scripts/simula-fechamento-nubank.ts <pdf>`.
 
-## Dívida aberta: duplicação nos meses futuros
+## Fechamento: a fatura como estado dos planos
 
-Importar a fatura fechada **dobra** out/2026 → mai/2027 (medido: outubro iria de
-R$ 5.197,94 para R$ 10.361,37). Não é regressão desta entrega — a regra anterior
-faz o mesmo.
+A fatura não é "o total do mês" — é **o que o banco efetivamente cobrou de cada
+plano de parcelamento**. Disso decorre todo o resto (`lib/fatura-plan.ts`):
 
-Causa: as linhas desses meses foram gravadas por importações antigas com
-`purchaseDate` apontando para a **abertura do ciclo futuro** (2026-09-xx,
-2026-10-xx) em vez da data da compra, e sob **duas convenções de parcela**
-incompatíveis:
+1. O mês da fatura é substituído pelas linhas dela.
+2. O que o app tinha no mês e a fatura **não** cobrou (órfã) caminha para frente:
+   à vista vira lançamento do mês seguinte, parcela faz o plano deslocar.
+3. A cauda de cada plano nos meses futuros é acertada para
+   `maiorParcelaCobrada+1 .. total`.
 
-| Origem | Parcela onde | Descrição | `purchaseDate` |
-|---|---|---|---|
-| `addPurchaseToCard` (bot, share) | coluna `installmentSeq` | sem marcador (`Beto Carrero World`) | data da compra original |
-| importação de CSV/fatura | marcador na descrição | `Beto Carrero*Beto Carr - Parcela 3/10` | abertura do ciclo |
+Um mecanismo, três casos:
 
-As descrições das duas convenções nem casam entre si, então nem casar por plano
-resolve. Nenhuma regra baseada em data reconhece essas linhas como projeção, e a
-reconstrução soma em cima.
+| Situação | Cobrado até | Cauda |
+|---|---|---|
+| Normal — fatura mostra 8/12 | 8 | 9..12 |
+| Quitação antecipada — mostra 10/10 | 10 | vazia |
+| Parcela atrasada — app tinha 3/6, fatura não traz | 2 | 3..6 (deslocou) |
 
-Medição que torna o conserto decidível: out→jan têm **43, 31, 16 e 6 linhas, todas
-parcelas, zero compras à vista**, e os totais batem com a projeção a menos de 23
-centavos — são duplicatas obsoletas do mesmo cronograma.
+Preserva antecipações, compras à vista de meses futuros e planos que a fatura não
+conhece (compra feita depois do fechamento).
 
-Enquanto isso não for limpo: o bot só confere, e o preview da web avisa qual mês
-mais que dobra.
+### Identidade do plano: balde + tolerância de centavos
 
-O `upcoming` do Nubank **não** serve para validar o cronograma: "Saldo em aberto
-da próxima fatura" já inclui compras do ciclo novo (projeção de set/2026
-R$ 6.716,86 + R$ 941,28 do ciclo novo ≈ R$ 7.657,56 do PDF). `scheduleWarnings`
-só compara no Bradesco, que tem um "Total parcelado" exclusivamente de
-parcelamento.
+A chave **não** inclui o valor exato. O banco arredonda entre parcelas do mesmo
+plano: `Renner 427 Jockey Plaz` é R$ 159,88 na parcela 1 e R$ 159,86 na 3;
+`Mlp*Magalu-Loja Hasbro` vai de 87,52 a 87,49. Com o valor exato na chave, 2
+centavos quebram a identidade e a parcela é inserida em duplicidade — medido, 10
+das 13 divergências de out/2026 eram exatamente isso.
 
-Relacionados: [cartao-credito](cartao-credito.md) · [fatura-bradesco-pdf](fatura-bradesco-pdf.md)
+Então: **balde = (descrição canônica, nº de parcelas)**, e dentro do balde o valor
+casa com tolerância de 10 centavos. Isso ainda separa dois planos da mesma loja e
+mesmo tamanho — há duas Privalia de 5x, a R$ 116,11 e R$ 138,39.
+
+### Casamento de descrição
+
+`canonicalFaturaDescription` (`lib/fatura-match.ts`) resolve as divergências entre
+o que o bot gravou e o que a fatura traz:
+
+- prefixo `Antecipada - ` sai;
+- marcador cru vira marcador escrito (`- 4/4` → `- Parcela 4/4`): a seção
+  "Pagamentos e Financiamentos" escreve diferente da seção de compras;
+- meio de pagamento sai do nome (`- NuPay`), porque a fatura é inconsistente com
+  ele entre as duas seções;
+- apelidos de estabelecimento em `lib/fatura-aliases.ts` — é o **único lugar** a
+  editar quando aparecer nome novo divergente.
+
+O apelido é aplicado só à parte do estabelecimento, com o sufixo de parcela
+separado antes e recolocado depois. Sem isso ele engoliria o `- Parcela n/n` e a
+detecção de órfãs casaria a parcela 1 com a 3.
+
+`readInstallment` lê a parcela nas **duas convenções**: coluna `installmentSeq`
+(gravada pelo bot, descrição sem marcador) ou marcador na descrição (importação de
+CSV/fatura, colunas nulas).
+
+### A dívida da duplicação, resolvida
+
+Antes deste modelo, importar a fatura fechada **dobrava** out/2026 → mai/2027
+(outubro ia de R$ 5.197,94 para R$ 10.361,37), porque a reconstrução recriava o
+cronograma por cima do que já existia.
+
+Resolvido pela reconciliação por identidade de plano, **sem script de limpeza em
+produção**. Verificado: importar a fatura de ago/2026 sobre o estado real é um
+no-op completo — 0 órfãs, 0 ações na cauda, todo mês inalterado.

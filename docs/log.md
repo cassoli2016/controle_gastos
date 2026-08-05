@@ -7,3 +7,4 @@ type: Log
 2026-08-04 — added métricas Saldo (previsto do mês) e Saldo a realizar: fórmulas e diferença entre Mês/Dashboard e Panorama
 2026-08-05 — added Fatura Nubank (PDF fechado + CSV aberto): layout, competência e o corte intradiário que parte o dia do fechamento entre duas faturas
 2026-08-05 — added parser da fatura Nubank e importação de fatura em PDF pelo Telegram; cronograma de parcelas passa a agrupar por plano (quitação antecipada duplicava)
+2026-08-05 — added fechamento de fatura como estado dos planos: órfãs caminham para frente, cauda reconciliada por plano, dívida da duplicação resolvida sem limpeza em produção

@@ -6,14 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
-import {
-  buildInstallmentSchedule,
-  ownedByRebuild,
-  sumFaturaLines,
-  type FaturaBank,
-  type FaturaLine,
-  type ParsedFatura,
-} from "@/lib/fatura-core";
+import { sumFaturaLines, type FaturaBank, type FaturaLine, type ParsedFatura } from "@/lib/fatura-core";
+import { findOrphans, readInstallment, type AppRow } from "@/lib/fatura-match";
+import { faturaPlanStates, reconcileTail, shiftMonthISO } from "@/lib/fatura-plan";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { applyFaturaImport } from "@/lib/fatura-import";
@@ -198,7 +193,7 @@ export type FaturaPreview = {
    * mas esconde o efeito colateral: a reconstrução das parcelas futuras pode
    * duplicar linhas gravadas por importações antigas.
    */
-  monthsImpact: { month: string; beforeCents: number; afterCents: number }[];
+  monthsImpact: { month: string; beforeCents: number; afterCents: number; removed: number; added: number }[];
 };
 
 export type FaturaPreviewState = { error?: string; preview?: FaturaPreview };
@@ -283,47 +278,110 @@ export const previewFatura = guardAction(async function previewFatura(
 });
 
 /**
- * Simula a importação: para cada mês afetado, quanto o consolidado é hoje e
- * quanto viraria. Usa a MESMA regra de posse do `applyFaturaImport`
- * (`ownedByRebuild`), senão o preview mentiria.
+ * Simula a importação: para cada mês afetado, quanto o consolidado é hoje, quanto
+ * viraria, e quantas linhas entram e saem.
+ *
+ * Usa `findOrphans` e `reconcileTail` — as MESMAS funções do `applyFaturaImport`.
+ * Reimplementar a simulação aqui faria o preview mentir na hora em que uma das
+ * duas mudasse, e é justamente ele que autoriza uma operação que mexe em até dez
+ * meses.
  */
 async function previewMonthsImpact(
   cardId: string,
   fatura: ParsedFatura,
-): Promise<{ month: string; beforeCents: number; afterCents: number }[]> {
-  const cutoff = new Date(fatura.closingISO + "T23:59:59Z");
-  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth, fatura.bank);
-  const existing = await prisma.cardTransaction.findMany({
-    where: { cardId, month: { gte: monthToDate(fatura.faturaMonth) } },
-    select: { month: true, description: true, purchaseDate: true, amount: true, prepayment: true },
+): Promise<FaturaPreview["monthsImpact"]> {
+  const toAppRow = (r: {
+    id: string;
+    description: string;
+    amount: unknown;
+    installmentSeq: number | null;
+    installmentCount: number | null;
+  }): AppRow => ({
+    id: r.id,
+    description: r.description,
+    cents: decimalToCents(String(r.amount)),
+    installment: readInstallment(r),
   });
 
+  const mesRows = await prisma.cardTransaction.findMany({
+    where: { cardId, month: monthToDate(fatura.faturaMonth), prepayment: false },
+    select: { id: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+  });
+  const orphans = findOrphans(mesRows.map(toAppRow), fatura.lines);
+  const states = faturaPlanStates(fatura.lines, orphans);
+
+  const future = await prisma.cardTransaction.findMany({
+    where: { cardId, month: { gt: monthToDate(fatura.faturaMonth) }, prepayment: false },
+    select: { id: true, month: true, description: true, amount: true, installmentSeq: true, installmentCount: true },
+  });
+  const existingByMonth = new Map<string, AppRow[]>();
+  const centsById = new Map<string, number>();
+  for (const r of future) {
+    const month = monthStringFromDate(r.month);
+    const row = toAppRow(r);
+    centsById.set(row.id, row.cents);
+    existingByMonth.set(month, [...(existingByMonth.get(month) ?? []), row]);
+  }
+  const actions = reconcileTail({ states, faturaMonth: fatura.faturaMonth, existingByMonth, bank: fatura.bank });
+
+  // Antecipações sobrevivem em todo mês: entram no antes e no depois.
+  const prepay = await prisma.cardTransaction.groupBy({
+    by: ["month"],
+    where: { cardId, month: { gte: monthToDate(fatura.faturaMonth) }, prepayment: true },
+    _sum: { amount: true },
+  });
+  const prepayByMonth = new Map(
+    prepay.map((p) => [monthStringFromDate(p.month), p._sum.amount ? decimalToCents(String(p._sum.amount)) : 0]),
+  );
+
+  const nextMonth = shiftMonthISO(fatura.faturaMonth, 1);
+  const vistaOrphans = orphans.filter((o) => !o.installment);
   const months = [
-    ...new Set([fatura.faturaMonth, ...schedule.keys(), ...existing.map((e) => monthStringFromDate(e.month))]),
+    ...new Set([
+      fatura.faturaMonth,
+      nextMonth,
+      ...existingByMonth.keys(),
+      ...actions.flatMap((a) => (a.kind === "insert" ? [a.month] : [])),
+    ]),
   ].sort();
 
-  const out: { month: string; beforeCents: number; afterCents: number }[] = [];
+  const out: FaturaPreview["monthsImpact"] = [];
   for (const month of months) {
-    const rows = existing.filter((e) => monthStringFromDate(e.month) === month);
-    const beforeCents = rows.reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
-    const prepayCents = rows
-      .filter((r) => r.prepayment)
-      .reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
+    const prepayCents = prepayByMonth.get(month) ?? 0;
 
-    let afterCents: number;
     if (month === fatura.faturaMonth) {
       // replaceCardMonth: a fatura é a verdade do mês, só antecipação sobrevive.
-      afterCents = sumFaturaLines(fatura.lines) + prepayCents;
-    } else {
-      const kept = rows
-        .filter((r) => !r.prepayment && !ownedByRebuild(r, cutoff))
-        .reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
-      const projected = (schedule.get(month) ?? []).reduce((a, r) => a + r.cents, 0);
-      afterCents = kept + projected + prepayCents;
+      const rows = mesRows.map(toAppRow);
+      out.push({
+        month,
+        beforeCents: rows.reduce((a, r) => a + r.cents, 0) + prepayCents,
+        afterCents: sumFaturaLines(fatura.lines) + prepayCents,
+        removed: rows.length,
+        added: fatura.lines.filter((l) => l.kind !== "payment").length,
+      });
+      continue;
     }
-    if (beforeCents !== 0 || afterCents !== 0) out.push({ month, beforeCents, afterCents });
+
+    const rows = existingByMonth.get(month) ?? [];
+    const beforeCents = rows.reduce((a, r) => a + r.cents, 0) + prepayCents;
+    const ids = new Set(rows.map((r) => r.id));
+    const removedActions = actions.filter((a) => a.kind === "delete" && ids.has(a.id));
+    const addedActions = actions.flatMap((a) => (a.kind === "insert" && a.month === month ? [a] : []));
+    const removedCents = removedActions.reduce(
+      (a, d) => a + (d.kind === "delete" ? (centsById.get(d.id) ?? 0) : 0),
+      0,
+    );
+    // Órfã à vista cai no mês seguinte ao da fatura.
+    const orphanCents = month === nextMonth ? vistaOrphans.reduce((a, o) => a + o.cents, 0) : 0;
+    out.push({
+      month,
+      beforeCents,
+      afterCents: beforeCents - removedCents + addedActions.reduce((a, i) => a + i.cents, 0) + orphanCents,
+      removed: removedActions.length,
+      added: addedActions.length + (month === nextMonth ? vistaOrphans.length : 0),
+    });
   }
-  return out;
+  return out.filter((m) => m.beforeCents !== 0 || m.afterCents !== 0);
 }
 
 /** Aplica o preview confirmado (descrições possivelmente editadas). */

@@ -58,28 +58,10 @@ export function sumFaturaLines(lines: FaturaLine[]): number {
   return lines.filter((l) => l.kind !== "payment").reduce((acc, l) => acc + l.cents, 0);
 }
 
-/** Marcador de parcela no fim da descrição: Nubank "- Parcela 8/12", Bradesco "(09/12)". */
-const INSTALLMENT_MARKER_RE = /(?: - Parcela \d+\/\d+|\(\d{2}\/\d{2}\))$/;
-
-/**
- * Numa fatura FUTURA, esta linha pertence à reconstrução (pode ser apagada e
- * regerada pelo cronograma) ou é compra de verdade do ciclo novo, que precisa
- * sobreviver?
- *
- * Não dá para decidir só pela data. O corte da fatura do Nubank é intradiário
- * (emitida às 03:31 do dia do fechamento), então há compra do ciclo NOVO datada
- * ANTES do fechamento — na fatura-modelo, cinco compras de 04/08 que o banco
- * jogou para setembro, com fechamento em 05/08. Apagar por data levaria
- * R$ 941,04 de setembro embora.
- *
- * Quem manda é o marcador de parcela: a reconstrução só gera parcelas, então só
- * parcelas são dela. Linha sem data é projeção antiga da planilha e também sai.
- */
-export function ownedByRebuild(row: { description: string; purchaseDate: Date | null }, cutoff: Date): boolean {
-  if (row.purchaseDate === null) return true; // projeção da planilha, sem data
-  if (row.purchaseDate > cutoff) return false; // ciclo novo, sem ambiguidade
-  return INSTALLMENT_MARKER_RE.test(row.description);
-}
+// `ownedByRebuild` viveu aqui: decidia por DATA + marcador quais linhas de meses
+// futuros a reconstrução podia apagar. Saiu quando a reconciliação passou a
+// decidir por IDENTIDADE DE PLANO (`lib/fatura-plan.ts`), que não precisa de
+// data — e data não bastava, porque o corte da fatura do Nubank é intradiário.
 
 const BRADESCO_MARKER_RE = /\((\d{2})\/(\d{2})\)/;
 const NUBANK_MARKER_RE = / - Parcela (\d+)\/(\d+)$/;

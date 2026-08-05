@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sumFaturaLines, buildInstallmentSchedule, ownedByRebuild, type FaturaLine } from "@/lib/fatura-core";
+import { sumFaturaLines, buildInstallmentSchedule, type FaturaLine } from "@/lib/fatura-core";
 
 function line(partial: Partial<FaturaLine> & { description: string; cents: number }): FaturaLine {
   return {
@@ -70,48 +70,5 @@ describe("buildInstallmentSchedule", () => {
       line({ description: "Pagamento em 06 JUL", cents: -50000, kind: "payment", installment: null }),
     ];
     expect(buildInstallmentSchedule(lines, "2026-08", "bradesco").size).toBe(0);
-  });
-});
-
-describe("ownedByRebuild", () => {
-  const cutoff = new Date("2026-08-05T23:59:59Z");
-  const d = (iso: string) => new Date(iso + "T00:00:00Z");
-
-  it("linha sem data é projeção antiga da planilha", () => {
-    expect(ownedByRebuild({ description: "Qualquer coisa", purchaseDate: null }, cutoff)).toBe(true);
-  });
-
-  it("parcela datada até o fechamento é da reconstrução", () => {
-    expect(ownedByRebuild({ description: "Mabu Hotel - Parcela 3/6", purchaseDate: d("2026-08-05") }, cutoff)).toBe(
-      true,
-    );
-    expect(ownedByRebuild({ description: "AMAZON BR SAO PAULO(10/12)", purchaseDate: d("2026-07-20") }, cutoff)).toBe(
-      true,
-    );
-  });
-
-  it("compra à vista ANTES do fechamento sobrevive — corte intradiário", () => {
-    // As 5 compras de 04/08 que o Nubank empurrou para setembro, com fechamento
-    // em 05/08. Apagar por data levaria R$ 941,04 embora.
-    for (const desc of ["Es Estacionamento", "Abastec*Abastece Ai", "Festval Torres", "Mercadolivre*Dedstore"]) {
-      expect(ownedByRebuild({ description: desc, purchaseDate: d("2026-08-04") }, cutoff)).toBe(false);
-    }
-  });
-
-  it("IOF de volta do ciclo novo sobrevive", () => {
-    expect(
-      ownedByRebuild({ description: "IOF de volta de Paddle.Net* Dr.Buho", purchaseDate: d("2026-08-04") }, cutoff),
-    ).toBe(false);
-  });
-
-  it("compra depois do fechamento sobrevive", () => {
-    expect(ownedByRebuild({ description: "Compra nova", purchaseDate: d("2026-08-20") }, cutoff)).toBe(false);
-    // Mesmo parcelada: é plano que a fatura fechada não conhece.
-    expect(ownedByRebuild({ description: "Loja - Parcela 1/6", purchaseDate: d("2026-08-20") }, cutoff)).toBe(false);
-  });
-
-  it("não confunde número no meio da descrição com marcador", () => {
-    expect(ownedByRebuild({ description: "Mp *20526951adria", purchaseDate: d("2026-08-04") }, cutoff)).toBe(false);
-    expect(ownedByRebuild({ description: "230 Liv Ctba", purchaseDate: d("2026-08-04") }, cutoff)).toBe(false);
   });
 });

@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.0",
+    date: "2026-08-05",
+    title: "Fechamento de fatura",
+    items: [
+      "Ao importar a fatura, o que você lançou e o banco não cobrou passa a ir para o mês seguinte sozinho, em vez de desaparecer.",
+      "Parcela que o banco atrasou desloca o plano inteiro: as seguintes descem um mês e o plano termina um mês depois.",
+      "Dá para dar baixa da fatura já na importação, informando a data do pagamento.",
+      "O preview mostra quanto cada mês vira e quantas linhas entram e saem, antes de você confirmar.",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-08-05",
     title: "Fatura fechada pelo Telegram",
