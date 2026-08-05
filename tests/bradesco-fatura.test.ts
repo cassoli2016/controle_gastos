@@ -59,7 +59,7 @@ describe("parseBradescoFatura — linhas", () => {
 });
 
 describe("buildInstallmentSchedule", () => {
-  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth);
+  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth, "bradesco");
   it("próxima fatura soma R$ 1.432,33 (rounding do banco → aviso, não erro)", () => {
     const set = schedule.get("2026-09") ?? [];
     expect(set.reduce((a, r) => a + r.cents, 0)).toBe(143233);

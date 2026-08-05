@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
-import { buildInstallmentSchedule, type FaturaLine } from "@/lib/bradesco-fatura";
+import { buildInstallmentSchedule, type FaturaLine } from "@/lib/fatura-core";
 
 /**
  * Aplica a fatura importada: replace do mês-alvo + reconstrução dos meses
@@ -33,7 +33,7 @@ export async function applyBradescoFaturaImport(opts: {
   const target = await replaceCardMonth(card, faturaMonth, rows);
   const months = [{ month: faturaMonth, totalCents: target.totalCents }];
 
-  const schedule = buildInstallmentSchedule(lines, faturaMonth);
+  const schedule = buildInstallmentSchedule(lines, faturaMonth, "bradesco");
   // Reconstruir: meses do cronograma ∪ meses futuros que já têm extrato
   // (projeções antigas que o cronograma novo não cobre precisam ser zeradas).
   const existing = await prisma.cardTransaction.findMany({

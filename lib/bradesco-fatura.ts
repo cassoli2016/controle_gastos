@@ -6,17 +6,11 @@
 import { parseBRLToCents, formatCents } from "@/lib/money";
 import { normalizeDescription } from "@/lib/description-match";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { buildInstallmentSchedule, sumFaturaLines, type FaturaLine } from "@/lib/fatura-core";
 
-export type FaturaLineKind = "purchase" | "refund" | "payment";
-
-export type FaturaLine = {
-  dateISO: string;
-  description: string;
-  /** Negativo em refund/payment. */
-  cents: number;
-  kind: FaturaLineKind;
-  installment: { seq: number; count: number } | null;
-};
+// Reexportados para não quebrar quem já importava daqui.
+export { sumFaturaLines, buildInstallmentSchedule } from "@/lib/fatura-core";
+export type { FaturaLine, FaturaLineKind } from "@/lib/fatura-core";
 
 export type BradescoFatura = {
   /** Competência (mês do vencimento, YYYY-MM). */
@@ -152,43 +146,10 @@ export function parseBradescoFatura(text: string): BradescoFatura | { error: str
   };
 }
 
-/** Soma líquida dos lançamentos SEM o pagamento da fatura anterior. */
-export function sumFaturaLines(lines: FaturaLine[]): number {
-  return lines.filter((l) => l.kind !== "payment").reduce((acc, l) => acc + l.cents, 0);
-}
-
-/**
- * Parcelas futuras: cada compra "(pp/tt)" gera pp+1..tt nas faturas seguintes
- * com o mesmo valor e marcador incrementado. Estorno/pagamento não geram nada
- * (estorno de parcelado cancela o plano inteiro — regra observada e validada
- * contra o "Total parcelado" do próprio PDF).
- */
-export function buildInstallmentSchedule(
-  lines: FaturaLine[],
-  faturaMonth: string,
-): Map<string, { dateISO: string; description: string; cents: number }[]> {
-  const byMonth = new Map<string, { dateISO: string; description: string; cents: number }[]>();
-  for (const line of lines) {
-    if (line.kind !== "purchase" || !line.installment) continue;
-    const { seq, count } = line.installment;
-    for (let k = seq + 1; k <= count; k++) {
-      const month = shiftMonthISO(faturaMonth, k - seq);
-      const description = line.description.replace(
-        MARKER_RE,
-        `(${String(k).padStart(2, "0")}/${String(count).padStart(2, "0")})`,
-      );
-      const list = byMonth.get(month) ?? [];
-      list.push({ dateISO: line.dateISO, description, cents: line.cents });
-      byMonth.set(month, list);
-    }
-  }
-  return byMonth;
-}
-
 /** Divergência do cronograma vs "Total parcelado" do PDF (além da tolerância). */
 export function scheduleWarnings(fatura: BradescoFatura): string[] {
   if (!fatura.upcoming) return [];
-  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth);
+  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth, "bradesco");
   const nextMonth = shiftMonthISO(fatura.faturaMonth, 1);
   const next = (schedule.get(nextMonth) ?? []).reduce((a, r) => a + r.cents, 0);
   const total = [...schedule.values()].flat().reduce((a, r) => a + r.cents, 0);
