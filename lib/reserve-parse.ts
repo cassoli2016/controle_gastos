@@ -30,3 +30,33 @@ export function parseReserveCommand(text: string): ReserveCommand | null {
   const boxHint = m[2]?.trim();
   return { kind: "deposit", amountCents, boxHint: boxHint || undefined };
 }
+
+/**
+ * Resposta do bot a um depósito. Pura para ser testável: a parte que importa é o
+ * aviso quando o valor passa da sobra do mês, e ele nasce de uma subtração que
+ * é fácil de errar de sinal.
+ *
+ * `leftoverBeforeCents` é a sobra ANTES deste depósito — o lançamento acabou de
+ * nascer e ainda não entrou na métrica, então descontamos aqui para a mensagem
+ * não mentir.
+ */
+export function buildDepositReply(opts: {
+  amountCents: number;
+  boxName: string;
+  newBalanceCents: number;
+  leftoverBeforeCents: number;
+  monthLabel: string;
+  formatCents: (cents: number) => string;
+}): string[] {
+  const { amountCents, boxName, newBalanceCents, leftoverBeforeCents, monthLabel, formatCents } = opts;
+  const remaining = leftoverBeforeCents - amountCents;
+  const lines = [
+    `✅ ${formatCents(amountCents)} guardado em ${boxName}`,
+    `Caixinha agora: ${formatCents(newBalanceCents)}`,
+    `Sobra de ${monthLabel}: ${formatCents(remaining)}`,
+  ];
+  if (remaining < 0) {
+    lines.push(`⚠️ Isso passa ${formatCents(-remaining)} do que sobrou no mês.`);
+  }
+  return lines;
+}

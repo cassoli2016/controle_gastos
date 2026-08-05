@@ -7,8 +7,9 @@ import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
-import { parseReserveCommand, type ReserveCommand } from "@/lib/reserve-parse";
-import { RESERVE_CATEGORY, depositToReserveBox } from "@/lib/reserve-flow";
+import { parseReserveCommand, buildDepositReply, type ReserveCommand } from "@/lib/reserve-parse";
+import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
+import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { resolveCategoryId } from "@/lib/purchases";
 import { realizedBalance } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
@@ -482,16 +483,17 @@ async function handleReserveCommand(chatId: number, cmd: ReserveCommand) {
   }
   revalidateFinance();
 
-  const parts = [
-    `\u{2705} ${formatCents(cmd.amountCents)} guardado em ${r.boxName}`,
-    `Caixinha agora: ${formatCents(r.newBalanceCents)}`,
-  ];
-  // A sobra ainda não reflete este depósito (o lançamento acabou de nascer), então
-  // desconta na mão para a mensagem não mentir.
-  const remaining = leftoverCents - cmd.amountCents;
-  parts.push(`Sobra de ${fmtMonth(month)}: ${formatCents(remaining)}`);
-  if (remaining < 0) parts.push("\u{26A0}\u{FE0F} Isso passa do que sobrou no mês.");
-  await reply(chatId, parts.join("\n"));
+  await reply(
+    chatId,
+    buildDepositReply({
+      amountCents: cmd.amountCents,
+      boxName: r.boxName,
+      newBalanceCents: r.newBalanceCents,
+      leftoverBeforeCents: leftoverCents,
+      monthLabel: fmtMonth(month),
+      formatCents,
+    }).join("\n"),
+  );
 }
 
 /** Compras parseadas de notificações (share do Nubank ou SMS do Bradesco). */

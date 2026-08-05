@@ -55,3 +55,38 @@ describe("parseReserveCommand", () => {
     expect(parseReserveCommand("reservas 300")).toBeNull();
   });
 });
+
+import { buildDepositReply } from "@/lib/reserve-parse";
+
+const fmt = (c: number) => `R$ ${(c / 100).toFixed(2)}`;
+
+describe("buildDepositReply", () => {
+  const base = {
+    boxName: "Emergência",
+    newBalanceCents: 1000000,
+    monthLabel: "ago. de 2026",
+    formatCents: fmt,
+  };
+
+  it("mostra a sobra que resta depois do depósito", () => {
+    const lines = buildDepositReply({ ...base, amountCents: 300000, leftoverBeforeCents: 700000 });
+    expect(lines).toContain("Sobra de ago. de 2026: R$ 4000.00");
+    expect(lines.some((l) => l.startsWith("⚠️"))).toBe(false);
+  });
+
+  it("avisa quando o valor passa da sobra, dizendo de quanto", () => {
+    const lines = buildDepositReply({ ...base, amountCents: 900000, leftoverBeforeCents: 700000 });
+    expect(lines.some((l) => l.includes("passa R$ 2000.00 do que sobrou"))).toBe(true);
+  });
+
+  it("guardar exatamente a sobra não dispara aviso", () => {
+    const lines = buildDepositReply({ ...base, amountCents: 700000, leftoverBeforeCents: 700000 });
+    expect(lines.some((l) => l.startsWith("⚠️"))).toBe(false);
+    expect(lines).toContain("Sobra de ago. de 2026: R$ 0.00");
+  });
+
+  it("mês sem sobra avisa mesmo com depósito pequeno", () => {
+    const lines = buildDepositReply({ ...base, amountCents: 10000, leftoverBeforeCents: -50000 });
+    expect(lines.some((l) => l.includes("passa R$ 600.00"))).toBe(true);
+  });
+});

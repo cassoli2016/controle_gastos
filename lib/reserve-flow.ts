@@ -1,6 +1,8 @@
-import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
-import { centsToNumber } from "@/lib/money";
+
+// ATENÇÃO: este módulo é importado por Client Component (MonthEntryList usa as
+// categorias). Nada de prisma aqui — a gravação vive em lib/reserve-deposit.ts,
+// senão o client do banco entra no bundle do browser e o build quebra.
 
 /**
  * Movimentos de caixinha viram MonthlyEntry comuns (já pagos) criados na
@@ -59,36 +61,4 @@ export function withdrawalEntryData(
     paidAmount: amount,
     paidDate: date,
   };
-}
-
-/**
- * Grava um depósito: soma na caixinha E cria o lançamento já pago no mês da
- * data, na MESMA transação — o dinheiro está ou no mês ou na caixinha, nunca
- * nos dois.
- *
- * Compartilhado pela tela de Reservas e pelo bot: os dois precisam do par
- * indivisível, e duplicar a transação em dois lugares é como um deles acaba
- * esquecendo metade.
- */
-export async function depositToReserveBox(opts: {
-  boxId: string;
-  amountCents: number;
-  dateISO: string;
-  categoryId: string;
-}): Promise<{ boxName: string; newBalanceCents: number } | { error: string }> {
-  const box = await prisma.reserveBox.findUnique({ where: { id: opts.boxId } });
-  if (!box) return { error: "Caixinha não encontrada." };
-  const amount = centsToNumber(opts.amountCents);
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const b = await tx.reserveBox.update({
-      where: { id: opts.boxId },
-      data: { amount: { increment: amount } },
-    });
-    await tx.monthlyEntry.create({
-      data: { categoryId: opts.categoryId, ...depositEntryData(box.name, amount, opts.dateISO) },
-    });
-    return b;
-  });
-  return { boxName: box.name, newBalanceCents: Math.round(Number(updated.amount) * 100) };
 }

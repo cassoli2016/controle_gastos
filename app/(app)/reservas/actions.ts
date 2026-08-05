@@ -4,12 +4,8 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { reserveSchema, dailyBudgetSchema, depositSchema, withdrawalSchema } from "@/lib/validators";
 import { resolveCategoryId } from "@/lib/purchases";
-import {
-  RESERVE_CATEGORY,
-  RESERVE_WITHDRAWAL_CATEGORY,
-  depositToReserveBox,
-  withdrawalEntryData,
-} from "@/lib/reserve-flow";
+import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
+import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { monthToDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 
