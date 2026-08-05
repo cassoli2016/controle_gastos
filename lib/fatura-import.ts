@@ -2,25 +2,29 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
-import { buildInstallmentSchedule, type FaturaLine } from "@/lib/fatura-core";
+import { buildInstallmentSchedule, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
 
 /**
- * Aplica a fatura importada: replace do mês-alvo + reconstrução dos meses
- * seguintes pelo cronograma de parcelas (generalização dos scripts
- * fix-fatura-ago-bradesco/fix-faturas-futuras-bradesco, validados em prod).
+ * Aplica uma fatura já parseada e validada (`lib/fatura-parse.ts`), de qualquer
+ * banco: replace do mês-alvo + reconstrução dos meses seguintes pelo cronograma
+ * de parcelas (generalização dos scripts fix-fatura-ago-bradesco/
+ * fix-faturas-futuras-bradesco, validados em prod).
+ *
  * Preserva antecipações (prepayment) e compras com data APÓS o fechamento
- * (ciclo novo, não pertencem à fatura fechada). Idempotente: reimportar a
- * mesma fatura produz o mesmo estado.
+ * (ciclo novo, não pertencem à fatura fechada). Idempotente: reimportar a mesma
+ * fatura produz o mesmo estado.
  */
-export async function applyBradescoFaturaImport(opts: {
+export async function applyFaturaImport(opts: {
   card: CardRef;
+  /** Define o formato do marcador de parcela na projeção dos meses futuros. */
+  bank: FaturaBank;
   faturaMonth: string;
   closingISO: string;
-  /** "Limite de compras" da fatura: quando presente, atualiza o cartão. */
+  /** Limite de compras da fatura: quando presente, atualiza o cartão. */
   limitCents?: number | null;
   lines: FaturaLine[];
 }): Promise<{ months: { month: string; totalCents: number }[] }> {
-  const { card, faturaMonth, closingISO, lines } = opts;
+  const { card, bank, faturaMonth, closingISO, lines } = opts;
   if (opts.limitCents != null && opts.limitCents > 0) {
     await prisma.creditCard.update({
       where: { id: card.id },
@@ -33,7 +37,7 @@ export async function applyBradescoFaturaImport(opts: {
   const target = await replaceCardMonth(card, faturaMonth, rows);
   const months = [{ month: faturaMonth, totalCents: target.totalCents }];
 
-  const schedule = buildInstallmentSchedule(lines, faturaMonth, "bradesco");
+  const schedule = buildInstallmentSchedule(lines, faturaMonth, bank);
   // Reconstruir: meses do cronograma ∪ meses futuros que já têm extrato
   // (projeções antigas que o cronograma novo não cobre precisam ser zeradas).
   const existing = await prisma.cardTransaction.findMany({

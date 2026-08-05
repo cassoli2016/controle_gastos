@@ -8,7 +8,7 @@ import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCard
 import { parseBradescoFatura } from "@/lib/bradesco-fatura";
 import { scheduleWarnings } from "@/lib/fatura-parse";
 import { sumFaturaLines, type FaturaLine } from "@/lib/fatura-core";
-import { applyBradescoFaturaImport } from "@/lib/bradesco-import";
+import { applyFaturaImport } from "@/lib/fatura-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 
@@ -268,7 +268,16 @@ export const applyBradescoFatura = guardAction(async function applyBradescoFatur
   if (!cardRow) return { error: "Cartão não encontrado." };
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
-  const { months } = await applyBradescoFaturaImport({ card, faturaMonth, closingISO, limitCents, lines });
+  // Nesta etapa a action só parseia o Bradesco; a Task 5 troca por `bank` vindo
+  // do payload.
+  const { months } = await applyFaturaImport({
+    card,
+    bank: "bradesco",
+    faturaMonth,
+    closingISO,
+    limitCents,
+    lines,
+  });
   revalidateFinance();
   return { ok: true, summary: months };
 });
