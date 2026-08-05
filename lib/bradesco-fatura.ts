@@ -6,33 +6,11 @@
 import { parseBRLToCents, formatCents } from "@/lib/money";
 import { normalizeDescription } from "@/lib/description-match";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
-import { buildInstallmentSchedule, sumFaturaLines, type FaturaLine } from "@/lib/fatura-core";
+import { sumFaturaLines, type FaturaLine, type ParsedFatura } from "@/lib/fatura-core";
 
 // Reexportados para não quebrar quem já importava daqui.
 export { sumFaturaLines, buildInstallmentSchedule } from "@/lib/fatura-core";
 export type { FaturaLine, FaturaLineKind } from "@/lib/fatura-core";
-
-export type BradescoFatura = {
-  /** Competência (mês do vencimento, YYYY-MM). */
-  faturaMonth: string;
-  dueDateISO: string;
-  /** Fechamento corrente: previsão do próximo fechamento − 1 mês. */
-  closingISO: string;
-  /** "Total da fatura" (página 1). */
-  totalCents: number;
-  summary: {
-    saldoAnteriorCents: number;
-    creditosCents: number;
-    comprasCents: number;
-    totalCents: number;
-  };
-  /** "Limite de compras" (página 1) — atualiza o cartão na importação. */
-  limitCents: number | null;
-  /** "Total parcelado para as próximas faturas" (página 2). */
-  upcoming: { nextCents: number; remainingCents: number; totalCents: number } | null;
-  lines: FaturaLine[];
-  warnings: string[];
-};
 
 const DUE_RE = /Vencimento\s+(\d{2})\/(\d{2})\/(\d{4})/;
 const NEXT_CLOSING_RE = /previsão de fechamento[^\d]*(\d{2})\/(\d{2})\/(\d{4})/i;
@@ -50,9 +28,6 @@ const UPCOMING_TOTAL_RE = /Total para as próximas faturas\s+R\$\s*([\d.,]+)/;
 const LINE_RE = /^(\d{2})\/(\d{2})\s+(.+?)\s+(\d{1,3}(?:\.\d{3})*,\d{2})(\s*-)?\s*$/;
 const MARKER_RE = /\((\d{2})\/(\d{2})\)/;
 
-/** Tolerância p/ arredondamento de centavos do banco nas parcelas futuras. */
-const SCHEDULE_TOLERANCE_CENTS = 500;
-
 function money(text: string, re: RegExp): number | null {
   const m = re.exec(text);
   return m ? parseBRLToCents(m[1]) : null;
@@ -64,7 +39,7 @@ function shiftMonthISO(month: string, delta: number): string {
   return monthStringFromDate(d);
 }
 
-export function parseBradescoFatura(text: string): BradescoFatura | { error: string } {
+export function parseBradescoFatura(text: string): ParsedFatura | { error: string } {
   const due = DUE_RE.exec(text);
   const totalCents = money(text, TOTAL_RE);
   const resumoTotal = money(text, RESUMO_TOTAL_RE);
@@ -134,40 +109,17 @@ export function parseBradescoFatura(text: string): BradescoFatura | { error: str
   }
 
   return {
+    bank: "bradesco",
     faturaMonth,
     dueDateISO,
     closingISO,
     totalCents,
-    summary,
+    // No Bradesco a soma líquida das linhas é o próprio total da fatura.
+    expectedLinesCents: summary.totalCents,
     limitCents: money(text, LIMIT_RE),
     upcoming,
+    summary,
     lines,
     warnings,
   };
-}
-
-/** Divergência do cronograma vs "Total parcelado" do PDF (além da tolerância). */
-export function scheduleWarnings(fatura: BradescoFatura): string[] {
-  if (!fatura.upcoming) return [];
-  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth, "bradesco");
-  const nextMonth = shiftMonthISO(fatura.faturaMonth, 1);
-  const next = (schedule.get(nextMonth) ?? []).reduce((a, r) => a + r.cents, 0);
-  const total = [...schedule.values()].flat().reduce((a, r) => a + r.cents, 0);
-  const out: string[] = [];
-  const nextDiff = next - fatura.upcoming.nextCents;
-  const totalDiff = total - fatura.upcoming.totalCents;
-  if (nextDiff !== 0) {
-    out.push(
-      `Próxima fatura projetada ${formatCents(next)} difere ${formatCents(nextDiff)} do PDF (ajuste de centavos do banco).`,
-    );
-  }
-  if (totalDiff !== 0) {
-    out.push(
-      `Total futuro projetado ${formatCents(total)} difere ${formatCents(totalDiff)} do PDF (ajuste de centavos do banco).`,
-    );
-  }
-  if (Math.abs(nextDiff) > SCHEDULE_TOLERANCE_CENTS || Math.abs(totalDiff) > SCHEDULE_TOLERANCE_CENTS) {
-    out.push("Divergência acima de R$ 5,00 — confira as linhas antes de importar.");
-  }
-  return out;
 }

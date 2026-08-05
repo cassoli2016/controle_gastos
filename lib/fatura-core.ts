@@ -37,8 +37,18 @@ export type ParsedFatura = {
    */
   expectedLinesCents: number;
   limitCents: number | null;
-  /** O que o banco projeta para as próximas faturas (informativo). */
-  upcoming: { nextCents: number; totalCents: number } | null;
+  /**
+   * O que o banco projeta para as próximas faturas. `remainingCents` só existe
+   * no Bradesco ("Demais faturas"). Informativo: no Nubank estes números já
+   * incluem compras do ciclo novo, então não servem para validar o cronograma.
+   */
+  upcoming: { nextCents: number; remainingCents?: number; totalCents: number } | null;
+  /**
+   * Valores do bloco de resumo, com CHAVES ESPECÍFICAS DE CADA BANCO. Serve de
+   * diagnóstico (mensagem de erro, teste), não de contrato entre módulos — quem
+   * consome fatura usa `totalCents` e `expectedLinesCents`.
+   */
+  summary: Record<string, number>;
   lines: FaturaLine[];
   warnings: string[];
 };

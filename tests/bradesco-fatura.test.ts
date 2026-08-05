@@ -1,15 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import {
-  parseBradescoFatura,
-  sumFaturaLines,
-  buildInstallmentSchedule,
-  scheduleWarnings,
-  type BradescoFatura,
-} from "@/lib/bradesco-fatura";
+import { parseBradescoFatura, sumFaturaLines, buildInstallmentSchedule } from "@/lib/bradesco-fatura";
+import type { ParsedFatura } from "@/lib/fatura-core";
 
 const TEXT = readFileSync("tests/fixtures/bradesco-fatura.txt", "utf8");
-const fatura = parseBradescoFatura(TEXT) as BradescoFatura;
+const fatura = parseBradescoFatura(TEXT) as ParsedFatura;
 
 describe("parseBradescoFatura — metadados", () => {
   it("não retorna erro", () => expect("error" in fatura).toBe(false));
@@ -79,8 +74,8 @@ describe("buildInstallmentSchedule", () => {
 });
 
 describe("validações", () => {
-  it("scheduleWarnings aponta a divergência de centavos", () =>
-    expect(scheduleWarnings(fatura).length).toBeGreaterThan(0));
+  // scheduleWarnings mudou para lib/fatura-parse (passou a decidir pelo banco);
+  // a asserção da divergência de centavos vive em tests/fatura-parse.test.ts.
   it("texto sem âncoras → erro amigável", () => {
     expect(parseBradescoFatura("nada a ver")).toHaveProperty("error");
   });

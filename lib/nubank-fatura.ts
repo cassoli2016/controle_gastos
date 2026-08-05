@@ -218,6 +218,14 @@ export function parseNubankFatura(text: string): ParsedFatura | { error: string 
     // Informativo apenas: o "Saldo em aberto" do Nubank inclui compras do ciclo
     // NOVO que esta fatura não lista, então não serve para validar o cronograma.
     upcoming: nextOpen !== null && totalOpen !== null ? { nextCents: nextOpen, totalCents: totalOpen } : null,
+    summary: {
+      faturaAnteriorCents: previousCents,
+      pagamentoRecebidoCents: receivedCents,
+      comprasCents: purchasesCents,
+      iofCents,
+      outrosCents: othersCents,
+      totalCents,
+    },
     lines,
     warnings,
   };
