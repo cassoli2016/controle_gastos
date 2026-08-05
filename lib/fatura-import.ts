@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
-import { buildInstallmentSchedule, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
+import { buildInstallmentSchedule, ownedByRebuild, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
 
 /**
  * Aplica uma fatura já parseada e validada (`lib/fatura-parse.ts`), de qualquer
@@ -52,16 +52,19 @@ export async function applyFaturaImport(opts: {
 
   for (const month of monthsToRebuild) {
     const monthDate = monthToDate(month);
-    // Fora: projeções sem data e parcelas com compra até o fechamento (a
-    // fatura agora é a fonte). Ficam: ciclo novo (data > fechamento) e prepay.
-    await prisma.cardTransaction.deleteMany({
-      where: {
-        cardId: card.id,
-        month: monthDate,
-        prepayment: false,
-        OR: [{ purchaseDate: null }, { purchaseDate: { lte: cutoff } }],
-      },
+    // Fora só o que a reconstrução realmente possui: projeção sem data e parcela
+    // datada até o fechamento (`ownedByRebuild`). Compra à vista fica, mesmo
+    // datada antes do fechamento — o corte do Nubank é intradiário e há compra
+    // do ciclo novo com data anterior. Filtrar em JS porque a decisão depende do
+    // marcador de parcela na descrição, que o Prisma não sabe casar.
+    const candidates = await prisma.cardTransaction.findMany({
+      where: { cardId: card.id, month: monthDate, prepayment: false },
+      select: { id: true, description: true, purchaseDate: true },
     });
+    const doomed = candidates.filter((c) => ownedByRebuild(c, cutoff)).map((c) => c.id);
+    if (doomed.length > 0) {
+      await prisma.cardTransaction.deleteMany({ where: { id: { in: doomed } } });
+    }
     const derived = schedule.get(month) ?? [];
     if (derived.length > 0) {
       await prisma.cardTransaction.createMany({
