@@ -6,7 +6,16 @@ import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
-import { sumFaturaLines, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
+import {
+  buildInstallmentSchedule,
+  ownedByRebuild,
+  sumFaturaLines,
+  type FaturaBank,
+  type FaturaLine,
+  type ParsedFatura,
+} from "@/lib/fatura-core";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { decimalToCents } from "@/lib/money";
 import { applyFaturaImport } from "@/lib/fatura-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -184,6 +193,12 @@ export type FaturaPreview = {
   limitCents: number | null;
   warnings: string[];
   lines: FaturaLine[];
+  /**
+   * O que cada mês vira se você confirmar. Sem isto o preview mostra a fatura
+   * mas esconde o efeito colateral: a reconstrução das parcelas futuras pode
+   * duplicar linhas gravadas por importações antigas.
+   */
+  monthsImpact: { month: string; beforeCents: number; afterCents: number }[];
 };
 
 export type FaturaPreviewState = { error?: string; preview?: FaturaPreview };
@@ -235,6 +250,8 @@ export const previewFatura = guardAction(async function previewFatura(
 
   const fatura = parseFatura(text);
   if ("error" in fatura) return { error: fatura.error };
+  const monthsImpact = await previewMonthsImpact(cardId, fatura);
+  const grown = monthsImpact.filter((m) => m.afterCents > m.beforeCents * 1.5 && m.beforeCents > 0);
   return {
     preview: {
       cardId,
@@ -245,11 +262,64 @@ export const previewFatura = guardAction(async function previewFatura(
       totalCents: fatura.totalCents,
       expectedLinesCents: fatura.expectedLinesCents,
       limitCents: fatura.limitCents,
-      warnings: [...fatura.warnings, ...scheduleWarnings(fatura)],
+      warnings: [
+        ...fatura.warnings,
+        ...scheduleWarnings(fatura),
+        ...(grown.length > 0
+          ? [
+              `${grown.length} mês(es) futuro(s) mais que dobram — provável duplicata de importação antiga. Confira a tabela antes de confirmar.`,
+            ]
+          : []),
+      ],
       lines: fatura.lines,
+      monthsImpact,
     },
   };
 });
+
+/**
+ * Simula a importação: para cada mês afetado, quanto o consolidado é hoje e
+ * quanto viraria. Usa a MESMA regra de posse do `applyFaturaImport`
+ * (`ownedByRebuild`), senão o preview mentiria.
+ */
+async function previewMonthsImpact(
+  cardId: string,
+  fatura: ParsedFatura,
+): Promise<{ month: string; beforeCents: number; afterCents: number }[]> {
+  const cutoff = new Date(fatura.closingISO + "T23:59:59Z");
+  const schedule = buildInstallmentSchedule(fatura.lines, fatura.faturaMonth, fatura.bank);
+  const existing = await prisma.cardTransaction.findMany({
+    where: { cardId, month: { gte: monthToDate(fatura.faturaMonth) } },
+    select: { month: true, description: true, purchaseDate: true, amount: true, prepayment: true },
+  });
+
+  const months = [
+    ...new Set([fatura.faturaMonth, ...schedule.keys(), ...existing.map((e) => monthStringFromDate(e.month))]),
+  ].sort();
+
+  const out: { month: string; beforeCents: number; afterCents: number }[] = [];
+  for (const month of months) {
+    const rows = existing.filter((e) => monthStringFromDate(e.month) === month);
+    const beforeCents = rows.reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
+    const prepayCents = rows
+      .filter((r) => r.prepayment)
+      .reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
+
+    let afterCents: number;
+    if (month === fatura.faturaMonth) {
+      // replaceCardMonth: a fatura é a verdade do mês, só antecipação sobrevive.
+      afterCents = sumFaturaLines(fatura.lines) + prepayCents;
+    } else {
+      const kept = rows
+        .filter((r) => !r.prepayment && !ownedByRebuild(r, cutoff))
+        .reduce((a, r) => a + decimalToCents(String(r.amount)), 0);
+      const projected = (schedule.get(month) ?? []).reduce((a, r) => a + r.cents, 0);
+      afterCents = kept + projected + prepayCents;
+    }
+    if (beforeCents !== 0 || afterCents !== 0) out.push({ month, beforeCents, afterCents });
+  }
+  return out;
+}
 
 /** Aplica o preview confirmado (descrições possivelmente editadas). */
 export const applyFatura = guardAction(async function applyFatura(

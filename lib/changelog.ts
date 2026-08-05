@@ -18,9 +18,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-08-05",
     title: "Fatura fechada pelo Telegram",
     items: [
-      "Mande o PDF da fatura do Nubank ou do Bradesco no Telegram: o app confere o total com o banco e trava o mês, já reconstruindo as parcelas dos meses seguintes.",
-      "Se a conta não fechar, nada é gravado — a resposta diz exatamente qual valor divergiu.",
-      "A tela de Cartões também passou a aceitar a fatura do Nubank em PDF.",
+      "Mande o PDF da fatura fechada do Nubank ou do Bradesco no Telegram: o bot confere se o total bate com o que o app tem no mês. Se não bater, ele diz de quanto é a diferença.",
+      "A tela de Cartões passou a aceitar a fatura do Nubank em PDF, e o preview agora mostra o impacto mês a mês antes de você confirmar.",
       "Corrigido: importar o CSV de uma fatura não apaga mais os lançamentos de uma fatura já fechada.",
       "Corrigido: parcelas quitadas antecipadamente não aparecem mais em dobro nos meses futuros.",
     ],

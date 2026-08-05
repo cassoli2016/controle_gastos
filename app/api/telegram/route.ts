@@ -8,7 +8,6 @@ import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
-import { applyFaturaImport } from "@/lib/fatura-import";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
 import { pickFaturaMonth } from "@/lib/csv-fatura-target";
@@ -50,7 +49,7 @@ const HELP =
   "• <code>recebi freela 500</code> · <code>salário 25000 receita mensal 5du</code>\n" +
   "\n<b>💳 Cartões</b>\n" +
   "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
-  "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total e travo o mês\n" +
+  "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total (gravar é pelo app)\n" +
   "• Fatura em aberto: envie o .csv do banco (cartão pelo nome do arquivo)\n" +
   "• Antecipação: <code>antecipei 500 nubank</code>\n" +
   "• Assinatura: <code>youtube 24,90 nubank mensal</code> (8x = duração)\n" +
@@ -335,9 +334,13 @@ async function handleCsvDocument(
 const MAX_FATURA_PDF_BYTES = 4_000_000;
 
 /**
- * Fatura FECHADA em PDF (Nubank ou Bradesco): valida contra o total do próprio
- * documento e, se fechar, grava o mês e reconstrói as parcelas futuras. Falha
- * fechada — divergência de transcrição não grava nada.
+ * Fatura FECHADA em PDF (Nubank ou Bradesco): CONFERE e não grava.
+ *
+ * A gravação vive na tela de Cartões, onde o preview mostra o impacto mês a mês
+ * antes de confirmar. Motivo: a reconstrução dos meses futuros ainda duplica
+ * linhas gravadas por importações antigas (purchaseDate apontando para a
+ * abertura do ciclo futuro, em duas convenções de parcela) — ver
+ * `docs/fatura-nubank.md`. Enquanto isso não for limpo, o bot só valida.
  */
 async function handleFaturaPdfDocument(
   chatId: number,
@@ -380,35 +383,27 @@ async function handleFaturaPdfDocument(
     return;
   }
 
-  const { months } = await applyFaturaImport({
-    card,
-    bank: fatura.bank,
-    faturaMonth: fatura.faturaMonth,
-    closingISO: fatura.closingISO,
-    limitCents: fatura.limitCents,
-    lines: fatura.lines,
+  // Compara o total da fatura com o que o app já tem no mês, sem gravar.
+  const entry = await prisma.monthlyEntry.findFirst({
+    where: { cardId: card.id, month: monthToDate(fatura.faturaMonth), description: card.name },
   });
-  revalidateFinance();
+  const appCents = entry ? decimalToCents(String(entry.plannedAmount)) : 0;
+  const diff = appCents - fatura.totalCents;
 
   const entries = fatura.lines.filter((l) => l.kind !== "payment").length;
   const parts = [
-    `✅ Fatura ${card.name} — ${fmtMonth(fatura.faturaMonth)}`,
-    `Total: ${formatCents(fatura.totalCents)}`,
-    `${entries} lançamentos`,
+    `📄 Fatura ${card.name} — ${fmtMonth(fatura.faturaMonth)}`,
+    `Total do banco: ${formatCents(fatura.totalCents)}`,
+    `${entries} lançamentos · vence ${fatura.dueDateISO.slice(8, 10)}/${fatura.dueDateISO.slice(5, 7)}`,
     "",
-    "Meses atualizados:",
-    ...months.filter((m) => m.totalCents !== 0).map((m) => `• ${fmtMonth(m.month)} — ${formatCents(m.totalCents)}`),
+    diff === 0
+      ? `✅ O app está igual: ${formatCents(appCents)}.`
+      : `⚠️ O app está em ${formatCents(appCents)} — ${formatCents(Math.abs(diff))} ${diff > 0 ? "acima" : "abaixo"} da fatura.`,
   ];
-
-  // A fatura foi lida certa; se o mês fechou em outro valor, falta um dado no
-  // app — tipicamente a antecipação que o banco já abateu.
-  const applied = months.find((m) => m.month === fatura.faturaMonth);
-  if (applied && applied.totalCents !== fatura.totalCents) {
-    const diff = applied.totalCents - fatura.totalCents;
+  if (diff !== 0) {
     parts.push(
       "",
-      `⚠️ O mês fechou em ${formatCents(applied.totalCents)}, ${formatCents(Math.abs(diff))} ${diff > 0 ? "acima" : "abaixo"} do total da fatura.`,
-      `Se você antecipou pagamento neste ciclo, registre com "antecipei <valor> ${card.name.toLowerCase()}".`,
+      "Para gravar, importe o PDF em Cartões → Importar fatura: lá o preview mostra o impacto mês a mês antes de confirmar.",
     );
   }
   for (const w of [...fatura.warnings, ...scheduleWarnings(fatura)]) parts.push(`⚠️ ${w}`);

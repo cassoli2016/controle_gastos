@@ -166,14 +166,43 @@ simultâneos (`Associacao Franciscana`: 9× R$ 30,88 e 12× R$ 17,99).
 
 ## Como importar para o app
 
-1. **Fatura fechada:** envie o PDF no Telegram, ou use a tela **Cartões**. Os
-   dois caminhos passam por `lib/fatura-parse.ts` → `lib/fatura-import.ts`, que
-   substitui o mês e reconstrói as parcelas dos meses seguintes, preservando
-   antecipações e compras do ciclo novo. Idempotente.
-2. **Fatura aberta:** envie o `.csv`. O handler substitui só o mês majoritário e
-   insere (sem apagar) o resíduo que cair em outro mês — ver "corte intradiário".
-3. Reconciliação manual pontual: `scripts/fix-fatura-nubank-ago-2026.ts` (simula
+1. **Fatura fechada — conferir:** envie o PDF no Telegram. O bot valida o total
+   contra o documento e compara com o que o app tem no mês, **sem gravar**.
+2. **Fatura fechada — gravar:** tela **Cartões → Importar fatura**. O preview
+   mostra as linhas e o **impacto mês a mês** antes de confirmar (ver a dívida
+   aberta abaixo — é o que torna essa confirmação necessária).
+3. **Fatura aberta:** envie o `.csv` no Telegram. O handler substitui só o mês
+   majoritário e insere (sem apagar) o resíduo que cair em outro mês — ver
+   "corte intradiário".
+4. Reconciliação manual pontual: `scripts/fix-fatura-nubank-ago-2026.ts` (simula
    por padrão, grava só com `--apply`).
+
+## Dívida aberta: duplicação nos meses futuros
+
+Importar a fatura fechada **dobra** out/2026 → mai/2027 (medido: outubro iria de
+R$ 5.197,94 para R$ 10.361,37). Não é regressão desta entrega — a regra anterior
+faz o mesmo.
+
+Causa: as linhas desses meses foram gravadas por importações antigas com
+`purchaseDate` apontando para a **abertura do ciclo futuro** (2026-09-xx,
+2026-10-xx) em vez da data da compra, e sob **duas convenções de parcela**
+incompatíveis:
+
+| Origem | Parcela onde | Descrição | `purchaseDate` |
+|---|---|---|---|
+| `addPurchaseToCard` (bot, share) | coluna `installmentSeq` | sem marcador (`Beto Carrero World`) | data da compra original |
+| importação de CSV/fatura | marcador na descrição | `Beto Carrero*Beto Carr - Parcela 3/10` | abertura do ciclo |
+
+As descrições das duas convenções nem casam entre si, então nem casar por plano
+resolve. Nenhuma regra baseada em data reconhece essas linhas como projeção, e a
+reconstrução soma em cima.
+
+Medição que torna o conserto decidível: out→jan têm **43, 31, 16 e 6 linhas, todas
+parcelas, zero compras à vista**, e os totais batem com a projeção a menos de 23
+centavos — são duplicatas obsoletas do mesmo cronograma.
+
+Enquanto isso não for limpo: o bot só confere, e o preview da web avisa qual mês
+mais que dobra.
 
 O `upcoming` do Nubank **não** serve para validar o cronograma: "Saldo em aberto
 da próxima fatura" já inclui compras do ciclo novo (projeção de set/2026

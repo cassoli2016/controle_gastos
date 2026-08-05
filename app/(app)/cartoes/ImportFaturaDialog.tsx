@@ -125,6 +125,37 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 ))}
               </ul>
             )}
+            {preview.monthsImpact.length > 0 && (
+              <div className="rounded-md border p-2">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Impacto por mês se você confirmar
+                </p>
+                <ul className="space-y-0.5 text-xs tabular-nums">
+                  {preview.monthsImpact.map((m) => {
+                    const diff = m.afterCents - m.beforeCents;
+                    return (
+                      <li key={m.month} className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{formatCompetencia(monthToDate(m.month))}</span>
+                        <span>
+                          {formatCents(m.beforeCents)} → <strong>{formatCents(m.afterCents)}</strong>
+                          {diff !== 0 && (
+                            <span
+                              className={cn(
+                                "ml-1",
+                                diff > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+                              )}
+                            >
+                              ({diff > 0 ? "+" : ""}
+                              {formatCents(diff)})
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <div className="max-h-96 overflow-y-auto rounded-md border">
               <table className="w-full text-sm">
                 <tbody>
