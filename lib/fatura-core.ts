@@ -102,12 +102,12 @@ function renumber(description: string, seq: number, count: number, bank: FaturaB
  * planos simultâneos (na fatura-modelo do Nubank, Associacao Franciscana tem um
  * de 9x R$ 30,88 e outro de 12x R$ 17,99).
  */
-function planKey(line: FaturaLine, installment: { seq: number; count: number }): string {
-  const base = line.description
+export function planKey(row: { description: string; cents: number }, installment: { count: number }): string {
+  const base = row.description
     .replace(/^Antecipada - /, "")
     .replace(NUBANK_MARKER_RE, "")
     .replace(BRADESCO_MARKER_RE, "");
-  return [base, installment.count, line.cents].join("|");
+  return [base, installment.count, row.cents].join("|");
 }
 
 function shiftMonthISO(month: string, delta: number): string {
