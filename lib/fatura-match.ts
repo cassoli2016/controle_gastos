@@ -14,7 +14,16 @@ import type { FaturaLine } from "@/lib/fatura-core";
 
 const NUBANK_MARKER_RE = / - Parcela (\d+)\/(\d+)$/;
 const BRADESCO_MARKER_RE = /\((\d{2})\/(\d{2})\)$/;
+/**
+ * Marcador CRU, sem a palavra "Parcela": a seção "Pagamentos e Financiamentos"
+ * do Nubank escreve "Privalia Br I - Parcela 4/4" na fatura, mas o app gravou
+ * "Privalia Br I - NuPay - 4/4". Limitado a 2 dígitos e exigindo seq <= count
+ * para não confundir com código no fim do nome ("Dafiti*4605843990").
+ */
+const BARE_MARKER_RE = / - (\d{1,2})\/(\d{1,2})$/;
 const ANTECIPADA_PREFIX_RE = /^antecipada - /;
+/** Meio de pagamento no nome, não estabelecimento — a fatura é inconsistente com ele. */
+const PAYMENT_METHOD_SUFFIX_RE = / - nupay$/;
 
 const NORMALIZED_MARKER_RE = / - parcela \d+\/\d+$/;
 
@@ -28,14 +37,19 @@ const NORMALIZED_MARKER_RE = / - parcela \d+\/\d+$/;
  * com a 3.
  */
 export function canonicalFaturaDescription(description: string): string {
-  const d = normalizeDescription(description).replace(ANTECIPADA_PREFIX_RE, "");
-  const marker = NORMALIZED_MARKER_RE.exec(d);
+  // Marcador cru vira marcador escrito, para os dois lados terminarem igual.
+  const unified = normalizeDescription(description)
+    .replace(ANTECIPADA_PREFIX_RE, "")
+    .replace(BARE_MARKER_RE, (whole, seq: string, count: string) =>
+      Number(seq) <= Number(count) ? ` - parcela ${seq}/${count}` : whole,
+    );
+  const marker = NORMALIZED_MARKER_RE.exec(unified);
   const suffix = marker ? marker[0] : "";
-  const base = suffix ? d.slice(0, -suffix.length) : d;
+  const base = (suffix ? unified.slice(0, -suffix.length) : unified).replace(PAYMENT_METHOD_SUFFIX_RE, "");
   for (const { pattern, canonical } of FATURA_ALIASES) {
     if (pattern.test(base)) return canonical + suffix;
   }
-  return d;
+  return base + suffix;
 }
 
 /**
@@ -54,6 +68,8 @@ export function readInstallment(row: {
   if (nubank) return { seq: Number(nubank[1]), count: Number(nubank[2]) };
   const bradesco = BRADESCO_MARKER_RE.exec(row.description);
   if (bradesco) return { seq: Number(bradesco[1]), count: Number(bradesco[2]) };
+  const bare = BARE_MARKER_RE.exec(row.description);
+  if (bare && Number(bare[1]) <= Number(bare[2])) return { seq: Number(bare[1]), count: Number(bare[2]) };
   return null;
 }
 

@@ -21,7 +21,9 @@ export const FATURA_ALIASES: { pattern: RegExp; canonical: string }[] = [
   { pattern: /^mercado livre$/, canonical: "mercado*mercadolivre" },
   { pattern: /^beto carrero world$/, canonical: "beto carrero*beto carr" },
   { pattern: /^raiadrogasil$/, canonical: "raia drogasil" },
-  { pattern: /^drogarias pacheco$/, canonical: "drogarias pacheco - nupay" },
+  // "Drogarias Pacheco" NÃO entra aqui: a fatura escreve "- NuPay" na seção de
+  // compras e omite na de financiamentos, e `canonicalFaturaDescription` já tira
+  // o meio de pagamento dos dois lados. Um apelido aqui quebraria o casamento.
   // O app guardou o código da transação; a fatura traz o estabelecimento.
   { pattern: /^\*4606387432$/, canonical: "hugo boss" },
 ];

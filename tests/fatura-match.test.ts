@@ -24,6 +24,29 @@ describe("canonicalFaturaDescription", () => {
   it("não junta estabelecimentos diferentes", () => {
     expect(canonicalFaturaDescription("Mabu Hotel")).not.toBe(canonicalFaturaDescription("Hotel Brasil"));
   });
+
+  it("tira o meio de pagamento NuPay do nome", () => {
+    // A seção de compras da fatura escreve "Ri Happy - NuPay"; a de
+    // financiamentos escreve o mesmo estabelecimento sem o NuPay.
+    expect(canonicalFaturaDescription("Drogarias Pacheco - NuPay")).toBe(
+      canonicalFaturaDescription("Drogarias Pacheco"),
+    );
+  });
+
+  it("unifica o marcador cru com o marcador escrito", () => {
+    // Financiamento vem "Privalia Br I - Parcela 4/4" na fatura e
+    // "Privalia Br I - NuPay - 4/4" no app.
+    expect(canonicalFaturaDescription("Privalia Br I - NuPay - 4/4")).toBe(
+      canonicalFaturaDescription("Privalia Br I - Parcela 4/4"),
+    );
+  });
+
+  it("preserva o sufixo de parcela ao aplicar apelido", () => {
+    // Sem isso o apelido engoliria o marcador e a parcela 1 casaria com a 3.
+    expect(canonicalFaturaDescription("Mercado Livre - Parcela 1/4")).not.toBe(
+      canonicalFaturaDescription("Mercado Livre - Parcela 3/4"),
+    );
+  });
 });
 
 describe("readInstallment", () => {
@@ -49,10 +72,22 @@ describe("readInstallment", () => {
     });
   });
 
+  it("lê o marcador cru do financiamento", () => {
+    // A seção "Pagamentos e Financiamentos" gera linha "… - 4/4", sem "Parcela".
+    expect(readInstallment({ description: "Privalia Br I - NuPay - 4/4" })).toEqual({ seq: 4, count: 4 });
+  });
+
   it("compra à vista não tem parcela", () => {
     expect(readInstallment({ description: "Festval Torres" })).toBeNull();
     expect(readInstallment({ description: "Mp *20526951adria" })).toBeNull();
     expect(readInstallment({ description: "230 Liv Ctba" })).toBeNull();
+  });
+
+  it("não confunde código no fim da descrição com marcador cru", () => {
+    expect(readInstallment({ description: "Dafiti*4605843990" })).toBeNull();
+    expect(readInstallment({ description: "Bradesco Aut*03de04" })).toBeNull();
+    // Parcela nunca é maior que o total.
+    expect(readInstallment({ description: "Loja - 9/4" })).toBeNull();
   });
 });
 
