@@ -8,12 +8,32 @@ import { Card, CardContent } from "@/components/ui/card";
 import { NewReserveForm } from "./NewReserveForm";
 import { ReserveCard } from "./ReserveCard";
 import { DailyBudgetCard } from "./DailyBudgetCard";
+import { prisma } from "@/lib/prisma";
+import { monthToDate } from "@/lib/dates";
+import { realizedBalance } from "@/lib/calc";
+import { toEntryView } from "@/lib/entries";
+
+/**
+ * Sobra REALIZADA do mês corrente: o que entrou menos o que saiu, contando só o
+ * que já foi baixado. É o número que responde "quanto posso guardar" — o card
+ * "Saldo" do Mês não serve, porque ignora a baixa e contaria salário que ainda
+ * não caiu.
+ */
+async function getMonthLeftover(): Promise<number> {
+  const month = todayISOInSaoPaulo().slice(0, 7);
+  const entries = await prisma.monthlyEntry.findMany({
+    where: { month: monthToDate(month) },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  return realizedBalance(entries.map(toEntryView));
+}
 
 export default async function ReservasPage() {
-  const [reserves, negativeMonths, budget] = await Promise.all([
+  const [reserves, negativeMonths, budget, leftoverCents] = await Promise.all([
     getReserves(),
     getNegativeMonths(),
     getDailyBudget(),
+    getMonthLeftover(),
   ]);
   const totalCents = sumCents(reserves.map((r) => r.amountCents));
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
@@ -61,7 +81,7 @@ export default async function ReservasPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {reserves.map((r) => (
-            <ReserveCard key={r.id} reserve={r} />
+            <ReserveCard key={r.id} reserve={r} leftoverCents={leftoverCents} />
           ))}
         </div>
       )}

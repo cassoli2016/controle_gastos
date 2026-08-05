@@ -3,9 +3,11 @@ import type { EntryView } from "@/lib/calc";
 import { DAILY_BUDGET_ENTRY_ID, type DailyBudgetLine } from "@/lib/daily-budget";
 
 type PrismaEntryRow = {
-  plannedAmount: string | number;
+  // `unknown` porque o Prisma entrega Decimal e a conversão é feita aqui com
+  // String(...) — exigir string|number obrigaria todo chamador a converter antes.
+  plannedAmount: unknown;
   paid: boolean;
-  paidAmount: string | number | null;
+  paidAmount: unknown;
   item?: { name: string; category: { id: string; name: string; type: "INCOME" | "EXPENSE" } } | null;
   description?: string | null;
   category?: { id: string; name: string; type: "INCOME" | "EXPENSE" } | null;
@@ -20,7 +22,7 @@ export function toEntryView(row: PrismaEntryRow): EntryView {
     categoryType: category?.type ?? "EXPENSE",
     plannedCents: decimalToCents(String(row.plannedAmount)),
     paid: row.paid,
-    paidCents: row.paidAmount === null ? null : decimalToCents(String(row.paidAmount)),
+    paidCents: row.paidAmount == null ? null : decimalToCents(String(row.paidAmount)),
   };
 }
 

@@ -109,6 +109,21 @@ export async function cancelCardSubscription(subscriptionId: string, fromMonth: 
  * mês — marca como paga (valor real) e abate o previsto, já que o custo passa
  * a viver dentro do consolidado do cartão. Sem isso o mês contaria em dobro.
  */
+export type SubscriptionCandidate = { id: string; itemId: string | null; description: string };
+
+/**
+ * Assinaturas ativas do cartão. Existe separada do consumo para quem importa
+ * uma fatura inteira carregar UMA vez em vez de por linha: com 228 linhas, a
+ * consulta dentro do laço custava 228 idas ao Postgres remoto para devolver
+ * sempre a mesma lista.
+ */
+export async function loadSubscriptionCandidates(cardId: string): Promise<SubscriptionCandidate[]> {
+  return prisma.cardSubscription.findMany({
+    where: { cardId, active: true },
+    select: { id: true, itemId: true, description: true },
+  });
+}
+
 export async function consumeSubscriptionCharge(
   card: { id: string },
   month: string,
@@ -117,7 +132,19 @@ export async function consumeSubscriptionCharge(
   chargeDateISO?: string,
 ): Promise<{ subscriptionId: string | null }> {
   if (chargeCents <= 0) return { subscriptionId: null };
-  const subs = await prisma.cardSubscription.findMany({ where: { cardId: card.id, active: true } });
+  const subs = await loadSubscriptionCandidates(card.id);
+  return consumeSubscriptionChargeWith(subs, month, description, chargeCents, chargeDateISO);
+}
+
+/** Como `consumeSubscriptionCharge`, com as candidatas já carregadas. */
+export async function consumeSubscriptionChargeWith(
+  subs: SubscriptionCandidate[],
+  month: string,
+  description: string,
+  chargeCents: number,
+  chargeDateISO?: string,
+): Promise<{ subscriptionId: string | null }> {
+  if (chargeCents <= 0) return { subscriptionId: null };
   const match = subs.find((s) => descriptionsMatch(s.description, description));
   if (!match?.itemId) return { subscriptionId: match?.id ?? null };
 

@@ -37,7 +37,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 
-export function ReserveCard({ reserve }: { reserve: { id: string; name: string; amountCents: number } }) {
+export function ReserveCard({
+  reserve,
+  leftoverCents,
+}: {
+  reserve: { id: string; name: string; amountCents: number };
+  /** Sobra realizada do mês: informação para você decidir quanto guardar. */
+  leftoverCents: number;
+}) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateReserve, {});
   useActionToast(editState, { success: "Caixinha atualizada." });
   const [deleteState, deleteAction, deletePending] = useActionState<ActionState, FormData>(deleteReserve, {});
@@ -102,7 +109,16 @@ export function ReserveCard({ reserve }: { reserve: { id: string; name: string; 
                 <input type="hidden" name="id" value={reserve.id} />
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`reserve-deposit-amount-${reserve.id}`}>Valor</Label>
-                  <CurrencyInput id={`reserve-deposit-amount-${reserve.id}`} name="amount" defaultCents={0} />
+                  <CurrencyInput
+                    id={`reserve-deposit-amount-${reserve.id}`}
+                    name="amount"
+                    defaultCents={leftoverCents > 0 ? leftoverCents : 0}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {leftoverCents > 0
+                      ? `Sobrou ${formatCents(leftoverCents)} este mês (entrou menos saiu, só o que já foi baixado). O valor é seu — mude se quiser guardar só parte.`
+                      : "Este mês ainda não tem sobra: o que entrou não passou do que saiu."}
+                  </p>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`reserve-deposit-date-${reserve.id}`}>Data</Label>

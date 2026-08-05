@@ -4,8 +4,8 @@ import { decimalToCents, centsToNumber } from "@/lib/money";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { installmentMonths } from "@/lib/installments";
 import { cardTargetMonth } from "@/lib/fatura";
-import { consumeSubscriptionCharge } from "@/lib/card-subscription";
-import { consumeRenewalCharge } from "@/lib/renewal-provision";
+import { consumeSubscriptionCharge, consumeSubscriptionChargeWith, loadSubscriptionCandidates } from "@/lib/card-subscription";
+import { consumeRenewalCharge, consumeRenewalChargeWith, loadRenewalCandidates } from "@/lib/renewal-provision";
 
 export type CardRef = { id: string; name: string; closingDay: number | null; dueDay: number | null };
 
@@ -177,6 +177,11 @@ export type CardMonthRow = {
   /** Negativo = estorno. */
   amountCents: number;
   dateISO?: string;
+  /**
+   * Texto original do banco. Guardado para o casamento com a fatura seguinte
+   * sobreviver a você renomear a linha.
+   */
+  bankDescription?: string;
 };
 
 /**
@@ -192,21 +197,29 @@ export async function replaceCardMonth(card: CardRef, month: string, rows: CardM
     where: { cardId: card.id, month: monthDate, prepayment: false },
   });
   if (rows.length > 0) {
+    // Candidatas carregadas UMA vez: dentro do laço, cada linha custava duas
+    // consultas que devolviam sempre a mesma lista. Numa fatura de 228 linhas
+    // eram ~456 idas ao Postgres remoto, o que fazia a importação passar de 60s
+    // e ameaçava o limite de duração da função na Vercel.
+    const subs = await loadSubscriptionCandidates(card.id);
+    const renewals = await loadRenewalCandidates();
+
     // Cobrança de assinatura no CSV: consome a linha provisionada (marca paga)
     // e etiqueta a linha do extrato com a assinatura.
     const data = [];
     for (const r of rows) {
       const { subscriptionId } =
         r.amountCents > 0
-          ? await consumeSubscriptionCharge(card, month, r.description, r.amountCents, r.dateISO)
+          ? await consumeSubscriptionChargeWith(subs, month, r.description, r.amountCents, r.dateISO)
           : { subscriptionId: null };
       if (r.amountCents > 0 && subscriptionId === null) {
-        await consumeRenewalCharge(month, r.description, r.amountCents, r.dateISO);
+        await consumeRenewalChargeWith(renewals, month, r.description, r.amountCents, r.dateISO);
       }
       data.push({
         cardId: card.id,
         month: monthDate,
         description: r.description,
+        bankDescription: r.bankDescription ?? null,
         amount: centsToNumber(r.amountCents),
         purchaseDate: r.dateISO ? new Date(r.dateISO + "T00:00:00Z") : null,
         subscriptionId,

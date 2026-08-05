@@ -7,8 +7,17 @@ import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
+import { parseReserveCommand, buildDepositReply, type ReserveCommand } from "@/lib/reserve-parse";
+import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
+import { depositToReserveBox } from "@/lib/reserve-deposit";
+import { resolveCategoryId } from "@/lib/purchases";
+import { realizedBalance } from "@/lib/calc";
+import { toEntryView } from "@/lib/entries";
+import { normalizeDescription } from "@/lib/description-match";
+import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
-import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, type CardRef, type CardMonthRow } from "@/lib/card-entry";
+import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
+import { pickFaturaMonth } from "@/lib/csv-fatura-target";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
@@ -16,7 +25,7 @@ import { createWeekdayRecurrence, findActiveItemByName } from "@/lib/recurrence"
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { parseB3Report, type B3Trade } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
-import { decimalToCents } from "@/lib/money";
+import { decimalToCents, centsToNumber } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
@@ -47,7 +56,8 @@ const HELP =
   "• <code>recebi freela 500</code> · <code>salário 25000 receita mensal 5du</code>\n" +
   "\n<b>💳 Cartões</b>\n" +
   "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
-  "• Fatura: envie o .csv do banco (cartão pelo nome do arquivo) — PDF do Bradesco importa pelo app\n" +
+  "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total (gravar é pelo app)\n" +
+  "• Fatura em aberto: envie o .csv do banco (cartão pelo nome do arquivo)\n" +
   "• Antecipação: <code>antecipei 500 nubank</code>\n" +
   "• Assinatura: <code>youtube 24,90 nubank mensal</code> (8x = duração)\n" +
   "\n<b>🔁 Recorrências</b>\n" +
@@ -264,10 +274,52 @@ async function handleCsvDocument(
   }
 
   const months = [...rowsByMonth.keys()].sort();
+  // Um CSV é de UMA fatura: só o mês majoritário pode ser substituído. Nos
+  // outros, o corte intradiário do banco deixou resíduo — e aquele mês pode ser
+  // uma fatura já fechada, que o replace apagaria inteira.
+  const target = pickFaturaMonth(rowsByMonth)!;
   const totalsByMonth = new Map<string, number>();
+  const addedByMonth = new Map<string, number>();
+
   for (const month of months) {
-    const { totalCents } = await replaceCardMonth(card, month, rowsByMonth.get(month)!);
+    const monthRows = rowsByMonth.get(month)!;
+    if (month === target) {
+      const { totalCents } = await replaceCardMonth(card, month, monthRows);
+      totalsByMonth.set(month, totalCents);
+      continue;
+    }
+    let added = 0;
+    for (const row of monthRows) {
+      const purchaseDate = row.dateISO ? new Date(row.dateISO + "T00:00:00Z") : null;
+      const existing = await prisma.cardTransaction.findFirst({
+        where: {
+          cardId: card.id,
+          month: monthToDate(month),
+          description: row.description,
+          purchaseDate,
+          amount: centsToNumber(row.amountCents),
+        },
+      });
+      if (existing) continue;
+      await prisma.cardTransaction.create({
+        data: {
+          cardId: card.id,
+          month: monthToDate(month),
+          description: row.description,
+          amount: centsToNumber(row.amountCents),
+          purchaseDate,
+        },
+      });
+      added++;
+    }
+    const agg = await prisma.cardTransaction.aggregate({
+      where: { cardId: card.id, month: monthToDate(month) },
+      _sum: { amount: true },
+    });
+    const totalCents = agg._sum.amount ? decimalToCents(String(agg._sum.amount)) : 0;
+    await upsertCardEntry({ card, month, amountCents: totalCents, mode: "set" });
     totalsByMonth.set(month, totalCents);
+    addedByMonth.set(month, added);
   }
 
   revalidateFinance();
@@ -280,7 +332,168 @@ async function handleCsvDocument(
   if (estornos > 0) msg += `\n↩️ ${estornos} estorno(s) abatido(s) do total.`;
   if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s) de fatura ignorado(s).`;
   if (failed > 0) msg += `\n⚠️ ${failed} linha(s) não entendida(s).`;
+  for (const [month, added] of addedByMonth) {
+    msg += `\nℹ️ ${fmtMonth(month)}: ${added} lançamento(s) acrescentado(s) sem mexer no resto (fatura de outro ciclo).`;
+  }
   await reply(chatId, msg);
+}
+
+const MAX_FATURA_PDF_BYTES = 4_000_000;
+
+/**
+ * Fatura FECHADA em PDF (Nubank ou Bradesco): CONFERE e não grava.
+ *
+ * A gravação vive na tela de Cartões, onde o preview mostra o impacto mês a mês
+ * antes de confirmar. Motivo: a reconstrução dos meses futuros ainda duplica
+ * linhas gravadas por importações antigas (purchaseDate apontando para a
+ * abertura do ciclo futuro, em duas convenções de parcela) — ver
+ * `docs/fatura-nubank.md`. Enquanto isso não for limpo, o bot só valida.
+ */
+async function handleFaturaPdfDocument(
+  chatId: number,
+  doc: NonNullable<TelegramUpdate["message"]>["document"] & { file_id: string },
+  caption: string | undefined,
+) {
+  if ((doc.file_size ?? 0) > MAX_FATURA_PDF_BYTES) {
+    await reply(chatId, "PDF acima de 4 MB — baixe a fatura direto do app do banco.");
+    return;
+  }
+  const buffer = await downloadTelegramFileBinary(doc.file_id);
+  if (!buffer) {
+    await reply(chatId, "Não consegui baixar o arquivo. Tente enviar de novo.");
+    return;
+  }
+
+  // Import dinâmico: o worker do pdfjs só carrega quando alguém manda fatura.
+  let text: string;
+  try {
+    const { extractText, getDocumentProxy } = await import("unpdf");
+    const pdf = await getDocumentProxy(new Uint8Array(buffer));
+    text = (await extractText(pdf, { mergePages: true })).text;
+  } catch {
+    await reply(chatId, "Não consegui ler o PDF (arquivo corrompido ou protegido).");
+    return;
+  }
+
+  const fatura = parseFatura(text);
+  if ("error" in fatura) {
+    await reply(chatId, `❌ ${fatura.error}`);
+    return;
+  }
+
+  // Cartão: a legenda ganha; sem ela, o banco que o parser identificou — então
+  // não é preciso renomear o arquivo do banco.
+  const hint = caption?.trim().toLowerCase() || fatura.bank;
+  const card = await findCardByHint(hint);
+  if (!card) {
+    await reply(chatId, CARD_NOT_FOUND(hint));
+    return;
+  }
+
+  // Compara o total da fatura com o que o app já tem no mês, sem gravar.
+  const entry = await prisma.monthlyEntry.findFirst({
+    where: { cardId: card.id, month: monthToDate(fatura.faturaMonth), description: card.name },
+  });
+  const appCents = entry ? decimalToCents(String(entry.plannedAmount)) : 0;
+  const diff = appCents - fatura.totalCents;
+
+  const entries = fatura.lines.filter((l) => l.kind !== "payment").length;
+  const parts = [
+    `📄 Fatura ${card.name} — ${fmtMonth(fatura.faturaMonth)}`,
+    `Total do banco: ${formatCents(fatura.totalCents)}`,
+    `${entries} lançamentos · vence ${fatura.dueDateISO.slice(8, 10)}/${fatura.dueDateISO.slice(5, 7)}`,
+    "",
+    diff === 0
+      ? `✅ O app está igual: ${formatCents(appCents)}.`
+      : `⚠️ O app está em ${formatCents(appCents)} — ${formatCents(Math.abs(diff))} ${diff > 0 ? "acima" : "abaixo"} da fatura.`,
+  ];
+  if (diff !== 0) {
+    parts.push(
+      "",
+      "Para gravar, importe o PDF em Cartões → Importar fatura: lá o preview mostra o impacto mês a mês antes de confirmar.",
+    );
+  }
+  for (const w of [...fatura.warnings, ...scheduleWarnings(fatura)]) parts.push(`⚠️ ${w}`);
+
+  await reply(chatId, parts.join("\n"));
+}
+
+
+/**
+ * Caixinha pelo Telegram. Sem valor, mostra os saldos E a sobra do mês — que é
+ * o número que decide quanto guardar, e que nenhuma outra métrica dá (o "Saldo"
+ * do mês ignora a baixa, e o "saldo a realizar" é o que ainda falta).
+ */
+async function handleReserveCommand(chatId: number, cmd: ReserveCommand) {
+  const boxes = await prisma.reserveBox.findMany({ orderBy: { name: "asc" } });
+  if (boxes.length === 0) {
+    await reply(chatId, "Nenhuma caixinha cadastrada — crie em Reservas.");
+    return;
+  }
+
+  const month = await resolveDefaultMonth();
+  const entries = await prisma.monthlyEntry.findMany({
+    where: { month: monthToDate(month) },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  const leftoverCents = realizedBalance(entries.map(toEntryView));
+
+  if (cmd.kind === "query") {
+    const lines = [
+      `\u{1F4B0} Sobra de ${fmtMonth(month)}: ${formatCents(leftoverCents)}`,
+      "(o que entrou menos o que saiu, só o que já foi baixado)",
+      "",
+      ...boxes.map((b) => `\u{2022} ${b.name} — ${formatCents(decimalToCents(String(b.amount)))}`),
+      "",
+      'Para guardar: "reserva 3000" ou "reserva 3000 ' + boxes[0].name.toLowerCase() + '".',
+    ];
+    await reply(chatId, lines.join("\n"));
+    return;
+  }
+
+  // Depósito: resolve a caixinha pelo nome, ou aceita a única cadastrada.
+  let box = boxes[0];
+  if (cmd.boxHint) {
+    const hint = normalizeDescription(cmd.boxHint);
+    const found = boxes.filter((b) => normalizeDescription(b.name).includes(hint));
+    if (found.length === 0) {
+      await reply(chatId, `Não achei a caixinha "${cmd.boxHint}". Cadastradas: ${boxes.map((b) => b.name).join(", ")}.`);
+      return;
+    }
+    if (found.length > 1) {
+      await reply(chatId, `"${cmd.boxHint}" casa com mais de uma: ${found.map((b) => b.name).join(", ")}.`);
+      return;
+    }
+    box = found[0];
+  } else if (boxes.length > 1) {
+    await reply(chatId, `Qual caixinha? ${boxes.map((b) => b.name).join(", ")}.`);
+    return;
+  }
+
+  const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
+  const r = await depositToReserveBox({
+    boxId: box.id,
+    amountCents: cmd.amountCents,
+    dateISO: todayISOInSaoPaulo(),
+    categoryId,
+  });
+  if ("error" in r) {
+    await reply(chatId, r.error);
+    return;
+  }
+  revalidateFinance();
+
+  await reply(
+    chatId,
+    buildDepositReply({
+      amountCents: cmd.amountCents,
+      boxName: r.boxName,
+      newBalanceCents: r.newBalanceCents,
+      leftoverBeforeCents: leftoverCents,
+      monthLabel: fmtMonth(month),
+      formatCents,
+    }).join("\n"),
+  );
 }
 
 /** Compras parseadas de notificações (share do Nubank ou SMS do Bradesco). */
@@ -740,8 +953,11 @@ export async function POST(req: Request) {
   }
 
   if (doc?.file_id) {
-    if (/\.xlsx$/i.test(doc.file_name ?? "")) {
+    const name = doc.file_name ?? "";
+    if (/\.xlsx$/i.test(name)) {
       await handleB3Document(chatId, { ...doc, file_id: doc.file_id });
+    } else if (/\.pdf$/i.test(name)) {
+      await handleFaturaPdfDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
     } else {
       await handleCsvDocument(chatId, { ...doc, file_id: doc.file_id }, update.message?.caption);
     }
@@ -821,6 +1037,12 @@ export async function POST(req: Request) {
       `Proventos a receber: ${formatCents(pendingCents)} (${pendings.length})`,
     ];
     await reply(chatId, lines.join("\n"));
+    return NextResponse.json({ ok: true });
+  }
+
+  const reserveCmd = parseReserveCommand(text);
+  if (reserveCmd) {
+    await handleReserveCommand(chatId, reserveCmd);
     return NextResponse.json({ ok: true });
   }
 

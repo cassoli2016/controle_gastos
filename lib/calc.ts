@@ -34,6 +34,24 @@ export function paidExpense(e: EntryView[]): number {
 export function receivedIncome(e: EntryView[]): number {
   return sumCents(income(e).filter((x) => x.paid).map((x) => x.plannedCents));
 }
+/**
+ * Sobra REALIZADA do mês: o que de fato entrou menos o que de fato saiu.
+ *
+ * Não confundir com as duas métricas vizinhas:
+ *   `plannedBalance` ignora a baixa — diria para guardar dinheiro que ainda não
+ *     caiu na conta;
+ *   o "saldo a realizar" do Panorama é o oposto — o que ainda FALTA acontecer.
+ *
+ * Usa `paidCents` quando a baixa registrou valor, caindo no previsto quando não.
+ * `paidExpense`/`receivedIncome` acima somam sempre o PREVISTO das linhas pagas,
+ * de propósito (progresso do mês); aqui o que vale é o valor efetivo.
+ */
+export function realizedBalance(e: EntryView[]): number {
+  const settled = (rows: EntryView[]) =>
+    sumCents(rows.filter((x) => x.paid).map((x) => x.paidCents ?? x.plannedCents));
+  return settled(income(e)) - settled(expense(e));
+}
+
 /** Percentual inteiro 0–100 (clampado); total <= 0 → 0, sem divisão por zero. */
 export function progressPct(paidCents: number, totalCents: number): number {
   if (totalCents <= 0) return 0;

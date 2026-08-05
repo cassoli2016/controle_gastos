@@ -1,5 +1,9 @@
 import { monthToDate } from "@/lib/dates";
 
+// ATENÇÃO: este módulo é importado por Client Component (MonthEntryList usa as
+// categorias). Nada de prisma aqui — a gravação vive em lib/reserve-deposit.ts,
+// senão o client do banco entra no bundle do browser e o build quebra.
+
 /**
  * Movimentos de caixinha viram MonthlyEntry comuns (já pagos) criados na
  * mesma transação que ajusta ReserveBox.amount — assim o dinheiro está OU no

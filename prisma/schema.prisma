@@ -113,6 +113,13 @@ model CardTransaction {
   cardId           String
   month            DateTime   @db.Date
   description      String
+  // Texto ORIGINAL do banco, gravado pela importação de fatura. `description` é
+  // livre para o usuário renomear (apelido legível); o casamento com a próxima
+  // fatura usa `bankDescription ?? description`. Sem isso, renomear uma parcela
+  // desligava a identidade do plano e a fatura seguinte duplicava a cauda —
+  // medido: R$ 63,76 num plano renomeado do Bradesco.
+  // null nas linhas antigas e nas criadas à mão: cai no comportamento anterior.
+  bankDescription  String?
   amount           Decimal    @db.Decimal(12, 2)
   purchaseDate     DateTime?  @db.Date
   installmentSeq   Int?

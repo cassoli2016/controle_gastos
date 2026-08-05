@@ -4,7 +4,8 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { reserveSchema, dailyBudgetSchema, depositSchema, withdrawalSchema } from "@/lib/validators";
 import { resolveCategoryId } from "@/lib/purchases";
-import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY, depositEntryData, withdrawalEntryData } from "@/lib/reserve-flow";
+import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
+import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { monthToDate } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 
@@ -56,14 +57,14 @@ export const depositToReserve = guardAction(async function depositToReserve(_pre
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { id, amount, date } = parsed.data;
 
-  const box = await prisma.reserveBox.findUnique({ where: { id } });
-  if (!box) return { error: "Caixinha não encontrada." };
-
   const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
-  await prisma.$transaction(async (tx) => {
-    await tx.reserveBox.update({ where: { id }, data: { amount: { increment: amount } } });
-    await tx.monthlyEntry.create({ data: { categoryId, ...depositEntryData(box.name, amount, date) } });
+  const r = await depositToReserveBox({
+    boxId: id,
+    amountCents: Math.round(amount * 100),
+    dateISO: date,
+    categoryId,
   });
+  if ("error" in r) return { error: r.error };
   revalidateFinance();
   return { ok: true };
 });

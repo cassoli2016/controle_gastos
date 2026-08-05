@@ -14,6 +14,39 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.5.0",
+    date: "2026-08-05",
+    title: "Caixinha pelo Telegram e a sobra do mês",
+    items: [
+      "O bot passou a entender caixinha: mande \"reserva\" para ver os saldos e quanto sobrou no mês, ou \"reserva 3000 emergência\" para guardar.",
+      "Ao depositar numa caixinha, o app agora diz quanto sobrou de fato no mês — o que entrou menos o que saiu, contando só o que já foi baixado — e já sugere esse valor. Você muda se quiser guardar só parte.",
+      "A importação de fatura ficou muito mais rápida: uma fatura grande passava de um minuto e agora leva segundos.",
+      "Renomear uma linha do cartão para um nome mais legível não bagunça mais a importação da fatura seguinte.",
+    ],
+  },
+  {
+    version: "1.4.0",
+    date: "2026-08-05",
+    title: "Fechamento de fatura",
+    items: [
+      "Ao importar a fatura, o que você lançou e o banco não cobrou passa a ir para o mês seguinte sozinho, em vez de desaparecer.",
+      "Parcela que o banco atrasou desloca o plano inteiro: as seguintes descem um mês e o plano termina um mês depois.",
+      "Dá para dar baixa da fatura já na importação, informando a data do pagamento.",
+      "O preview mostra quanto cada mês vira e quantas linhas entram e saem, antes de você confirmar.",
+    ],
+  },
+  {
+    version: "1.3.0",
+    date: "2026-08-05",
+    title: "Fatura fechada pelo Telegram",
+    items: [
+      "Mande o PDF da fatura fechada do Nubank ou do Bradesco no Telegram: o bot confere se o total bate com o que o app tem no mês. Se não bater, ele diz de quanto é a diferença.",
+      "A tela de Cartões passou a aceitar a fatura do Nubank em PDF, e o preview agora mostra o impacto mês a mês antes de você confirmar.",
+      "Corrigido: importar o CSV de uma fatura não apaga mais os lançamentos de uma fatura já fechada.",
+      "Corrigido: parcelas quitadas antecipadamente não aparecem mais em dobro nos meses futuros.",
+    ],
+  },
+  {
     version: "1.2.1",
     date: "2026-08-05",
     title: "Fatura do Nubank conferida com o banco",

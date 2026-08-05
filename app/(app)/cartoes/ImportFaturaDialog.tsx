@@ -1,8 +1,8 @@
 "use client";
 import { useActionState, useState } from "react";
 import {
-  previewBradescoFatura,
-  applyBradescoFatura,
+  previewFatura,
+  applyFatura,
   type FaturaPreview,
   type FaturaPreviewState,
   type FaturaApplyState,
@@ -33,16 +33,16 @@ function shortDate(iso: string): string {
 }
 
 /**
- * Importa a fatura PDF do Bradesco: upload → preview validado com descrições
+ * Importa a fatura PDF (Nubank ou Bradesco): upload → preview validado com descrições
  * editáveis (apelidos) → aplicação (replace do mês + meses futuros).
  */
 export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardName: string }) {
   const [previewState, previewAction, previewPending] = useActionState<FaturaPreviewState, FormData>(
-    previewBradescoFatura,
+    previewFatura,
     {},
   );
   const [applyState, applyAction, applyPending] = useActionState<FaturaApplyState, FormData>(
-    applyBradescoFatura,
+    applyFatura,
     {},
   );
   useActionToast(applyState, { success: "Fatura importada." });
@@ -51,6 +51,8 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
   // Preview vira estado local editável assim que a action responde
   // (padrão "adjust state while rendering", como no PayCell).
   const [preview, setPreview] = useState<FaturaPreview | null>(null);
+  /** Vazio = importar sem dar baixa; a fatura fica em aberto na tela do Mês. */
+  const [paidDate, setPaidDate] = useState("");
   const [seenPreview, setSeenPreview] = useState(previewState);
   if (previewState !== seenPreview) {
     setSeenPreview(previewState);
@@ -89,7 +91,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
         <DialogHeader>
           <DialogTitle>Importar fatura · {cardName}</DialogTitle>
           <DialogDescription>
-            Envie o PDF da fatura fechada (Bradesco). Nada é gravado até você confirmar o preview —
+            Envie o PDF da fatura fechada (Nubank ou Bradesco). Nada é gravado até você confirmar o preview —
             e dá para renomear cada linha antes de importar.
           </DialogDescription>
         </DialogHeader>
@@ -125,6 +127,60 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 ))}
               </ul>
             )}
+            {preview.monthsImpact.length > 0 && (
+              <div className="rounded-md border p-2">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">
+                  Impacto por mês se você confirmar
+                </p>
+                <ul className="space-y-0.5 text-xs tabular-nums">
+                  {preview.monthsImpact.map((m) => {
+                    const diff = m.afterCents - m.beforeCents;
+                    return (
+                      <li key={m.month} className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{formatCompetencia(monthToDate(m.month))}</span>
+                        <span>
+                          {formatCents(m.beforeCents)} → <strong>{formatCents(m.afterCents)}</strong>
+                          {diff !== 0 && (
+                            <span
+                              className={cn(
+                                "ml-1",
+                                diff > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+                              )}
+                            >
+                              ({diff > 0 ? "+" : ""}
+                              {formatCents(diff)})
+                            </span>
+                          )}
+                          {(m.removed > 0 || m.added > 0) && (
+                            <span className="ml-1 text-muted-foreground">
+                              −{m.removed} +{m.added}
+                            </span>
+                          )}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
+              <Label htmlFor="paidDate" className="text-muted-foreground">
+                Data do pagamento
+              </Label>
+              <Input
+                id="paidDate"
+                type="date"
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
+                className="h-8 w-40"
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setPaidDate(preview.dueDateISO)}>
+                Usar o vencimento ({shortDate(preview.dueDateISO)})
+              </Button>
+              {paidDate === "" && (
+                <span className="text-xs text-muted-foreground">Em branco: a fatura fica em aberto</span>
+              )}
+            </div>
             <div className="max-h-96 overflow-y-auto rounded-md border">
               <table className="w-full text-sm">
                 <tbody>
@@ -164,11 +220,14 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 name="payload"
                 value={JSON.stringify({
                   cardId: preview.cardId,
+                  bank: preview.bank,
                   faturaMonth: preview.faturaMonth,
                   closingISO: preview.closingISO,
                   totalCents: preview.totalCents,
+                  expectedLinesCents: preview.expectedLinesCents,
                   limitCents: preview.limitCents,
                   lines: preview.lines,
+                  paidDate: paidDate || null,
                 })}
               />
               <DialogFooter className="gap-2">

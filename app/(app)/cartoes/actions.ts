@@ -5,8 +5,13 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
-import { parseBradescoFatura, sumFaturaLines, scheduleWarnings, type FaturaLine } from "@/lib/bradesco-fatura";
-import { applyBradescoFaturaImport } from "@/lib/bradesco-import";
+import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
+import { sumFaturaLines, type FaturaBank, type FaturaLine, type ParsedFatura } from "@/lib/fatura-core";
+import { findOrphans, toAppRow, type AppRow } from "@/lib/fatura-match";
+import { faturaPlanStates, reconcileTail, shiftMonthISO } from "@/lib/fatura-plan";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { decimalToCents, centsToNumber } from "@/lib/money";
+import { applyFaturaImport } from "@/lib/fatura-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 
@@ -169,17 +174,26 @@ export const deleteStatementLine = guardAction(async function deleteStatementLin
 });
 
 // ---------------------------------------------------------------------------
-// Importação de fatura PDF (Bradesco) — preview sem gravar + aplicação.
+// Importação de fatura PDF (Nubank ou Bradesco) — preview sem gravar + aplicação.
 
 export type FaturaPreview = {
   cardId: string;
+  bank: FaturaBank;
   faturaMonth: string;
   dueDateISO: string;
   closingISO: string;
   totalCents: number;
+  /** Soma que as linhas têm que dar; só coincide com totalCents no Bradesco. */
+  expectedLinesCents: number;
   limitCents: number | null;
   warnings: string[];
   lines: FaturaLine[];
+  /**
+   * O que cada mês vira se você confirmar. Sem isto o preview mostra a fatura
+   * mas esconde o efeito colateral: a reconstrução das parcelas futuras pode
+   * duplicar linhas gravadas por importações antigas.
+   */
+  monthsImpact: { month: string; beforeCents: number; afterCents: number; removed: number; added: number }[];
 };
 
 export type FaturaPreviewState = { error?: string; preview?: FaturaPreview };
@@ -196,15 +210,24 @@ const faturaLineSchema = z.object({
 });
 const applyPayloadSchema = z.object({
   cardId: z.string().min(1),
+  bank: z.enum(["nubank", "bradesco"]),
   faturaMonth: z.string().regex(/^\d{4}-\d{2}$/),
   closingISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   totalCents: z.number().int(),
+  expectedLinesCents: z.number().int(),
   limitCents: z.number().int().positive().nullable(),
-  lines: z.array(faturaLineSchema).min(1).max(500),
+  // A fatura-modelo do Nubank tem 230 lançamentos, e um mês com muita quitação
+  // antecipada cresce — o teto é folgado de propósito.
+  lines: z.array(faturaLineSchema).min(1).max(1000),
+  // null = deixar a fatura em aberto; a baixa segue pela tela do Mês.
+  paidDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
 });
 
-/** Lê o PDF da fatura e devolve o preview validado — nada é gravado. */
-export const previewBradescoFatura = guardAction(async function previewBradescoFatura(
+/** Lê o PDF da fatura (Nubank ou Bradesco) e devolve o preview validado — nada é gravado. */
+export const previewFatura = guardAction(async function previewFatura(
   _prevState: FaturaPreviewState,
   formData: FormData,
 ): Promise<FaturaPreviewState> {
@@ -225,24 +248,146 @@ export const previewBradescoFatura = guardAction(async function previewBradescoF
     return { error: "Não consegui ler o PDF (arquivo corrompido ou protegido)." };
   }
 
-  const fatura = parseBradescoFatura(text);
+  const fatura = parseFatura(text);
   if ("error" in fatura) return { error: fatura.error };
+  const monthsImpact = await previewMonthsImpact(cardId, fatura);
+  const grown = monthsImpact.filter((m) => m.afterCents > m.beforeCents * 1.5 && m.beforeCents > 0);
   return {
     preview: {
       cardId,
+      bank: fatura.bank,
       faturaMonth: fatura.faturaMonth,
       dueDateISO: fatura.dueDateISO,
       closingISO: fatura.closingISO,
-      totalCents: fatura.summary.totalCents,
+      totalCents: fatura.totalCents,
+      expectedLinesCents: fatura.expectedLinesCents,
       limitCents: fatura.limitCents,
-      warnings: [...fatura.warnings, ...scheduleWarnings(fatura)],
+      warnings: [
+        ...fatura.warnings,
+        ...scheduleWarnings(fatura),
+        ...(grown.length > 0
+          ? [
+              `${grown.length} mês(es) futuro(s) mais que dobram — provável duplicata de importação antiga. Confira a tabela antes de confirmar.`,
+            ]
+          : []),
+      ],
       lines: fatura.lines,
+      monthsImpact,
     },
   };
 });
 
+/**
+ * Simula a importação: para cada mês afetado, quanto o consolidado é hoje, quanto
+ * viraria, e quantas linhas entram e saem.
+ *
+ * Usa `findOrphans` e `reconcileTail` — as MESMAS funções do `applyFaturaImport`.
+ * Reimplementar a simulação aqui faria o preview mentir na hora em que uma das
+ * duas mudasse, e é justamente ele que autoriza uma operação que mexe em até dez
+ * meses.
+ */
+async function previewMonthsImpact(
+  cardId: string,
+  fatura: ParsedFatura,
+): Promise<FaturaPreview["monthsImpact"]> {
+  const mesRows = await prisma.cardTransaction.findMany({
+    where: { cardId, month: monthToDate(fatura.faturaMonth), prepayment: false },
+    select: {
+      id: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
+  });
+  const orphans = findOrphans(mesRows.map(toAppRow), fatura.lines);
+  const states = faturaPlanStates(fatura.lines, orphans);
+
+  const future = await prisma.cardTransaction.findMany({
+    where: { cardId, month: { gt: monthToDate(fatura.faturaMonth) }, prepayment: false },
+    select: {
+      id: true,
+      month: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+    },
+  });
+  const existingByMonth = new Map<string, AppRow[]>();
+  const centsById = new Map<string, number>();
+  for (const r of future) {
+    const month = monthStringFromDate(r.month);
+    const row = toAppRow(r);
+    centsById.set(row.id, row.cents);
+    existingByMonth.set(month, [...(existingByMonth.get(month) ?? []), row]);
+  }
+  const actions = reconcileTail({ states, faturaMonth: fatura.faturaMonth, existingByMonth, bank: fatura.bank });
+
+  // Antecipações sobrevivem em todo mês: entram no antes e no depois.
+  const prepay = await prisma.cardTransaction.groupBy({
+    by: ["month"],
+    where: { cardId, month: { gte: monthToDate(fatura.faturaMonth) }, prepayment: true },
+    _sum: { amount: true },
+  });
+  const prepayByMonth = new Map(
+    prepay.map((p) => [monthStringFromDate(p.month), p._sum.amount ? decimalToCents(String(p._sum.amount)) : 0]),
+  );
+
+  const nextMonth = shiftMonthISO(fatura.faturaMonth, 1);
+  const vistaOrphans = orphans.filter((o) => !o.installment);
+  const months = [
+    ...new Set([
+      fatura.faturaMonth,
+      nextMonth,
+      ...existingByMonth.keys(),
+      ...actions.flatMap((a) => (a.kind === "insert" ? [a.month] : [])),
+    ]),
+  ].sort();
+
+  const out: FaturaPreview["monthsImpact"] = [];
+  for (const month of months) {
+    const prepayCents = prepayByMonth.get(month) ?? 0;
+
+    if (month === fatura.faturaMonth) {
+      // replaceCardMonth: a fatura é a verdade do mês, só antecipação sobrevive.
+      const rows = mesRows.map(toAppRow);
+      out.push({
+        month,
+        beforeCents: rows.reduce((a, r) => a + r.cents, 0) + prepayCents,
+        afterCents: sumFaturaLines(fatura.lines) + prepayCents,
+        removed: rows.length,
+        added: fatura.lines.filter((l) => l.kind !== "payment").length,
+      });
+      continue;
+    }
+
+    const rows = existingByMonth.get(month) ?? [];
+    const beforeCents = rows.reduce((a, r) => a + r.cents, 0) + prepayCents;
+    const ids = new Set(rows.map((r) => r.id));
+    const removedActions = actions.filter((a) => a.kind === "delete" && ids.has(a.id));
+    const addedActions = actions.flatMap((a) => (a.kind === "insert" && a.month === month ? [a] : []));
+    const removedCents = removedActions.reduce(
+      (a, d) => a + (d.kind === "delete" ? (centsById.get(d.id) ?? 0) : 0),
+      0,
+    );
+    // Órfã à vista cai no mês seguinte ao da fatura.
+    const orphanCents = month === nextMonth ? vistaOrphans.reduce((a, o) => a + o.cents, 0) : 0;
+    out.push({
+      month,
+      beforeCents,
+      afterCents: beforeCents - removedCents + addedActions.reduce((a, i) => a + i.cents, 0) + orphanCents,
+      removed: removedActions.length,
+      added: addedActions.length + (month === nextMonth ? vistaOrphans.length : 0),
+    });
+  }
+  return out.filter((m) => m.beforeCents !== 0 || m.afterCents !== 0);
+}
+
 /** Aplica o preview confirmado (descrições possivelmente editadas). */
-export const applyBradescoFatura = guardAction(async function applyBradescoFatura(
+export const applyFatura = guardAction(async function applyFatura(
   _prevState: FaturaApplyState,
   formData: FormData,
 ): Promise<FaturaApplyState> {
@@ -256,17 +401,34 @@ export const applyBradescoFatura = guardAction(async function applyBradescoFatur
   }
   const parsed = applyPayloadSchema.safeParse(json);
   if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
-  const { cardId, faturaMonth, closingISO, totalCents, limitCents, lines } = parsed.data;
+  const { cardId, bank, faturaMonth, totalCents, expectedLinesCents, limitCents, lines, paidDate } = parsed.data;
 
   // Revalida a soma no servidor: edição só de descrição não muda o total.
-  if (sumFaturaLines(lines) !== totalCents) {
+  // Compara com expectedLinesCents, NÃO com totalCents — os dois só coincidem no
+  // Bradesco. No Nubank a antecipação do ciclo entra na diferença, e comparar
+  // com o total recusaria toda importação com uma mensagem enganosa.
+  if (sumFaturaLines(lines) !== expectedLinesCents) {
     return { error: "A soma das linhas não bate com o total da fatura — refaça o preview." };
   }
   const cardRow = await prisma.creditCard.findUnique({ where: { id: cardId } });
   if (!cardRow) return { error: "Cartão não encontrado." };
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
-  const { months } = await applyBradescoFaturaImport({ card, faturaMonth, closingISO, limitCents, lines });
+  const { months } = await applyFaturaImport({ card, bank, faturaMonth, limitCents, lines });
+
+  // Baixa opcional. `paidAmount` é o TOTAL DA FATURA, não o consolidado
+  // calculado — é o valor que o banco vai debitar. Divergência entre os dois já
+  // aparece como aviso no preview.
+  if (paidDate) {
+    await prisma.monthlyEntry.updateMany({
+      where: { cardId: card.id, month: monthToDate(faturaMonth), description: card.name },
+      data: {
+        paid: true,
+        paidAmount: centsToNumber(totalCents),
+        paidDate: new Date(paidDate + "T00:00:00Z"),
+      },
+    });
+  }
   revalidateFinance();
   return { ok: true, summary: months };
 });

@@ -48,6 +48,20 @@ export async function ensureRenewalProvision(item: {
  * real e abate o previsto (o custo passa a viver na fatura do cartão).
  * Retorna true se consumiu.
  */
+export type RenewalCandidate = { id: string; name: string };
+
+/**
+ * Itens com renovação parcelada. Separada do consumo pelo mesmo motivo das
+ * assinaturas: quem importa uma fatura inteira carrega UMA vez, em vez de repetir
+ * a mesma consulta por linha.
+ */
+export async function loadRenewalCandidates(): Promise<RenewalCandidate[]> {
+  return prisma.item.findMany({
+    where: { active: true, renewalInstallments: { not: null } },
+    select: { id: true, name: true },
+  });
+}
+
 export async function consumeRenewalCharge(
   month: string,
   description: string,
@@ -55,10 +69,18 @@ export async function consumeRenewalCharge(
   chargeDateISO?: string,
 ): Promise<boolean> {
   if (chargeCents <= 0) return false;
-  const candidates = await prisma.item.findMany({
-    where: { active: true, renewalInstallments: { not: null } },
-    select: { id: true, name: true },
-  });
+  return consumeRenewalChargeWith(await loadRenewalCandidates(), month, description, chargeCents, chargeDateISO);
+}
+
+/** Como `consumeRenewalCharge`, com as candidatas já carregadas. */
+export async function consumeRenewalChargeWith(
+  candidates: RenewalCandidate[],
+  month: string,
+  description: string,
+  chargeCents: number,
+  chargeDateISO?: string,
+): Promise<boolean> {
+  if (chargeCents <= 0) return false;
   const item = candidates.find((i) => descriptionsMatch(i.name, description));
   if (!item) return false;
 
