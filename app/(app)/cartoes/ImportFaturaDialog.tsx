@@ -1,8 +1,8 @@
 "use client";
 import { useActionState, useState } from "react";
 import {
-  previewBradescoFatura,
-  applyBradescoFatura,
+  previewFatura,
+  applyFatura,
   type FaturaPreview,
   type FaturaPreviewState,
   type FaturaApplyState,
@@ -33,16 +33,16 @@ function shortDate(iso: string): string {
 }
 
 /**
- * Importa a fatura PDF do Bradesco: upload → preview validado com descrições
+ * Importa a fatura PDF (Nubank ou Bradesco): upload → preview validado com descrições
  * editáveis (apelidos) → aplicação (replace do mês + meses futuros).
  */
 export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardName: string }) {
   const [previewState, previewAction, previewPending] = useActionState<FaturaPreviewState, FormData>(
-    previewBradescoFatura,
+    previewFatura,
     {},
   );
   const [applyState, applyAction, applyPending] = useActionState<FaturaApplyState, FormData>(
-    applyBradescoFatura,
+    applyFatura,
     {},
   );
   useActionToast(applyState, { success: "Fatura importada." });
@@ -89,7 +89,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
         <DialogHeader>
           <DialogTitle>Importar fatura · {cardName}</DialogTitle>
           <DialogDescription>
-            Envie o PDF da fatura fechada (Bradesco). Nada é gravado até você confirmar o preview —
+            Envie o PDF da fatura fechada (Nubank ou Bradesco). Nada é gravado até você confirmar o preview —
             e dá para renomear cada linha antes de importar.
           </DialogDescription>
         </DialogHeader>
@@ -164,9 +164,11 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 name="payload"
                 value={JSON.stringify({
                   cardId: preview.cardId,
+                  bank: preview.bank,
                   faturaMonth: preview.faturaMonth,
                   closingISO: preview.closingISO,
                   totalCents: preview.totalCents,
+                  expectedLinesCents: preview.expectedLinesCents,
                   limitCents: preview.limitCents,
                   lines: preview.lines,
                 })}

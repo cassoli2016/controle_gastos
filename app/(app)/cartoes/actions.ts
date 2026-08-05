@@ -5,9 +5,8 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { cardSchema } from "@/lib/validators";
 import { addPrepaymentToCard, cardTargetMonth, updateCardTransaction, deleteCardTransaction, type CardRef } from "@/lib/card-entry";
-import { parseBradescoFatura } from "@/lib/bradesco-fatura";
-import { scheduleWarnings } from "@/lib/fatura-parse";
-import { sumFaturaLines, type FaturaLine } from "@/lib/fatura-core";
+import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
+import { sumFaturaLines, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
 import { applyFaturaImport } from "@/lib/fatura-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -171,14 +170,17 @@ export const deleteStatementLine = guardAction(async function deleteStatementLin
 });
 
 // ---------------------------------------------------------------------------
-// Importação de fatura PDF (Bradesco) — preview sem gravar + aplicação.
+// Importação de fatura PDF (Nubank ou Bradesco) — preview sem gravar + aplicação.
 
 export type FaturaPreview = {
   cardId: string;
+  bank: FaturaBank;
   faturaMonth: string;
   dueDateISO: string;
   closingISO: string;
   totalCents: number;
+  /** Soma que as linhas têm que dar; só coincide com totalCents no Bradesco. */
+  expectedLinesCents: number;
   limitCents: number | null;
   warnings: string[];
   lines: FaturaLine[];
@@ -198,15 +200,19 @@ const faturaLineSchema = z.object({
 });
 const applyPayloadSchema = z.object({
   cardId: z.string().min(1),
+  bank: z.enum(["nubank", "bradesco"]),
   faturaMonth: z.string().regex(/^\d{4}-\d{2}$/),
   closingISO: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   totalCents: z.number().int(),
+  expectedLinesCents: z.number().int(),
   limitCents: z.number().int().positive().nullable(),
-  lines: z.array(faturaLineSchema).min(1).max(500),
+  // A fatura-modelo do Nubank tem 230 lançamentos, e um mês com muita quitação
+  // antecipada cresce — o teto é folgado de propósito.
+  lines: z.array(faturaLineSchema).min(1).max(1000),
 });
 
-/** Lê o PDF da fatura e devolve o preview validado — nada é gravado. */
-export const previewBradescoFatura = guardAction(async function previewBradescoFatura(
+/** Lê o PDF da fatura (Nubank ou Bradesco) e devolve o preview validado — nada é gravado. */
+export const previewFatura = guardAction(async function previewFatura(
   _prevState: FaturaPreviewState,
   formData: FormData,
 ): Promise<FaturaPreviewState> {
@@ -227,15 +233,17 @@ export const previewBradescoFatura = guardAction(async function previewBradescoF
     return { error: "Não consegui ler o PDF (arquivo corrompido ou protegido)." };
   }
 
-  const fatura = parseBradescoFatura(text);
+  const fatura = parseFatura(text);
   if ("error" in fatura) return { error: fatura.error };
   return {
     preview: {
       cardId,
+      bank: fatura.bank,
       faturaMonth: fatura.faturaMonth,
       dueDateISO: fatura.dueDateISO,
       closingISO: fatura.closingISO,
-      totalCents: fatura.summary.totalCents,
+      totalCents: fatura.totalCents,
+      expectedLinesCents: fatura.expectedLinesCents,
       limitCents: fatura.limitCents,
       warnings: [...fatura.warnings, ...scheduleWarnings(fatura)],
       lines: fatura.lines,
@@ -244,7 +252,7 @@ export const previewBradescoFatura = guardAction(async function previewBradescoF
 });
 
 /** Aplica o preview confirmado (descrições possivelmente editadas). */
-export const applyBradescoFatura = guardAction(async function applyBradescoFatura(
+export const applyFatura = guardAction(async function applyFatura(
   _prevState: FaturaApplyState,
   formData: FormData,
 ): Promise<FaturaApplyState> {
@@ -258,21 +266,22 @@ export const applyBradescoFatura = guardAction(async function applyBradescoFatur
   }
   const parsed = applyPayloadSchema.safeParse(json);
   if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
-  const { cardId, faturaMonth, closingISO, totalCents, limitCents, lines } = parsed.data;
+  const { cardId, bank, faturaMonth, closingISO, expectedLinesCents, limitCents, lines } = parsed.data;
 
   // Revalida a soma no servidor: edição só de descrição não muda o total.
-  if (sumFaturaLines(lines) !== totalCents) {
+  // Compara com expectedLinesCents, NÃO com totalCents — os dois só coincidem no
+  // Bradesco. No Nubank a antecipação do ciclo entra na diferença, e comparar
+  // com o total recusaria toda importação com uma mensagem enganosa.
+  if (sumFaturaLines(lines) !== expectedLinesCents) {
     return { error: "A soma das linhas não bate com o total da fatura — refaça o preview." };
   }
   const cardRow = await prisma.creditCard.findUnique({ where: { id: cardId } });
   if (!cardRow) return { error: "Cartão não encontrado." };
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
-  // Nesta etapa a action só parseia o Bradesco; a Task 5 troca por `bank` vindo
-  // do payload.
   const { months } = await applyFaturaImport({
     card,
-    bank: "bradesco",
+    bank,
     faturaMonth,
     closingISO,
     limitCents,
