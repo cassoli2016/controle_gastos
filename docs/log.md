@@ -9,3 +9,4 @@ type: Log
 2026-08-05 — added parser da fatura Nubank e importação de fatura em PDF pelo Telegram; cronograma de parcelas passa a agrupar por plano (quitação antecipada duplicava)
 2026-08-05 — added fechamento de fatura como estado dos planos: órfãs caminham para frente, cauda reconciliada por plano, dívida da duplicação resolvida sem limpeza em produção
 2026-08-05 — produção: coluna CardTransaction.bankDescription (nullable) e backfill de 230 linhas do Bradesco com o texto do banco; nenhum valor de lançamento alterado
+2026-08-05 — added sobra realizada do mês (recebido − pago) como métrica própria: nem plannedBalance (ignora baixa) nem saldo a realizar (é o oposto); usada no depósito em caixinha e no comando "reserva" do bot

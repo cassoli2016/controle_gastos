@@ -7,6 +7,12 @@ import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
+import { parseReserveCommand, type ReserveCommand } from "@/lib/reserve-parse";
+import { RESERVE_CATEGORY, depositToReserveBox } from "@/lib/reserve-flow";
+import { resolveCategoryId } from "@/lib/purchases";
+import { realizedBalance } from "@/lib/calc";
+import { toEntryView } from "@/lib/entries";
+import { normalizeDescription } from "@/lib/description-match";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
@@ -408,6 +414,83 @@ async function handleFaturaPdfDocument(
   }
   for (const w of [...fatura.warnings, ...scheduleWarnings(fatura)]) parts.push(`⚠️ ${w}`);
 
+  await reply(chatId, parts.join("\n"));
+}
+
+
+/**
+ * Caixinha pelo Telegram. Sem valor, mostra os saldos E a sobra do mês — que é
+ * o número que decide quanto guardar, e que nenhuma outra métrica dá (o "Saldo"
+ * do mês ignora a baixa, e o "saldo a realizar" é o que ainda falta).
+ */
+async function handleReserveCommand(chatId: number, cmd: ReserveCommand) {
+  const boxes = await prisma.reserveBox.findMany({ orderBy: { name: "asc" } });
+  if (boxes.length === 0) {
+    await reply(chatId, "Nenhuma caixinha cadastrada — crie em Reservas.");
+    return;
+  }
+
+  const month = await resolveDefaultMonth();
+  const entries = await prisma.monthlyEntry.findMany({
+    where: { month: monthToDate(month) },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  const leftoverCents = realizedBalance(entries.map(toEntryView));
+
+  if (cmd.kind === "query") {
+    const lines = [
+      `\u{1F4B0} Sobra de ${fmtMonth(month)}: ${formatCents(leftoverCents)}`,
+      "(o que entrou menos o que saiu, só o que já foi baixado)",
+      "",
+      ...boxes.map((b) => `\u{2022} ${b.name} — ${formatCents(decimalToCents(String(b.amount)))}`),
+      "",
+      'Para guardar: "reserva 3000" ou "reserva 3000 ' + boxes[0].name.toLowerCase() + '".',
+    ];
+    await reply(chatId, lines.join("\n"));
+    return;
+  }
+
+  // Depósito: resolve a caixinha pelo nome, ou aceita a única cadastrada.
+  let box = boxes[0];
+  if (cmd.boxHint) {
+    const hint = normalizeDescription(cmd.boxHint);
+    const found = boxes.filter((b) => normalizeDescription(b.name).includes(hint));
+    if (found.length === 0) {
+      await reply(chatId, `Não achei a caixinha "${cmd.boxHint}". Cadastradas: ${boxes.map((b) => b.name).join(", ")}.`);
+      return;
+    }
+    if (found.length > 1) {
+      await reply(chatId, `"${cmd.boxHint}" casa com mais de uma: ${found.map((b) => b.name).join(", ")}.`);
+      return;
+    }
+    box = found[0];
+  } else if (boxes.length > 1) {
+    await reply(chatId, `Qual caixinha? ${boxes.map((b) => b.name).join(", ")}.`);
+    return;
+  }
+
+  const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
+  const r = await depositToReserveBox({
+    boxId: box.id,
+    amountCents: cmd.amountCents,
+    dateISO: todayISOInSaoPaulo(),
+    categoryId,
+  });
+  if ("error" in r) {
+    await reply(chatId, r.error);
+    return;
+  }
+  revalidateFinance();
+
+  const parts = [
+    `\u{2705} ${formatCents(cmd.amountCents)} guardado em ${r.boxName}`,
+    `Caixinha agora: ${formatCents(r.newBalanceCents)}`,
+  ];
+  // A sobra ainda não reflete este depósito (o lançamento acabou de nascer), então
+  // desconta na mão para a mensagem não mentir.
+  const remaining = leftoverCents - cmd.amountCents;
+  parts.push(`Sobra de ${fmtMonth(month)}: ${formatCents(remaining)}`);
+  if (remaining < 0) parts.push("\u{26A0}\u{FE0F} Isso passa do que sobrou no mês.");
   await reply(chatId, parts.join("\n"));
 }
 
@@ -952,6 +1035,12 @@ export async function POST(req: Request) {
       `Proventos a receber: ${formatCents(pendingCents)} (${pendings.length})`,
     ];
     await reply(chatId, lines.join("\n"));
+    return NextResponse.json({ ok: true });
+  }
+
+  const reserveCmd = parseReserveCommand(text);
+  if (reserveCmd) {
+    await handleReserveCommand(chatId, reserveCmd);
     return NextResponse.json({ ok: true });
   }
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   plannedIncome, plannedExpense, plannedBalance, remainingToPay,
   paidExpense, receivedIncome, progressPct, isOverdue,
-  expenseRanking, expenseByCategory, type EntryView,
+  expenseRanking, expenseByCategory, realizedBalance, type EntryView,
 } from "@/lib/calc";
 import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -109,4 +109,49 @@ describe("isOverdue", () => {
     expect(isOverdue({ ...base, categoryType: "INCOME" as const }, "2026-07", "2026-07-30")).toBe(false));
   it("mês corrente sem dueDay não atrasa", () =>
     expect(isOverdue({ ...base, dueDay: null }, "2026-07", "2026-07-30")).toBe(false));
+});
+
+describe("realizedBalance — a sobra de fato do mês", () => {
+  const v = (
+    categoryType: "INCOME" | "EXPENSE",
+    plannedCents: number,
+    paid: boolean,
+    paidCents: number | null = null,
+  ) => ({ itemName: "x", categoryId: "c", categoryName: "C", categoryType, plannedCents, paid, paidCents });
+
+  it("soma o que entrou menos o que saiu", () => {
+    const e = [v("INCOME", 2500000, true, 2500000), v("EXPENSE", 1800000, true, 1800000)];
+    expect(realizedBalance(e)).toBe(700000);
+  });
+
+  it("ignora o que ainda não foi pago nem recebido", () => {
+    // A conta em aberto não desconta: o dinheiro ainda está na conta.
+    const e = [
+      v("INCOME", 2500000, true, 2500000),
+      v("EXPENSE", 1800000, true, 1800000),
+      v("EXPENSE", 200000, false),
+    ];
+    expect(realizedBalance(e)).toBe(700000);
+  });
+
+  it("salário que não caiu não entra na sobra", () => {
+    // É a diferença central em relação ao plannedBalance, que diria 700.000.
+    const e = [v("INCOME", 2500000, false), v("EXPENSE", 1800000, true, 1800000)];
+    expect(realizedBalance(e)).toBe(-1800000);
+    expect(plannedBalance(e)).toBe(700000);
+  });
+
+  it("usa o valor pago, não o previsto, quando eles diferem", () => {
+    const e = [v("INCOME", 2500000, true, 2600000), v("EXPENSE", 1800000, true, 1750000)];
+    expect(realizedBalance(e)).toBe(850000);
+  });
+
+  it("cai no previsto quando a baixa não guardou valor", () => {
+    const e = [v("INCOME", 1000000, true, null), v("EXPENSE", 400000, true, null)];
+    expect(realizedBalance(e)).toBe(600000);
+  });
+
+  it("mês vazio é zero", () => {
+    expect(realizedBalance([])).toBe(0);
+  });
 });

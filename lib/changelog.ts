@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.5.0",
+    date: "2026-08-05",
+    title: "Caixinha pelo Telegram e a sobra do mês",
+    items: [
+      "O bot passou a entender caixinha: mande \"reserva\" para ver os saldos e quanto sobrou no mês, ou \"reserva 3000 emergência\" para guardar.",
+      "Ao depositar numa caixinha, o app agora diz quanto sobrou de fato no mês — o que entrou menos o que saiu, contando só o que já foi baixado — e já sugere esse valor. Você muda se quiser guardar só parte.",
+      "A importação de fatura ficou muito mais rápida: uma fatura grande passava de um minuto e agora leva segundos.",
+      "Renomear uma linha do cartão para um nome mais legível não bagunça mais a importação da fatura seguinte.",
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-08-05",
     title: "Fechamento de fatura",
