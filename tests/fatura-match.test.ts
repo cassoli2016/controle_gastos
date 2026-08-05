@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { canonicalFaturaDescription, readInstallment, matchKey } from "@/lib/fatura-match";
+import { canonicalFaturaDescription, readInstallment, matchKey, findOrphans, type AppRow } from "@/lib/fatura-match";
+import type { FaturaLine } from "@/lib/fatura-core";
 
 describe("canonicalFaturaDescription", () => {
   it("tira o prefixo Antecipada", () => {
@@ -64,5 +65,64 @@ describe("matchKey", () => {
 
   it("valor diferente é chave diferente", () => {
     expect(matchKey("Festval Torres", 1000)).not.toBe(matchKey("Festval Torres", 1001));
+  });
+});
+
+function app(id: string, description: string, cents: number, seq?: number, count?: number): AppRow {
+  return { id, description, cents, installment: seq && count ? { seq, count } : null };
+}
+function inv(description: string, cents: number, seq?: number, count?: number): FaturaLine {
+  return {
+    dateISO: "2026-07-05",
+    description,
+    cents,
+    kind: cents < 0 ? "refund" : "purchase",
+    installment: seq && count ? { seq, count } : null,
+  };
+}
+
+describe("findOrphans", () => {
+  it("linha com par na fatura não é órfã", () => {
+    expect(findOrphans([app("1", "Festval Torres", 23908)], [inv("Festval Torres", 23908)])).toEqual([]);
+  });
+
+  it("linha sem par é órfã", () => {
+    const orphans = findOrphans([app("1", "Es Estacionamento", 23000)], [inv("Festval Torres", 23908)]);
+    expect(orphans.map((o) => o.id)).toEqual(["1"]);
+  });
+
+  it("casa apesar do prefixo Antecipada", () => {
+    const rows = [app("1", "Nescafe Dolce Gusto - Parcela 3/10", 3380, 3, 10)];
+    const lines = [inv("Antecipada - Nescafe Dolce Gusto - Parcela 3/10", 3380, 3, 10)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("casa apesar do apelido do NuTag", () => {
+    expect(findOrphans([app("1", "NuTag*BEI2A53", 2000)], [inv("Transação de NuTag", 2000)])).toEqual([]);
+  });
+
+  it("consome cada par uma vez: duas iguais no app x uma na fatura deixa uma órfã", () => {
+    const rows = [app("1", "Aki Pao", 3054), app("2", "Aki Pao", 3054)];
+    expect(findOrphans(rows, [inv("Aki Pao", 3054)]).map((o) => o.id)).toEqual(["2"]);
+  });
+
+  it("duas iguais nos dois lados não deixam órfã", () => {
+    const rows = [app("1", "Aki Pao", 3054), app("2", "Aki Pao", 3054)];
+    expect(findOrphans(rows, [inv("Aki Pao", 3054), inv("Aki Pao", 3054)])).toEqual([]);
+  });
+
+  it("pagamento de fatura não conta como par disponível", () => {
+    const rows = [app("1", "Pagamento em 06 JUL", -1253560)];
+    const lines: FaturaLine[] = [
+      {
+        dateISO: "2026-07-06",
+        description: "Pagamento em 06 JUL",
+        cents: -1253560,
+        kind: "payment",
+        installment: null,
+      },
+    ];
+    // A linha de pagamento não é importada, então nada no app deveria casar com ela.
+    expect(findOrphans(rows, lines).map((o) => o.id)).toEqual(["1"]);
   });
 });

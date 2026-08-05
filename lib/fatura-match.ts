@@ -10,6 +10,7 @@
  */
 import { normalizeDescription } from "@/lib/description-match";
 import { FATURA_ALIASES } from "@/lib/fatura-aliases";
+import type { FaturaLine } from "@/lib/fatura-core";
 
 const NUBANK_MARKER_RE = / - Parcela (\d+)\/(\d+)$/;
 const BRADESCO_MARKER_RE = /\((\d{2})\/(\d{2})\)$/;
@@ -46,4 +47,35 @@ export function readInstallment(row: {
 /** Chave de casamento: descrição comparável + valor exato. */
 export function matchKey(description: string, cents: number): string {
   return `${canonicalFaturaDescription(description)}|${cents}`;
+}
+
+export type AppRow = {
+  id: string;
+  description: string;
+  cents: number;
+  installment: { seq: number; count: number } | null;
+};
+
+/**
+ * Linhas do app no mês da fatura que a fatura NÃO cobrou. Cada par é consumido
+ * uma vez, então duas linhas iguais no app precisam de duas na fatura.
+ *
+ * O pagamento da fatura anterior fica fora do pool: ele não é importado, logo
+ * nada no app deveria casar com ele.
+ */
+export function findOrphans(appRows: AppRow[], faturaLines: FaturaLine[]): AppRow[] {
+  const pool = new Map<string, number>();
+  for (const line of faturaLines) {
+    if (line.kind === "payment") continue;
+    const k = matchKey(line.description, line.cents);
+    pool.set(k, (pool.get(k) ?? 0) + 1);
+  }
+  const orphans: AppRow[] = [];
+  for (const row of appRows) {
+    const k = matchKey(row.description, row.cents);
+    const available = pool.get(k) ?? 0;
+    if (available > 0) pool.set(k, available - 1);
+    else orphans.push(row);
+  }
+  return orphans;
 }
