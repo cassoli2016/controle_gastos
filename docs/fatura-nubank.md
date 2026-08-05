@@ -101,18 +101,84 @@ O "Saldo em aberto da próxima fatura" da página 4 (R$ 7.657,56) é um snapshot
 momento da emissão; o CSV exportado depois somava R$ 7.657,90. Os 34 centavos são
 deriva do próprio banco — o CSV é a fonte mais recente e prevalece.
 
+## Parser (`lib/nubank-fatura.ts`)
+
+Implementado a partir da extração real do `unpdf`. As páginas 2–3 (alternativas
+de pagamento) saem fragmentadas, com rótulo e valor em linhas separadas, mas o
+resumo e as transações saem como linhas limpas — e são as únicas usadas.
+
+### Âncoras
+
+| Campo | Âncora |
+|---|---|
+| `dueDateISO` | `Data de vencimento: 12 AGO 2026` (meses abreviados em maiúsculo) |
+| `closingISO` | `Fechamento da próxima fatura 05 SET 2026` menos 1 mês; fallback pelo fim de `Período vigente` |
+| `totalCents` | `^Total a pagar R$ …$` — **ancorado na linha** |
+| `limitCents` | `Limite total do cartão de crédito: …` (página 1) |
+| `upcoming` | `Saldo em aberto da próxima fatura` / `Saldo em aberto total` |
+
+A âncora do total precisa ser ancorada na linha: o detalhe de uma parcela
+financiada traz `Total a pagar: R$ 83,74` (com dois-pontos) no meio das
+transações, e a tabela de opções traz `Total a pagar` como rótulo solto.
+
+Não usar `LIMITES DISPONÍVEIS` da página 4 — naquela tabela a coluna "Disponível"
+repete o limite total.
+
+### Invariante: duas rotas independentes
+
+`expectedLinesCents` (a soma que as linhas de compra/estorno têm que dar) é
+derivável do resumo por dois caminhos, e o parser exige que concordem — se o
+resumo foi lido errado, eles divergem e a importação aborta antes de escrever:
+
+```
+rota A = compras + IOF + outros                        = 18.339,54
+rota B = total a pagar + pagamento − fatura anterior    = 18.339,54
+```
+
+Checagens, em ordem: (1) identidade do resumo, (2) rota A = rota B, (3) soma das
+linhas = `expectedLinesCents` — as três abortam; (4) soma dos pagamentos =
+"Pagamento recebido" — só avisa, porque a seção "Pagamentos e Financiamentos"
+mistura pagamento com parcelamento de saldo devedor.
+
+`Total de compras de todos os cartões` (18.446,11) **não** é igual à soma dos
+subtotais por pessoa (18.318,60), e a composição de "Outros lançamentos" não foi
+determinada — os dois entram só como termos da identidade.
+
+### Armadilhas do texto extraído
+
+- **Negativos usam U+2212 (`−`), não hífen ASCII** — 10 ocorrências. O subtotal
+  `Pagamentos e Financiamentos -R$ …` usa hífen, e não é parseado.
+- **Valor deslocado:** a compra internacional e a parcela financiada põem o valor
+  algumas linhas adiante, depois do câmbio / do detalhe do plano. O parser varre
+  até 4 linhas procurando a que é só valor. Ignorá-las custaria R$ 36,69 e faria
+  a checagem 3 abortar a importação sem dizer o motivo real.
+
+### Projeção das parcelas: agrupar por plano
+
+`buildInstallmentSchedule` (`lib/fatura-core.ts`) agrupa por **plano** — loja +
+nº de parcelas + valor da parcela — e projeta a partir da **maior** parcela
+cobrada na fatura. Projetar por linha duplica na quitação antecipada, quando o
+Nubank cobra todas as parcelas restantes no mesmo ciclo (`Antecipada - X -
+Parcela n/N`): daria R$ 26.234,86 em vez de R$ 20.028,97.
+
+O valor por parcela entra na chave porque a mesma loja pode ter dois planos
+simultâneos (`Associacao Franciscana`: 9× R$ 30,88 e 12× R$ 17,99).
+
 ## Como importar para o app
 
-1. Fatura aberta: usar a importação de CSV da tela **Cartões**
-   (`replaceCardMonth` em `lib/card-entry.ts`) — idempotente, substitui extrato +
-   consolidado do mês e preserva antecipações.
-2. Fatura fechada: validar o extrato do mês contra o "Total a pagar" pela fórmula
-   acima antes de gravar. Gabarito: `scripts/fix-fatura-nubank-ago-2026.ts`
-   (simula por padrão, grava só com `--apply`, e aborta se a projeção não fechar
-   nos centavos).
-3. Meses seguintes: cada `- Parcela pp/tt` implica `pp+1..tt` nas próximas
-   faturas com o mesmo valor — validar contra "Saldo em aberto total" da
-   página 4. Gabarito da mesma ideia no Bradesco:
-   `scripts/fix-faturas-futuras-bradesco.ts`.
+1. **Fatura fechada:** envie o PDF no Telegram, ou use a tela **Cartões**. Os
+   dois caminhos passam por `lib/fatura-parse.ts` → `lib/fatura-import.ts`, que
+   substitui o mês e reconstrói as parcelas dos meses seguintes, preservando
+   antecipações e compras do ciclo novo. Idempotente.
+2. **Fatura aberta:** envie o `.csv`. O handler substitui só o mês majoritário e
+   insere (sem apagar) o resíduo que cair em outro mês — ver "corte intradiário".
+3. Reconciliação manual pontual: `scripts/fix-fatura-nubank-ago-2026.ts` (simula
+   por padrão, grava só com `--apply`).
+
+O `upcoming` do Nubank **não** serve para validar o cronograma: "Saldo em aberto
+da próxima fatura" já inclui compras do ciclo novo (projeção de set/2026
+R$ 6.716,86 + R$ 941,28 do ciclo novo ≈ R$ 7.657,56 do PDF). `scheduleWarnings`
+só compara no Bradesco, que tem um "Total parcelado" exclusivamente de
+parcelamento.
 
 Relacionados: [cartao-credito](cartao-credito.md) · [fatura-bradesco-pdf](fatura-bradesco-pdf.md)
