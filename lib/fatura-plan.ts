@@ -73,3 +73,73 @@ export function expectedTail(state: PlanState, faturaMonth: string): { month: st
   }
   return tail;
 }
+
+export type TailAction =
+  | { kind: "delete"; id: string }
+  | { kind: "insert"; month: string; description: string; cents: number; seq: number; count: number };
+
+/** Descrição da parcela `seq` de um plano, no formato do marcador Nubank. */
+function tailDescription(state: PlanState, seq: number): string {
+  const base = state.description.replace(/ - Parcela \d+\/\d+$/, "").replace(/\(\d{2}\/\d{2}\)$/, "");
+  return `${base} - Parcela ${seq}/${state.count}`;
+}
+
+/**
+ * Acerta os meses FUTUROS para a cauda que a fatura implica: apaga a parcela do
+ * plano que está no mês errado, insere a que falta.
+ *
+ * Toca SÓ linhas de planos que a fatura conhece. Compra à vista e plano que a
+ * fatura não lista (compra feita depois do fechamento) sobrevivem intactos — foi
+ * a falta desta garantia que apagava R$ 941,04 de setembro na regra por data.
+ */
+export function reconcileTail(opts: {
+  states: Map<string, PlanState>;
+  faturaMonth: string;
+  existingByMonth: Map<string, AppRow[]>;
+}): TailAction[] {
+  const { states, faturaMonth, existingByMonth } = opts;
+
+  // Onde cada plano DEVE ter parcela: planKey → mês → seq.
+  const wanted = new Map<string, Map<string, number>>();
+  for (const state of states.values()) {
+    const byMonth = new Map<string, number>();
+    for (const { month, seq } of expectedTail(state, faturaMonth)) byMonth.set(month, seq);
+    wanted.set(state.key, byMonth);
+  }
+
+  const actions: TailAction[] = [];
+  const covered = new Map<string, Set<string>>(); // planKey → meses já corretos no app
+
+  for (const [month, rows] of existingByMonth) {
+    if (month <= faturaMonth) continue; // o mês da fatura é tratado pelo replace
+    for (const row of rows) {
+      if (!row.installment) continue; // à vista: preserva
+      const key = planKey(row, row.installment);
+      const byMonth = wanted.get(key);
+      if (!byMonth) continue; // plano que a fatura não conhece: preserva
+      if (byMonth.get(month) === row.installment.seq) {
+        const set = covered.get(key) ?? new Set<string>();
+        set.add(month);
+        covered.set(key, set);
+        continue; // já está certo
+      }
+      actions.push({ kind: "delete", id: row.id });
+    }
+  }
+
+  for (const state of states.values()) {
+    const done = covered.get(state.key) ?? new Set<string>();
+    for (const { month, seq } of expectedTail(state, faturaMonth)) {
+      if (done.has(month)) continue;
+      actions.push({
+        kind: "insert",
+        month,
+        description: tailDescription(state, seq),
+        cents: state.cents,
+        seq,
+        count: state.count,
+      });
+    }
+  }
+  return actions;
+}
