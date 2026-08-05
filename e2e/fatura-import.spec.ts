@@ -49,7 +49,9 @@ test.describe("importação de fatura em PDF", () => {
 
     // O mês tem que fechar no total do banco.
     await page.goto(`/cartoes?month=${MONTH}`);
-    await expect(page.getByText("R$ 17.884,29").first()).toBeVisible();
+    // No schema e2e não existe a antecipação de -R$ 455,25 que o mês real tem, então
+    // o consolidado fecha na soma das linhas.
+    await expect(page.getByText("R$ 18.339,54").first()).toBeVisible();
     await page.screenshot({ path: "test-results/fatura-aplicada.png", fullPage: true });
   });
 });
