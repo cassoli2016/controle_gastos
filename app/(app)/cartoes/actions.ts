@@ -15,7 +15,7 @@ import {
   type ParsedFatura,
 } from "@/lib/fatura-core";
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
-import { decimalToCents } from "@/lib/money";
+import { decimalToCents, centsToNumber } from "@/lib/money";
 import { applyFaturaImport } from "@/lib/fatura-import";
 import { createCardSubscription, cancelCardSubscription } from "@/lib/card-subscription";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -224,6 +224,11 @@ const applyPayloadSchema = z.object({
   // A fatura-modelo do Nubank tem 230 lançamentos, e um mês com muita quitação
   // antecipada cresce — o teto é folgado de propósito.
   lines: z.array(faturaLineSchema).min(1).max(1000),
+  // null = deixar a fatura em aberto; a baixa segue pela tela do Mês.
+  paidDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable(),
 });
 
 /** Lê o PDF da fatura (Nubank ou Bradesco) e devolve o preview validado — nada é gravado. */
@@ -336,7 +341,7 @@ export const applyFatura = guardAction(async function applyFatura(
   }
   const parsed = applyPayloadSchema.safeParse(json);
   if (!parsed.success) return { error: "Dados da fatura inválidos — refaça o preview." };
-  const { cardId, bank, faturaMonth, expectedLinesCents, limitCents, lines } = parsed.data;
+  const { cardId, bank, faturaMonth, totalCents, expectedLinesCents, limitCents, lines, paidDate } = parsed.data;
 
   // Revalida a soma no servidor: edição só de descrição não muda o total.
   // Compara com expectedLinesCents, NÃO com totalCents — os dois só coincidem no
@@ -350,6 +355,20 @@ export const applyFatura = guardAction(async function applyFatura(
   const card: CardRef = { id: cardRow.id, name: cardRow.name, closingDay: cardRow.closingDay, dueDay: cardRow.dueDay };
 
   const { months } = await applyFaturaImport({ card, bank, faturaMonth, limitCents, lines });
+
+  // Baixa opcional. `paidAmount` é o TOTAL DA FATURA, não o consolidado
+  // calculado — é o valor que o banco vai debitar. Divergência entre os dois já
+  // aparece como aviso no preview.
+  if (paidDate) {
+    await prisma.monthlyEntry.updateMany({
+      where: { cardId: card.id, month: monthToDate(faturaMonth), description: card.name },
+      data: {
+        paid: true,
+        paidAmount: centsToNumber(totalCents),
+        paidDate: new Date(paidDate + "T00:00:00Z"),
+      },
+    });
+  }
   revalidateFinance();
   return { ok: true, summary: months };
 });

@@ -51,6 +51,8 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
   // Preview vira estado local editável assim que a action responde
   // (padrão "adjust state while rendering", como no PayCell).
   const [preview, setPreview] = useState<FaturaPreview | null>(null);
+  /** Vazio = importar sem dar baixa; a fatura fica em aberto na tela do Mês. */
+  const [paidDate, setPaidDate] = useState("");
   const [seenPreview, setSeenPreview] = useState(previewState);
   if (previewState !== seenPreview) {
     setSeenPreview(previewState);
@@ -189,6 +191,24 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 </tbody>
               </table>
             </div>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm">
+              <Label htmlFor="paidDate" className="text-muted-foreground">
+                Data do pagamento
+              </Label>
+              <Input
+                id="paidDate"
+                type="date"
+                value={paidDate}
+                onChange={(e) => setPaidDate(e.target.value)}
+                className="h-8 w-40"
+              />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setPaidDate(preview.dueDateISO)}>
+                Usar o vencimento ({shortDate(preview.dueDateISO)})
+              </Button>
+              {paidDate === "" && (
+                <span className="text-xs text-muted-foreground">Em branco: a fatura fica em aberto</span>
+              )}
+            </div>
             <form action={applyAction}>
               <input
                 type="hidden"
@@ -202,6 +222,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                   expectedLinesCents: preview.expectedLinesCents,
                   limitCents: preview.limitCents,
                   lines: preview.lines,
+                  paidDate: paidDate || null,
                 })}
               />
               <DialogFooter className="gap-2">
