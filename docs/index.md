@@ -23,6 +23,7 @@ expandido em um arquivo de conceito próprio via `/mega-brain:migrate` ou `/mega
 - [ipva](ipva.md) — IPVA e licenciamento por veículo (identificadores mascarados)
 - [cartao-credito](cartao-credito.md) — compras parceladas do cartão distribuídas por competência
 - [fatura-bradesco-pdf](fatura-bradesco-pdf.md) — layout do PDF da fatura Bradesco/Amazon e regras de transcrição para o app
+- [fatura-nubank](fatura-nubank.md) — layout do PDF fechado e do CSV em aberto do Nubank, competência e corte intradiário do ciclo
 
 ## Metrics
 

@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.2.1",
+    date: "2026-08-05",
+    title: "Fatura do Nubank conferida com o banco",
+    items: [
+      "A fatura de agosto do Nubank agora bate exatamente com o valor fechado pelo banco: um estorno da Shopee estava descontado duas vezes.",
+      "As compras do dia do fechamento que o banco jogou para a fatura de setembro entraram no mês certo.",
+      "O vencimento do cartão foi corrigido para o dia 12 — o fluxo de caixa do mês mostra a saída no dia real.",
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-08-04",
     title: "Fluxo de caixa por dia",
