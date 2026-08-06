@@ -93,7 +93,20 @@ model CardSubscription {
   // Item recorrente que carrega as linhas provisionadas no /mes.
   item        Item?      @relation(fields: [itemId], references: [id], onDelete: SetNull)
   itemId      String?    @unique
+  /** Nome fantasia: o que você lê na tela do Mês e em Itens. */
   description String
+  /**
+   * Como o estabelecimento aparece NA FATURA. É por este texto que a cobrança
+   * real é reconhecida e a linha do mês é consumida.
+   *
+   * Existe separado porque os dois divergem com frequência: o app mostra
+   * "YouTube Premium" e a fatura escreve "Google Youtubepremium" — e
+   * `descriptionsMatch` compara por conter, então o espaço já basta para não
+   * casar. Mesmo padrão de `CardTransaction.bankDescription`.
+   *
+   * null = casa pelo próprio `description` (comportamento anterior).
+   */
+  bankDescription String?
   amount      Decimal    @db.Decimal(12, 2)
   // Dia do mês em que a cobrança acontece (1-31).
   chargeDay   Int

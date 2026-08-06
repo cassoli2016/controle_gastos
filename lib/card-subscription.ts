@@ -42,7 +42,10 @@ export function firstChargeFaturaMonth(
  */
 export async function createCardSubscription(opts: {
   card: CardLike;
+  /** Nome fantasia: vira o nome do Item e é o que aparece na tela. */
   description: string;
+  /** Como o estabelecimento sai na fatura; sem isso, casa pelo nome fantasia. */
+  bankDescription?: string | null;
   amount: number; // reais/mês
   chargeDay: number;
   months?: number;
@@ -75,6 +78,7 @@ export async function createCardSubscription(opts: {
         cardId: opts.card.id,
         itemId: existing.id,
         description: opts.description,
+        bankDescription: opts.bankDescription?.trim() || null,
         amount: opts.amount,
         chargeDay: opts.chargeDay,
         months,
@@ -96,6 +100,7 @@ export async function createCardSubscription(opts: {
       cardId: opts.card.id,
       itemId,
       description: opts.description,
+      bankDescription: opts.bankDescription?.trim() || null,
       amount: opts.amount,
       chargeDay: opts.chargeDay,
       months,
@@ -135,7 +140,13 @@ export async function cancelCardSubscription(subscriptionId: string, fromMonth: 
  * mês — marca como paga (valor real) e abate o previsto, já que o custo passa
  * a viver dentro do consolidado do cartão. Sem isso o mês contaria em dobro.
  */
-export type SubscriptionCandidate = { id: string; itemId: string | null; description: string };
+export type SubscriptionCandidate = {
+  id: string;
+  itemId: string | null;
+  description: string;
+  /** Como aparece na fatura; quando null, casa pelo próprio `description`. */
+  bankDescription: string | null;
+};
 
 /**
  * Assinaturas ativas do cartão. Existe separada do consumo para quem importa
@@ -146,7 +157,7 @@ export type SubscriptionCandidate = { id: string; itemId: string | null; descrip
 export async function loadSubscriptionCandidates(cardId: string): Promise<SubscriptionCandidate[]> {
   return prisma.cardSubscription.findMany({
     where: { cardId, active: true },
-    select: { id: true, itemId: true, description: true },
+    select: { id: true, itemId: true, description: true, bankDescription: true },
   });
 }
 
@@ -171,7 +182,9 @@ export async function consumeSubscriptionChargeWith(
   chargeDateISO?: string,
 ): Promise<{ subscriptionId: string | null }> {
   if (chargeCents <= 0) return { subscriptionId: null };
-  const match = subs.find((s) => descriptionsMatch(s.description, description));
+  // Casa pelo texto do BANCO quando informado: "YouTube Premium" não está
+  // contido em "Google Youtubepremium", então o nome fantasia não serve de chave.
+  const match = subs.find((s) => descriptionsMatch(s.bankDescription ?? s.description, description));
   if (!match?.itemId) return { subscriptionId: match?.id ?? null };
 
   const entry = await prisma.monthlyEntry.findUnique({

@@ -10,3 +10,4 @@ type: Log
 2026-08-05 — added fechamento de fatura como estado dos planos: órfãs caminham para frente, cauda reconciliada por plano, dívida da duplicação resolvida sem limpeza em produção
 2026-08-05 — produção: coluna CardTransaction.bankDescription (nullable) e backfill de 230 linhas do Bradesco com o texto do banco; nenhum valor de lançamento alterado
 2026-08-05 — added sobra realizada do mês (recebido − pago) como métrica própria: nem plannedBalance (ignora baixa) nem saldo a realizar (é o oposto); usada no depósito em caixinha e no comando "reserva" do bot
+2026-08-06 — added CardSubscription.bankDescription: nome fantasia (tela) separado do texto da fatura (casamento). O nome fantasia como chave falhava — "YouTube Premium" não está contido em "Google Youtubepremium"

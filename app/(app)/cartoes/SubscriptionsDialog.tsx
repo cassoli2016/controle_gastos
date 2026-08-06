@@ -91,8 +91,17 @@ export function SubscriptionsDialog({
         <form action={createAction} className="flex flex-col gap-3 border-t pt-3">
           <input type="hidden" name="cardId" value={cardId} />
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor={`sub-desc-${cardId}`}>Descrição</Label>
+            <Label htmlFor={`sub-desc-${cardId}`}>Nome</Label>
             <Input id={`sub-desc-${cardId}`} name="description" placeholder="ex.: YouTube Premium" required />
+            <p className="text-xs text-muted-foreground">É o que aparece na tela do Mês.</p>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`sub-bank-${cardId}`}>Como aparece na fatura</Label>
+            <Input id={`sub-bank-${cardId}`} name="bankDescription" placeholder="ex.: Google Youtubepremium" />
+            <p className="text-xs text-muted-foreground">
+              Opcional. Preencha quando o nome do banco for diferente — é por ele que a cobrança é reconhecida e a
+              conta deixa de contar duas vezes.
+            </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="flex flex-col gap-1.5">

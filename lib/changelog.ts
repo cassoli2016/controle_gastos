@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.7.0",
+    date: "2026-08-06",
+    title: "Assinatura com nome próprio e nome da fatura",
+    items: [
+      "Ao cadastrar uma assinatura você agora informa dois nomes: o que quer ver na tela e o que o banco escreve na fatura. É pelo segundo que a cobrança é reconhecida — sem ele, contas como \"YouTube Premium\" x \"Google Youtubepremium\" contavam duas vezes no mês.",
+      "Assinatura de uma conta que você já tinha cadastrada como conta fixa passou a funcionar: antes o app recusava, e a conta ficava contando dobrado com a fatura.",
+    ],
+  },
+  {
     version: "1.6.0",
     date: "2026-08-06",
     title: "Ocultar contas pagas no mês",

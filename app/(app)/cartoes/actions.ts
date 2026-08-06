@@ -77,6 +77,8 @@ export const registerPrepayment = guardAction(async function registerPrepayment(
 const subscriptionSchema = z.object({
   cardId: z.string().min(1),
   description: z.string().trim().min(1, "Descrição obrigatória"),
+  // Opcional: sem ele, o casamento com a fatura usa o próprio nome fantasia.
+  bankDescription: z.string().trim().max(120).optional(),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   chargeDay: z.coerce.number().int().min(1).max(31),
   months: z.coerce.number().int().min(1).max(120),
@@ -87,6 +89,7 @@ export const createSubscription = guardAction(async function createSubscription(
   const parsed = subscriptionSchema.safeParse({
     cardId: formData.get("cardId"),
     description: formData.get("description"),
+    bankDescription: formData.get("bankDescription") || undefined,
     amount: formData.get("amount"),
     chargeDay: formData.get("chargeDay"),
     months: formData.get("months"),
@@ -97,6 +100,7 @@ export const createSubscription = guardAction(async function createSubscription(
   const created = await createCardSubscription({
     card: { id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay },
     description: parsed.data.description,
+    bankDescription: parsed.data.bankDescription,
     amount: parsed.data.amount,
     chargeDay: parsed.data.chargeDay,
     months: parsed.data.months,
