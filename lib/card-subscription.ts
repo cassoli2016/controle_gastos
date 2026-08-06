@@ -46,17 +46,43 @@ export async function createCardSubscription(opts: {
   amount: number; // reais/mês
   chargeDay: number;
   months?: number;
-}): Promise<{ firstMonth: string; months: number } | { error: string }> {
+}): Promise<{ firstMonth: string; months: number; adopted?: boolean } | { error: string }> {
   const dupSub = (
     await prisma.cardSubscription.findMany({ where: { cardId: opts.card.id, active: true } })
   ).find((s) => descriptionsMatch(s.description, opts.description));
   if (dupSub) return { error: `Assinatura "${dupSub.description}" já existe neste cartão — cancele antes de recriar.` };
-  const dupItem = await findActiveItemByName(opts.description);
-  if (dupItem) return { error: `Já existe a conta recorrente "${dupItem.name}" — edite em Itens.` };
-
   const months = opts.months ?? SUBSCRIPTION_MONTHS;
   const categoryId = await resolveSubscriptionCategoryId();
   const firstMonth = firstChargeFaturaMonth(opts.card, opts.chargeDay, todayISOInSaoPaulo());
+
+  // Conta fixa que já existe como Item: ADOTA em vez de recusar.
+  //
+  // Recusar era um beco sem saída para o caso mais comum — a assinatura cobrada
+  // no cartão que a pessoa já lançava como conta fixa. O item é justamente o que
+  // a assinatura criaria, e sem o vínculo `consumeSubscriptionCharge` nunca roda:
+  // a linha do mês e a cobrança dentro da fatura contam as duas.
+  //
+  // Adotar preserva as linhas já provisionadas (e o histórico pago); só falta o
+  // vínculo para o consumo passar a acontecer.
+  const existing = await findActiveItemByName(opts.description);
+  if (existing) {
+    const alreadyLinked = await prisma.cardSubscription.findUnique({ where: { itemId: existing.id } });
+    if (alreadyLinked) {
+      return { error: `"${existing.name}" já é assinatura do cartão ${alreadyLinked.cardId === opts.card.id ? "atual" : "outro"}.` };
+    }
+    await prisma.cardSubscription.create({
+      data: {
+        cardId: opts.card.id,
+        itemId: existing.id,
+        description: opts.description,
+        amount: opts.amount,
+        chargeDay: opts.chargeDay,
+        months,
+      },
+    });
+    return { firstMonth, months, adopted: true };
+  }
+
   const { itemId } = await createRecurrence({
     name: opts.description,
     amount: opts.amount,
