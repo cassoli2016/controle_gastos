@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, LogOut, Wallet } from "lucide-react";
+import { Menu, LogOut, Wallet, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,17 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
                   </Link>
                 );
               })}
+              <Link
+                href="/ajustes"
+                onClick={() => setOpen(false)}
+                aria-current={path.startsWith("/ajustes") ? "page" : undefined}
+                className={cn(
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-sm",
+                  path.startsWith("/ajustes") ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent",
+                )}
+              >
+                <Settings className="h-4 w-4" /> Ajustes
+              </Link>
             </nav>
             <Link
               href="/novidades"
@@ -58,6 +69,13 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
         <span className="text-[15px] font-semibold tracking-tight">Grana</span>
       </Link>
       <div className="ml-auto flex items-center gap-1">
+        {/* Ajustes mora aqui, não na navegação: a barra do celular já tem 8
+            itens e um nono deixaria todos ilegíveis. */}
+        <Button asChild variant="ghost" size="icon" aria-label="Ajustes">
+          <Link href="/ajustes">
+            <Settings className="h-5 w-5" />
+          </Link>
+        </Button>
         <ThemeToggle />
         <form action={signOutAction}>
           <Button variant="ghost" size="icon" aria-label="Sair" type="submit"><LogOut className="h-5 w-5" /></Button>

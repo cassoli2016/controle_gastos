@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.1",
+    date: "2026-08-06",
+    title: "Ajustes no menu",
+    items: [
+      "A página de Ajustes agora tem entrada: o ícone de engrenagem no topo, e também no menu lateral do celular. Ela existia desde a versão anterior mas não dava para chegar nela.",
+    ],
+  },
+  {
     version: "1.8.0",
     date: "2026-08-06",
     title: "Face ID para abrir o app",
