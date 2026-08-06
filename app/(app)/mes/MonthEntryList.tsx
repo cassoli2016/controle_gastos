@@ -1,15 +1,17 @@
 "use client";
 import { useMemo, useState } from "react";
-import { Search, X, ChevronDown } from "lucide-react";
+import Link from "next/link";
+import { Search, X, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { groupByCategory } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
-import { filterViews } from "@/lib/month-filter";
+import { filterViews, visibleRows } from "@/lib/month-filter";
 import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY } from "@/lib/reserve-flow";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { PayCell } from "./PayCell";
 import { PlannedCell } from "./PlannedCell";
 import { EntryActions } from "./EntryActions";
@@ -181,11 +183,14 @@ export function MonthEntryList({
   month,
   categories,
   reserves,
+  hidePaid,
 }: {
   views: DisplayRow[];
   month: string;
   categories: { id: string; name: string }[];
   reserves: { id: string; name: string }[];
+  /** Vem de `?pagas=0` na URL, então sobrevive à troca de mês. */
+  hidePaid: boolean;
 }) {
   const [query, setQuery] = useState("");
   // Cards de reserva que o usuário abriu manualmente, por nome de categoria.
@@ -195,26 +200,36 @@ export function MonthEntryList({
 
   return (
     <div className="space-y-4">
-      <div className="relative sm:max-w-80">
-        <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar conta…"
-          aria-label="Buscar conta"
-          className="pl-9 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
-        />
-        {searching && (
-          <button
-            type="button"
-            aria-label="Limpar busca"
-            onClick={() => setQuery("")}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-4" />
-          </button>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-56 flex-1 sm:max-w-80">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar conta…"
+            aria-label="Buscar conta"
+            className="pl-9 pr-8 [&::-webkit-search-cancel-button]:appearance-none"
+          />
+          {searching && (
+            <button
+              type="button"
+              aria-label="Limpar busca"
+              onClick={() => setQuery("")}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          )}
+        </div>
+        {/* Na URL, não em estado local: assim a preferência sobrevive à troca de
+            mês, que é justamente quando você quer continuar sem as pagas. */}
+        <Button asChild variant="outline" size="sm">
+          <Link href={hidePaid ? `/mes?month=${month}` : `/mes?month=${month}&pagas=0`} scroll={false}>
+            {hidePaid ? <Eye className="size-4" /> : <EyeOff className="size-4" />}
+            {hidePaid ? "Mostrar pagas" : "Ocultar pagas"}
+          </Link>
+        </Button>
       </div>
 
       {groups.length === 0 ? (
@@ -230,6 +245,9 @@ export function MonthEntryList({
           // fica guardado e volta a valer quando a busca é limpa.
           const expanded = !isReserve || searching || manuallyOpen[g.categoryName] === true;
           // Contador "pagos": só linhas reais — a reserva derivada não é pagável.
+          // Esconder pagas é só EXIBIÇÃO: `payable`, o contador e o subtotal
+          // seguem vindo de g.rows, senão o mês pareceria mais barato.
+          const shown = visibleRows(g.rows, hidePaid);
           const payable = g.rows.filter((r) => !r.readOnlyHint);
           const paidCount = payable.filter((r) => r.paid).length;
           const doneLabel =
@@ -280,7 +298,12 @@ export function MonthEntryList({
                   </div>
                 )}
               </CardHeader>
-              {expanded && (
+              {expanded && shown.length === 0 && hidePaid && (
+                <CardContent className="py-3 text-center text-xs text-muted-foreground">
+                  Tudo {doneLabel} nesta categoria.
+                </CardContent>
+              )}
+              {expanded && shown.length > 0 && (
                 <CardContent className="px-0">
                   {/* Desktop: tabela */}
                   <div className="hidden md:block overflow-x-auto">
@@ -307,7 +330,7 @@ export function MonthEntryList({
                         </tr>
                       </thead>
                       <tbody>
-                        {g.rows.map((row) => (
+                        {shown.map((row) => (
                           <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} categories={categories} reserves={reserves} />
                         ))}
                       </tbody>
@@ -316,7 +339,7 @@ export function MonthEntryList({
 
                   {/* Mobile: mini-cards empilhados */}
                   <div className="md:hidden divide-y">
-                    {g.rows.map((row) => (
+                    {shown.map((row) => (
                       <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} categories={categories} reserves={reserves} />
                     ))}
                   </div>

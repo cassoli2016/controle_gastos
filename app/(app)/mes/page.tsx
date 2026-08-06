@@ -19,10 +19,16 @@ import { PurchaseDialog } from "./PurchaseDialog";
 import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
+import { parseHidePaid } from "@/lib/month-filter";
 import { CashflowCard } from "./CashflowCard";
 
-export default async function MesPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
-  const { month: qMonth } = await searchParams;
+export default async function MesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ month?: string; pagas?: string }>;
+}) {
+  const { month: qMonth, pagas } = await searchParams;
+  const hidePaid = parseHidePaid(pagas);
   const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
@@ -161,6 +167,7 @@ export default async function MesPage({ searchParams }: { searchParams: Promise<
           />
 
           <MonthEntryList
+            hidePaid={hidePaid}
             key={month}
             views={views}
             month={month}

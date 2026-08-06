@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.6.0",
+    date: "2026-08-06",
+    title: "Ocultar contas pagas no mês",
+    items: [
+      "Botão \"Ocultar pagas\" na tela do Mês: some com o que já foi quitado e deixa só o que falta. A preferência fica na URL, então continua valendo quando você troca de mês.",
+      "Esconder não muda nada nos números: o subtotal de cada categoria e o contador \"3/5 pagos\" continuam contando tudo.",
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-08-05",
     title: "Caixinha pelo Telegram e a sobra do mês",

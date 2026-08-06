@@ -22,3 +22,39 @@ describe("filterViews", () => {
     expect(filterViews(rows, "xyz")).toEqual([]);
   });
 });
+
+import { parseHidePaid, visibleRows } from "@/lib/month-filter";
+
+describe("parseHidePaid", () => {
+  it("só '0' esconde", () => {
+    expect(parseHidePaid("0")).toBe(true);
+    expect(parseHidePaid("1")).toBe(false);
+    expect(parseHidePaid(undefined)).toBe(false);
+    expect(parseHidePaid("")).toBe(false);
+  });
+});
+
+describe("visibleRows", () => {
+  const rows = [
+    { itemName: "Luz", paid: false },
+    { itemName: "Água", paid: true },
+    { itemName: "Reserva do dia a dia", paid: false, readOnlyHint: "calculado" },
+  ];
+
+  it("desligado, mostra tudo", () => {
+    expect(visibleRows(rows, false)).toHaveLength(3);
+  });
+
+  it("ligado, esconde só as pagas", () => {
+    expect(visibleRows(rows, true).map((r) => r.itemName)).toEqual(["Luz", "Reserva do dia a dia"]);
+  });
+
+  it("linha derivada nunca some, mesmo marcada como paga", () => {
+    const derived = [{ itemName: "Reserva do dia a dia", paid: true, readOnlyHint: "calculado" }];
+    expect(visibleRows(derived, true)).toHaveLength(1);
+  });
+
+  it("categoria toda paga fica vazia na exibição", () => {
+    expect(visibleRows([{ itemName: "Água", paid: true }], true)).toEqual([]);
+  });
+});
