@@ -3,10 +3,22 @@ import { auth, signOut } from "@/lib/auth";
 import { Sidebar } from "@/components/app-shell/Sidebar";
 import { Topbar } from "@/components/app-shell/Topbar";
 import { MobileNav } from "@/components/app-shell/MobileNav";
+import { hasPasskeys } from "@/lib/passkey";
+import { isUnlocked } from "@/lib/passkey-session";
+import { LockScreen } from "./LockScreen";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
   if (!session) redirect("/login");
+
+  // Trava biométrica: só existe depois que algum aparelho é registrado, então
+  // quem nunca usou passkey não vê diferença nenhuma. Ela protege a interface —
+  // a sessão continua válida por trás, e a saída pela senha fica na própria
+  // tela de trava.
+  if ((await hasPasskeys()) && !(await isUnlocked())) {
+    return <LockScreen />;
+  }
+
   async function doSignOut() {
     "use server";
     await signOut({ redirectTo: "/login" });

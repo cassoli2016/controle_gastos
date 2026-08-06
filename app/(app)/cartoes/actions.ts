@@ -127,6 +127,33 @@ export const cancelSubscription = guardAction(async function cancelSubscription(
   return { ok: true };
 });
 
+const subscriptionBankSchema = z.object({
+  subscriptionId: z.string().min(1),
+  bankDescription: z.string().trim().max(120),
+});
+
+/**
+ * Ajusta só o texto que vem na fatura. Editável depois do cadastro porque é
+ * comum descobrir o nome exato só quando a primeira cobrança chega — e sem ele
+ * a conta segue contando duas vezes.
+ */
+export const updateSubscriptionBankDescription = guardAction(async function updateSubscriptionBankDescription(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = subscriptionBankSchema.safeParse({
+    subscriptionId: formData.get("subscriptionId"),
+    bankDescription: formData.get("bankDescription"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  await prisma.cardSubscription.update({
+    where: { id: parsed.data.subscriptionId },
+    data: { bankDescription: parsed.data.bankDescription || null },
+  });
+  revalidateFinance();
+  return { ok: true };
+});
+
 /**
  * Alterna active em vez de excluir: um cartão pode ter lançamentos (compras
  * parceladas) associados, então arquivar preserva o histórico.

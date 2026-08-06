@@ -178,6 +178,30 @@ model MonthlyEntry {
   @@index([installmentId])
 }
 
+/**
+ * Passkey (WebAuthn) de um aparelho, usada para DESTRAVAR o app — não para
+ * logar. O login por senha continua intacto de propósito: passkey é presa ao
+ * aparelho e ao domínio, então sem a senha um celular novo deixaria o dono de
+ * fora.
+ *
+ * App de dono único: não há userId. Cada linha é um aparelho.
+ */
+model Passkey {
+  id             String   @id @default(cuid())
+  /** ID da credencial em base64url — o que o navegador devolve e o servidor procura. */
+  credentialId   String   @unique
+  /** Chave pública em base64url; verifica a assinatura de cada desbloqueio. */
+  publicKey      String
+  /** Contador anti-clonagem do autenticador; só cresce. */
+  counter        Int      @default(0)
+  /** "internal", "hybrid"… ajuda o navegador a sugerir o autenticador certo. */
+  transports     String?
+  /** Nome que você dá ao aparelho ("iPhone do Cristian"). */
+  label          String
+  createdAt      DateTime @default(now())
+  lastUsedAt     DateTime?
+}
+
 model ReserveBox {
   id        String   @id @default(cuid())
   name      String

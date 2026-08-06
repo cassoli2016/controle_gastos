@@ -96,6 +96,7 @@ export default async function CartoesPage({
       .map((sub) => ({
         id: sub.id,
         description: sub.description,
+        bankDescription: sub.bankDescription,
         amountCents: decimalToCents(String(sub.amount)),
         chargeDay: sub.chargeDay,
       }));

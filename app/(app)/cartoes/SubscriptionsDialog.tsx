@@ -1,6 +1,11 @@
 "use client";
 import { useActionState, useState } from "react";
-import { createSubscription, cancelSubscription, type ActionState } from "./actions";
+import {
+  createSubscription,
+  cancelSubscription,
+  updateSubscriptionBankDescription,
+  type ActionState,
+} from "./actions";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +25,8 @@ import { RefreshCw, X } from "lucide-react";
 export type SubscriptionView = {
   id: string;
   description: string;
+  /** Como o estabelecimento sai na fatura; null = casa pelo nome. */
+  bankDescription: string | null;
   amountCents: number;
   chargeDay: number;
 };
@@ -42,6 +49,12 @@ export function SubscriptionsDialog({
   const [cancelState, cancelAction, cancelPending] = useActionState<ActionState, FormData>(cancelSubscription, {});
   useActionToast(cancelState, { success: "Assinatura cancelada — provisões futuras removidas." });
 
+  const [bankState, bankAction, bankPending] = useActionState<ActionState, FormData>(
+    updateSubscriptionBankDescription,
+    {},
+  );
+  useActionToast(bankState, { success: "Nome da fatura salvo." });
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -63,26 +76,43 @@ export function SubscriptionsDialog({
         {subscriptions.length > 0 && (
           <ul className="divide-y">
             {subscriptions.map((sub) => (
-              <li key={sub.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                <span className="min-w-0">
-                  <span className="font-medium">{sub.description}</span>{" "}
-                  <span className="text-xs text-muted-foreground">dia {sub.chargeDay}</span>
-                </span>
-                <span className="flex items-center gap-1 shrink-0">
-                  <span className="tabular-nums">{formatCents(sub.amountCents)}/mês</span>
-                  <form action={cancelAction}>
-                    <input type="hidden" name="subscriptionId" value={sub.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Cancelar assinatura ${sub.description}`}
-                      disabled={cancelPending}
-                    >
-                      <X />
-                    </Button>
-                  </form>
-                </span>
+              <li key={sub.id} className="flex flex-col gap-1.5 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="font-medium">{sub.description}</span>{" "}
+                    <span className="text-xs text-muted-foreground">dia {sub.chargeDay}</span>
+                  </span>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <span className="tabular-nums">{formatCents(sub.amountCents)}/mês</span>
+                    <form action={cancelAction}>
+                      <input type="hidden" name="subscriptionId" value={sub.id} />
+                      <Button
+                        type="submit"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Cancelar assinatura ${sub.description}`}
+                        disabled={cancelPending}
+                      >
+                        <X />
+                      </Button>
+                    </form>
+                  </span>
+                </div>
+                {/* Editável aqui porque o nome exato só aparece quando a primeira
+                    cobrança chega — e sem ele a conta conta duas vezes. */}
+                <form action={bankAction} className="flex items-center gap-1.5">
+                  <input type="hidden" name="subscriptionId" value={sub.id} />
+                  <Input
+                    name="bankDescription"
+                    defaultValue={sub.bankDescription ?? ""}
+                    placeholder="Como aparece na fatura (ex.: Google Youtubepremium)"
+                    className="h-7 text-xs"
+                    aria-label={`Nome na fatura de ${sub.description}`}
+                  />
+                  <Button type="submit" variant="outline" size="sm" disabled={bankPending}>
+                    Salvar
+                  </Button>
+                </form>
               </li>
             ))}
           </ul>

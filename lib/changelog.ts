@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.0",
+    date: "2026-08-06",
+    title: "Face ID para abrir o app",
+    items: [
+      "Em Ajustes você registra o aparelho e o app passa a pedir Face ID ao abrir. A senha continua funcionando como saída — se trocar de celular, você entra por ela e registra de novo.",
+      "A trava vale por 30 minutos: abrir o app de novo logo em seguida não pede biometria toda hora.",
+      "O nome da assinatura como aparece na fatura agora pode ser editado depois de cadastrada, direto na lista de Assinaturas do cartão.",
+    ],
+  },
+  {
     version: "1.7.0",
     date: "2026-08-06",
     title: "Assinatura com nome próprio e nome da fatura",
