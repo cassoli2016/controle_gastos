@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.10.0",
+    date: "2026-08-07",
+    title: "Estorno pelo bot e cartão padrão",
+    items: [
+      "Estorno de compra pelo Telegram: \"estorno 56,71 shopee\". Estorno de IOF: \"estorno iof 0,55\". O valor abate a fatura em aberto na hora.",
+      "Cartão padrão (estrela no cadastro, em Cartões): comandos sem nome de cartão — estorno e antecipação — caem nele. O Nubank já está marcado.",
+      "Quando a fatura fechada chegar, o estorno lançado à mão casa pelo valor com o crédito do banco — não duplica nem muda de mês.",
+    ],
+  },
+  {
     version: "1.9.0",
     date: "2026-08-07",
     title: "Ocultar contas pagas no Panorama",

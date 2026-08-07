@@ -74,6 +74,9 @@ model CreditCard {
   // Limite de compras (para a barra de uso na tela Cartões). Auto-atualizado
   // pela importação da fatura; editável no formulário do cartão.
   limitAmount Decimal? @db.Decimal(12, 2)
+  // Cartão padrão do bot: comandos sem nome de cartão (estorno, antecipei)
+  // caem aqui. No máximo um true — as actions zeram os demais ao marcar.
+  isDefault  Boolean        @default(false)
   active    Boolean        @default(true)
   createdAt DateTime       @default(now())
   entries   MonthlyEntry[]

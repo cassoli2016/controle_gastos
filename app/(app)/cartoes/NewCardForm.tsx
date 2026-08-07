@@ -89,6 +89,13 @@ export function NewCardForm() {
               Mostra a barra de uso na tela Cartões. A importação da fatura atualiza sozinha.
             </p>
           </div>
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="new-card-default" name="isDefault" className="size-4 accent-primary" />
+            <Label htmlFor="new-card-default">Padrão do bot ⭐</Label>
+          </div>
+          <p className="-mt-2 text-xs text-muted-foreground">
+            Comandos sem nome de cartão (&quot;estorno 56,71&quot;, &quot;antecipei 500&quot;) caem neste cartão.
+          </p>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Criar

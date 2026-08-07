@@ -124,17 +124,42 @@ export function toAppRow(row: {
  */
 export function findOrphans(appRows: AppRow[], faturaLines: FaturaLine[]): AppRow[] {
   const pool = new Map<string, number>();
+  // Estornos sobrando na fatura, indexados só pelo valor — ver o 2º passe.
+  const refundPool = new Map<number, number>();
   for (const line of faturaLines) {
     if (line.kind === "payment") continue;
     const k = matchKey(line.description, line.cents);
     pool.set(k, (pool.get(k) ?? 0) + 1);
+    if (line.cents < 0) refundPool.set(line.cents, (refundPool.get(line.cents) ?? 0) + 1);
   }
-  const orphans: AppRow[] = [];
+
+  // 1º passe: casamento exato (descrição canônica + valor). Estorno que casa
+  // pelo nome também sai do pool por valor, senão contaria duas vezes.
+  const pending: AppRow[] = [];
   for (const row of appRows) {
     const k = matchKey(row.description, row.cents);
     const available = pool.get(k) ?? 0;
-    if (available > 0) pool.set(k, available - 1);
-    else orphans.push(row);
+    if (available > 0) {
+      pool.set(k, available - 1);
+      if (row.cents < 0) refundPool.set(row.cents, (refundPool.get(row.cents) ?? 0) - 1);
+    } else pending.push(row);
+  }
+
+  // 2º passe, SÓ para negativos: estorno casa por valor. O bot registra
+  // "Estorno shopee" e a fatura escreve 'Crédito de "Shopee *X"' — exigir o
+  // nome moveria o estorno manual para o mês seguinte como órfã. Positivos
+  // nunca caem aqui: duas compras de 50,00 em lojas diferentes são compras
+  // diferentes; estorno é raro e o valor exato identifica.
+  const orphans: AppRow[] = [];
+  for (const row of pending) {
+    if (row.cents < 0) {
+      const available = refundPool.get(row.cents) ?? 0;
+      if (available > 0) {
+        refundPool.set(row.cents, available - 1);
+        continue;
+      }
+    }
+    orphans.push(row);
   }
   return orphans;
 }

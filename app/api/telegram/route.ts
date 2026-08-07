@@ -8,6 +8,7 @@ import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
 import { parseCardCsv } from "@/lib/csv-import";
 import { parseReserveCommand, buildDepositReply, type ReserveCommand } from "@/lib/reserve-parse";
+import { parseRefundCommand, refundDescription } from "@/lib/refund-parse";
 import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
 import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { resolveCategoryId } from "@/lib/purchases";
@@ -16,7 +17,16 @@ import { toEntryView } from "@/lib/entries";
 import { normalizeDescription } from "@/lib/description-match";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
-import { addPurchaseToCard, addPrepaymentToCard, cardTargetMonth, replaceCardMonth, upsertCardEntry, type CardRef, type CardMonthRow } from "@/lib/card-entry";
+import {
+  addPurchaseToCard,
+  addPrepaymentToCard,
+  addRefundToCard,
+  cardTargetMonth,
+  replaceCardMonth,
+  upsertCardEntry,
+  type CardRef,
+  type CardMonthRow,
+} from "@/lib/card-entry";
 import { pickFaturaMonth } from "@/lib/csv-fatura-target";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
@@ -58,7 +68,8 @@ const HELP =
   "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
   "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total (gravar é pelo app)\n" +
   "• Fatura em aberto: envie o .csv do banco (cartão pelo nome do arquivo)\n" +
-  "• Antecipação: <code>antecipei 500 nubank</code>\n" +
+  "• Antecipação: <code>antecipei 500</code> · Estorno: <code>estorno 56,71 shopee</code> / <code>estorno iof 0,55</code>\n" +
+  "• Sem nome de cartão, vale o padrão (estrela em Cartões)\n" +
   "• Assinatura: <code>youtube 24,90 nubank mensal</code> (8x = duração)\n" +
   "\n<b>🔁 Recorrências</b>\n" +
   "• <code>mensal</code> / <code>bimestral</code> / <code>anual</code> / <code>a cada 3 meses</code> após o valor\n" +
@@ -82,6 +93,17 @@ async function reply(chatId: number, text: string, opts?: { html?: boolean }) {
   } catch (e) {
     console.error("telegram sendMessage falhou:", (e as Error).message);
   }
+}
+
+/**
+ * Cartão para comandos SEM nome (estorno, antecipei): o marcado como padrão em
+ * Cartões; sem padrão, o único ativo; com vários e nenhum padrão, null (o
+ * handler pergunta).
+ */
+async function resolveCommandCard(): Promise<CardRef | null> {
+  const actives = await prisma.creditCard.findMany({ where: { active: true } });
+  const chosen = actives.find((c) => c.isDefault) ?? (actives.length === 1 ? actives[0] : null);
+  return chosen ? { id: chosen.id, name: chosen.name, closingDay: chosen.closingDay, dueDay: chosen.dueDay } : null;
 }
 
 async function findCardByHint(hint: string): Promise<CardRef | null> {
@@ -718,11 +740,13 @@ async function handleSingleText(chatId: number, text: string) {
         return;
       }
     } else {
-      const actives = await prisma.creditCard.findMany({ where: { active: true } });
-      if (actives.length === 1) {
-        card = { id: actives[0].id, name: actives[0].name, closingDay: actives[0].closingDay, dueDay: actives[0].dueDay };
-      } else {
-        await reply(chatId, `De qual cartão? Ex.: "antecipei ${parsed.amountReais} nubank". Cartões: ${actives.map((c) => c.name).join(", ")}.`);
+      card = await resolveCommandCard();
+      if (!card) {
+        const actives = await prisma.creditCard.findMany({ where: { active: true } });
+        await reply(
+          chatId,
+          `De qual cartão? Ex.: "antecipei ${parsed.amountReais} nubank" — ou marque um cartão como padrão em Cartões. Cartões: ${actives.map((c) => c.name).join(", ")}.`,
+        );
         return;
       }
     }
@@ -1037,6 +1061,47 @@ export async function POST(req: Request) {
       `Proventos a receber: ${formatCents(pendingCents)} (${pendings.length})`,
     ];
     await reply(chatId, lines.join("\n"));
+    return NextResponse.json({ ok: true });
+  }
+
+  const refundCmd = parseRefundCommand(text);
+  if (refundCmd) {
+    // Nome de cartão pode vir na descrição ("estorno 56,71 shopee nubank"):
+    // extrai e resolve; sem nome, cai no padrão.
+    const actives = await prisma.creditCard.findMany({ where: { active: true } });
+    let card: CardRef | null = null;
+    let description = refundCmd.description;
+    for (const c of actives) {
+      const re = new RegExp(`\\b${c.name.split(" ")[0].toLowerCase()}\\b`, "i");
+      if (re.test(description)) {
+        card = { id: c.id, name: c.name, closingDay: c.closingDay, dueDay: c.dueDay };
+        description = description.replace(re, "").replace(/\s{2,}/g, " ").trim();
+        break;
+      }
+    }
+    card ??= await resolveCommandCard();
+    if (!card) {
+      await reply(
+        chatId,
+        `De qual cartão? Ex.: "estorno 56,71 shopee nubank" — ou marque um cartão como padrão em Cartões. Cartões: ${actives.map((c) => c.name).join(", ")}.`,
+      );
+      return NextResponse.json({ ok: true });
+    }
+    const { month, totalCents } = await addRefundToCard(
+      card,
+      todayISOInSaoPaulo(),
+      refundCmd.amountCents,
+      refundDescription({ ...refundCmd, description }),
+    );
+    revalidateFinance();
+    await reply(
+      chatId,
+      `↩️ ${refundDescription({ ...refundCmd, description })} — ${formatCents(refundCmd.amountCents)} no ${card.name}
+` +
+        `Fatura ${fmtMonth(month)} agora: ${formatCents(totalCents)}
+` +
+        `Quando a fatura fechada chegar, o estorno casa pelo valor.`,
+    );
     return NextResponse.json({ ok: true });
   }
 

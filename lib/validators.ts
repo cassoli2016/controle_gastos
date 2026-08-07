@@ -71,6 +71,8 @@ export const cardSchema = z.object({
     (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
     z.coerce.number().positive("Limite deve ser maior que zero").nullable(),
   ),
+  // Checkbox: "on" quando marcado, ausente quando não.
+  isDefault: z.preprocess((v) => v === "on" || v === "true" || v === true, z.boolean()),
 });
 
 export const purchaseSchema = z.object({

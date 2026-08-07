@@ -211,3 +211,44 @@ describe("findOrphans", () => {
     expect(findOrphans(rows, lines).map((o) => o.id)).toEqual(["1"]);
   });
 });
+
+describe("findOrphans — estorno casa por valor", () => {
+  it("estorno manual casa com o crédito da fatura mesmo com nome diferente", () => {
+    // Digitado no bot: "estorno 56,71 shopee". A fatura escreve outra coisa.
+    const rows = [app("1", "Estorno shopee", -5671)];
+    const lines = [inv('Crédito de "Shopee *Conceptartdeco"', -5671)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("IOF de volta idem", () => {
+    const rows = [app("1", "IOF de volta", -468)];
+    const lines = [inv("IOF de volta de Paddle.Net* Dr.Buho", -468)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("valor diferente NÃO casa — segue órfã", () => {
+    const rows = [app("1", "Estorno shopee", -5671)];
+    const lines = [inv('Crédito de "Shopee *X"', -5600)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("o pareamento por valor consome o crédito: dois estornos iguais precisam de dois créditos", () => {
+    const rows = [app("1", "Estorno a", -1000), app("2", "Estorno b", -1000)];
+    const lines = [inv('Crédito de "Loja"', -1000)];
+    expect(findOrphans(rows, lines).map((o) => o.id)).toEqual(["2"]);
+  });
+
+  it("POSITIVOS nunca casam só por valor", () => {
+    // Duas compras de 50,00 em lojas diferentes são compras diferentes.
+    const rows = [app("1", "Padaria", 5000)];
+    const lines = [inv("Farmácia", 5000)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("casamento exato por descrição tem prioridade sobre o por valor", () => {
+    const rows = [app("1", 'Crédito de "Loja A"', -1000), app("2", "Estorno qualquer", -1000)];
+    const lines = [inv('Crédito de "Loja A"', -1000), inv('Crédito de "Loja B"', -1000)];
+    // A linha 1 casa com a Loja A pelo nome; a 2 sobra para a Loja B pelo valor.
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+});

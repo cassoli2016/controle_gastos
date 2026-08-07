@@ -31,9 +31,14 @@ export const createCard = guardAction(async function createCard(_prevState: Acti
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
     limitAmount: formData.get("limitAmount"),
+    isDefault: formData.get("isDefault"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  await prisma.creditCard.create({ data: parsed.data });
+  // No máximo UM padrão: marcar este desmarca os demais, na mesma transação.
+  await prisma.$transaction(async (tx) => {
+    if (parsed.data.isDefault) await tx.creditCard.updateMany({ data: { isDefault: false } });
+    await tx.creditCard.create({ data: parsed.data });
+  });
   revalidateFinance();
   return { ok: true };
 });
@@ -47,9 +52,13 @@ export const updateCard = guardAction(async function updateCard(_prevState: Acti
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
     limitAmount: formData.get("limitAmount"),
+    isDefault: formData.get("isDefault"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  await prisma.creditCard.update({ where: { id }, data: parsed.data });
+  await prisma.$transaction(async (tx) => {
+    if (parsed.data.isDefault) await tx.creditCard.updateMany({ where: { id: { not: id } }, data: { isDefault: false } });
+    await tx.creditCard.update({ where: { id }, data: parsed.data });
+  });
   revalidateFinance();
   return { ok: true };
 });

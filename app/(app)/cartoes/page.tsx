@@ -250,6 +250,7 @@ export default async function CartoesPage({
                     card={{
                       id: c.id,
                       name: c.name,
+                      isDefault: c.isDefault,
                       color: c.color,
                       closingDay: c.closingDay,
                       dueDay: c.dueDay,

@@ -172,6 +172,35 @@ export async function addPrepaymentToCard(
   return { month, totalCents };
 }
 
+/**
+ * Estorno lançado à mão (bot): linha NEGATIVA no extrato da fatura em aberto,
+ * abatendo o consolidado — o espelho de addPrepaymentToCard, sem a flag
+ * prepayment (estorno é lançamento da fatura, não pagamento dela).
+ *
+ * Quando a fatura fechada chegar, o casamento é por VALOR entre negativos
+ * (findOrphans, 2º passe): a descrição livre daqui não vira órfã mesmo que o
+ * banco escreva 'Crédito de "…"'.
+ */
+export async function addRefundToCard(
+  card: CardRef,
+  dateISO: string,
+  amountCents: number,
+  description: string,
+): Promise<{ month: string; totalCents: number }> {
+  const month = cardTargetMonth(card, dateISO, dateISO.slice(0, 7));
+  const { totalCents } = await upsertCardEntry({ card, month, amountCents: -amountCents, mode: "add" });
+  await prisma.cardTransaction.create({
+    data: {
+      cardId: card.id,
+      month: monthToDate(month),
+      description,
+      amount: centsToNumber(-amountCents),
+      purchaseDate: new Date(dateISO + "T00:00:00Z"),
+    },
+  });
+  return { month, totalCents };
+}
+
 export type CardMonthRow = {
   description: string;
   /** Negativo = estorno. */

@@ -35,6 +35,7 @@ type Card = {
   color: string;
   closingDay: number | null;
   dueDay: number | null;
+  isDefault: boolean;
   limitCents: number | null;
   active: boolean;
 };
@@ -207,6 +208,19 @@ export function CardRow({ card }: { card: Card }) {
                 Mostra a barra de uso na tela Cartões. A importação da fatura atualiza sozinha.
               </p>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id={`edit-card-default-${card.id}`}
+                name="isDefault"
+                defaultChecked={card.isDefault}
+                className="size-4 accent-primary"
+              />
+              <Label htmlFor={`edit-card-default-${card.id}`}>Padrão do bot ⭐</Label>
+            </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Comandos sem nome de cartão (&quot;estorno 56,71&quot;, &quot;antecipei 500&quot;) caem neste cartão.
+            </p>
             <DialogFooter>
               <Button type="submit" disabled={updatePending}>
                 Salvar
