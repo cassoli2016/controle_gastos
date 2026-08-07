@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.9.0",
+    date: "2026-08-07",
+    title: "Ocultar contas pagas no Panorama",
+    items: [
+      "O Panorama ganhou o botão \"Ocultar pagos\": some com as linhas já quitadas nos meses visíveis e deixa só o que ainda mexe no bolso. Categoria que fica vazia sai junto.",
+      "Como na tela do Mês, esconder não muda nenhum número — os totais por mês e o rodapé (A receber, A pagar, Saldo a realizar) continuam contando tudo.",
+      "Os dois filtros do Panorama (pagos e meses quitados) funcionam juntos e ficam na URL, então a preferência não se perde ao navegar.",
+    ],
+  },
+  {
     version: "1.8.4",
     date: "2026-08-07",
     title: "Tag de despesa com cor",

@@ -313,3 +313,47 @@ describe("sumMonthsOrNull", () => {
     expect(sumMonthsOrNull(byMonth, [])).toBeNull();
   });
 });
+
+import { rowSettledInMonths, type MatrixRow } from "@/lib/matrix";
+
+describe("rowSettledInMonths — ocultar linhas quitadas", () => {
+  const cell = (allPaid: boolean, remainingCents: number): MatrixRow["cells"][string] => ({
+    cents: 100,
+    remainingCents,
+    allPaid,
+    paidCount: allPaid ? 1 : 0,
+    count: 1,
+    entries: [],
+    kind: "item",
+  });
+
+  it("linha toda paga nos meses visíveis está quitada", () => {
+    const row: MatrixRow = { line: "Aluguel", cells: { "2026-08": cell(true, 0), "2026-09": cell(true, 0) }, totalCents: 200 };
+    expect(rowSettledInMonths(row, ["2026-08", "2026-09"])).toBe(true);
+  });
+
+  it("uma célula em aberto mantém a linha", () => {
+    const row: MatrixRow = { line: "Luz", cells: { "2026-08": cell(true, 0), "2026-09": cell(false, 100) }, totalCents: 200 };
+    expect(rowSettledInMonths(row, ["2026-08", "2026-09"])).toBe(false);
+  });
+
+  it("só os meses VISÍVEIS contam: aberto fora da janela não segura a linha", () => {
+    const row: MatrixRow = { line: "Luz", cells: { "2026-08": cell(true, 0), "2026-12": cell(false, 100) }, totalCents: 200 };
+    expect(rowSettledInMonths(row, ["2026-08"])).toBe(true);
+  });
+
+  it("baixa parcial (célula com allPaid=false) mantém a linha", () => {
+    const row: MatrixRow = { line: "Diarista", cells: { "2026-08": cell(false, 220) }, totalCents: 880 };
+    expect(rowSettledInMonths(row, ["2026-08"])).toBe(false);
+  });
+
+  it("linha sem célula nenhuma nos meses visíveis some (seria só traços)", () => {
+    const row: MatrixRow = { line: "Antiga", cells: { "2025-01": cell(true, 0) }, totalCents: 100 };
+    expect(rowSettledInMonths(row, ["2026-08"])).toBe(true);
+  });
+
+  it("reserva do dia a dia nunca some: a célula derivada nunca é paga", () => {
+    const row: MatrixRow = { line: "Reserva do dia a dia", cells: { "2026-08": cell(false, 3100) }, totalCents: 3100 };
+    expect(rowSettledInMonths(row, ["2026-08"])).toBe(false);
+  });
+});

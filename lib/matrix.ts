@@ -209,3 +209,21 @@ export function sumMonthsOrNull(byMonth: Record<string, number>, months: string[
 export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[]): number {
   return months.reduce((acc, m) => acc + (row.cells[m]?.remainingCents ?? 0), 0);
 }
+
+/**
+ * Linha "quitada" nos meses visíveis: toda célula existente ali está
+ * integralmente paga. Serve ao "Ocultar pagos" do Panorama — a linha some da
+ * EXIBIÇÃO, mas os totais da seção e o rodapé continuam vindo do conjunto
+ * inteiro (calculados em buildMatrix, antes de qualquer filtro).
+ *
+ * Só os meses visíveis contam: com os meses quitados ocultos, uma conta paga
+ * neles e sem lançamentos futuros viraria uma linha de traços — some junto.
+ * A reserva do dia a dia nunca some: a célula derivada nunca é paga.
+ */
+export function rowSettledInMonths(row: MatrixRow, months: string[]): boolean {
+  for (const m of months) {
+    const cell = row.cells[m];
+    if (cell && !cell.allPaid) return false;
+  }
+  return true;
+}

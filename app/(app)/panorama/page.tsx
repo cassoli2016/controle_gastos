@@ -14,7 +14,9 @@ import {
   shortMonthLabel,
   type MatrixColumn,
   type MatrixEntry,
+  rowSettledInMonths,
 } from "@/lib/matrix";
+import { parseHidePaid } from "@/lib/month-filter";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
@@ -42,9 +44,23 @@ function colKey(col: MatrixColumn): string {
   return col.kind === "month" ? col.monthISO : col.kind === "year" ? `year-${col.year}` : "total";
 }
 
-export default async function PanoramaPage({ searchParams }: { searchParams: Promise<{ quitados?: string }> }) {
-  const { quitados } = await searchParams;
+export default async function PanoramaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ quitados?: string; pagas?: string }>;
+}) {
+  const { quitados, pagas } = await searchParams;
   const showSettled = quitados === "1";
+  const hidePaid = parseHidePaid(pagas);
+
+  /** Cada toggle preserva o estado do outro na URL. */
+  const hrefFor = (settled: boolean, paidHidden: boolean) => {
+    const q = new URLSearchParams();
+    if (settled) q.set("quitados", "1");
+    if (paidHidden) q.set("pagas", "0");
+    const qs = q.toString();
+    return qs ? `/panorama?${qs}` : "/panorama";
+  };
 
   const [rows, budget] = await Promise.all([
     prisma.monthlyEntry.findMany({
@@ -95,6 +111,15 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
   const visibleMonths = showSettled ? matrix.months : matrix.months.filter((m) => !hidden.includes(m));
   const columns = matrixColumns(visibleMonths);
 
+  // "Ocultar pagos" filtra só a EXIBIÇÃO das linhas: os totais por mês e o
+  // rodapé saem de buildMatrix, antes do filtro — esconder não muda número.
+  // Seção que fica sem nenhuma linha sai junto (só sobraria o cabeçalho).
+  const visibleSections = hidePaid
+    ? matrix.sections
+        .map((sec) => ({ ...sec, rows: sec.rows.filter((r) => !rowSettledInMonths(r, visibleMonths)) }))
+        .filter((sec) => sec.rows.length > 0)
+    : matrix.sections;
+
   const monthTh = (m: string) => (
     <th
       key={m}
@@ -127,22 +152,30 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
       ) : (
         <Card>
           <CardContent className="px-0">
-            {hidden.length > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
-                <span className="text-xs text-muted-foreground">
-                  {showSettled ? "Exibindo todos os meses" : hiddenMonthsSummary(hidden)}
-                </span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
+              <span className="text-xs text-muted-foreground">
+                {hidden.length > 0 ? (showSettled ? "Exibindo todos os meses" : hiddenMonthsSummary(hidden)) : ""}
+              </span>
+              <span className="flex items-center gap-2">
                 <Button asChild variant="outline" size="sm">
-                  <Link
-                    href={showSettled ? "/panorama" : "/panorama?quitados=1"}
-                    aria-label={showSettled ? "Ocultar meses quitados" : "Mostrar meses quitados"}
-                  >
-                    {showSettled ? <EyeOff /> : <Eye />}
-                    {showSettled ? "Ocultar quitados" : "Mostrar quitados"}
+                  <Link href={hrefFor(showSettled, !hidePaid)}>
+                    {hidePaid ? <Eye /> : <EyeOff />}
+                    {hidePaid ? "Mostrar pagos" : "Ocultar pagos"}
                   </Link>
                 </Button>
-              </div>
-            )}
+                {hidden.length > 0 && (
+                  <Button asChild variant="outline" size="sm">
+                    <Link
+                      href={hrefFor(!showSettled, hidePaid)}
+                      aria-label={showSettled ? "Ocultar meses quitados" : "Mostrar meses quitados"}
+                    >
+                      {showSettled ? <EyeOff /> : <Eye />}
+                      {showSettled ? "Ocultar quitados" : "Mostrar quitados"}
+                    </Link>
+                  </Button>
+                )}
+              </span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -165,9 +198,16 @@ export default async function PanoramaPage({ searchParams }: { searchParams: Pro
                   </tr>
                 </thead>
                 <tbody>
-                  {matrix.sections.map((section) => (
+                  {visibleSections.map((section) => (
                     <SectionRows key={section.categoryName} section={section} columns={columns} currentMonth={currentMonth} />
                   ))}
+                  {hidePaid && visibleSections.length === 0 && (
+                    <tr>
+                      <td colSpan={columns.length + 1} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        Tudo pago nos meses visíveis.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
                 <tfoot className="border-t-2 font-semibold">
                   <tr className="border-b">
