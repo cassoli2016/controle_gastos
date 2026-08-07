@@ -46,10 +46,20 @@ function monthsRange(from: string, to: string): string[] {
   return out;
 }
 
-/** [item, meses, centavos por mês] — só o que foi medido. */
+/**
+ * [item, meses, centavos por mês].
+ *
+ * 2ª rodada (pedido do usuário): a 1ª restaurou só o estritamente evidenciado e
+ * deixou Nucel/Academia/iCloud sem futuro. Os valores mensais vêm dos próprios
+ * lançamentos do usuário (Nucel set=50, Academia 140, iCloud 19,90) e o
+ * horizonte segue o das contas fixas vizinhas (Psico e FIES vão até 2028-12).
+ * Valores não-zero existentes continuam respeitados.
+ */
 const RESTORE: [string, string[], number][] = [
   ["YouTube Premium", monthsRange("2026-09", "2028-12"), 5390],
-  ["Nucel", ["2026-09"], 5000],
+  ["Nucel", monthsRange("2026-09", "2028-12"), 5000],
+  ["Academia Audrey", monthsRange("2026-08", "2028-12"), 14000],
+  ["iCloud", monthsRange("2026-08", "2028-12"), 1990],
 ];
 
 async function main() {
