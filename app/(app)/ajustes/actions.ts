@@ -61,6 +61,17 @@ export const unlockWithPassword = guardAction(async function unlockWithPassword(
   return { ok: true };
 });
 
+/**
+ * Tranca na hora. Existe porque, ao registrar, o app fica destravado por 30
+ * minutos — sem isto não há como conferir que a trava funciona a não ser
+ * esperando meia hora.
+ */
+export const lockNow = guardAction(async function lockNow(): Promise<PasskeyState> {
+  const { clearUnlock } = await import("@/lib/passkey");
+  await clearUnlock();
+  return { ok: true };
+});
+
 export const removePasskey = guardAction(async function removePasskey(
   _prevState: PasskeyState,
   formData: FormData,

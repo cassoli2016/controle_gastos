@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.2",
+    date: "2026-08-07",
+    title: "Conferir o Face ID na hora",
+    items: [
+      "Depois de registrar o aparelho, o app fica destravado por 30 minutos — então não dava para saber se a trava funcionou. Agora tem um botão \"Trancar agora\" em Ajustes para testar na hora.",
+    ],
+  },
+  {
     version: "1.8.1",
     date: "2026-08-06",
     title: "Ajustes no menu",

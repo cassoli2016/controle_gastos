@@ -1,10 +1,16 @@
 "use client";
 import { useActionState, useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
-import { Fingerprint, Trash2 } from "lucide-react";
+import { Fingerprint, Trash2, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-import { startPasskeyRegistration, finishPasskeyRegistration, removePasskey, type PasskeyState } from "./actions";
+import {
+  startPasskeyRegistration,
+  finishPasskeyRegistration,
+  removePasskey,
+  lockNow,
+  type PasskeyState,
+} from "./actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,6 +99,26 @@ export function PasskeyManager({ passkeys }: { passkeys: Passkey[] }) {
         </Button>
       </div>
       {erro && <p className="text-sm text-destructive">{erro}</p>}
+
+      {passkeys.length > 0 && (
+        <div className="flex flex-col gap-1.5 border-t pt-4">
+          <p className="text-sm text-muted-foreground">
+            Depois de registrar, o app fica destravado por 30 minutos — use o botão abaixo para conferir agora que o
+            Face ID está funcionando.
+          </p>
+          <Button
+            variant="secondary"
+            className="self-start"
+            onClick={async () => {
+              await lockNow();
+              router.refresh();
+            }}
+          >
+            <Lock className="size-4" />
+            Trancar agora
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
