@@ -58,7 +58,8 @@ type TelegramUpdate = {
 
 const HELP =
   "<b>💸 Gastos</b>\n" +
-  "• Texto: <code>mercado 250</code> · <code>posto 200 nubank 3x</code>\n" +
+  "• Texto: <code>mercado 250</code> (cai no cartão padrão ⭐) · <code>posto 200 3x</code>\n" +
+  "• Fora do cartão (pix/débito/dinheiro): <code>mercado 250 pix</code>\n" +
   "• Várias linhas de uma vez (uma compra por linha)\n" +
   "• 📸 Foto do comprovante (PIX/cartão/cupom) — legenda vira cartão/parcelas\n" +
   "• Share do Nubank ou SMS do Bradesco: cole aqui que eu entendo\n" +
@@ -539,10 +540,13 @@ async function handleShareText(chatId: number, parsed: ShareParseResult) {
   }
 
   const defaultMonth = await resolveDefaultMonth();
+  // Share sem a linha "Cartão …" (já aconteceu: a linha vinha depois de uma
+  // data que não casava): compra de share é sempre de cartão — cai no padrão.
+  const shareFallback = await resolveCommandCard();
   const lines: string[] = [];
   for (const p of purchases) {
     const amountCents = Math.round(p.amountReais * 100);
-    const card = p.cardHint ? cardByHint.get(p.cardHint)! : null;
+    const card = (p.cardHint ? cardByHint.get(p.cardHint)! : null) ?? shareFallback;
     if (card) {
       const startMonth = cardTargetMonth(card, p.date, defaultMonth);
       const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, p.installments, {
@@ -600,8 +604,11 @@ async function handleBatchText(chatId: number, text: string) {
   const recurringLines = nonIncome.filter((e) => e.recurring && e.cardHint === null);
   const recurringOnCard = nonIncome.filter((e) => e.recurring && e.cardHint !== null);
   const normal = nonIncome.filter((e) => !e.recurring);
-  const cardLines = normal.filter((e) => e.cardHint !== null);
-  const plainLines = normal.filter((e) => e.cardHint === null);
+  // Sem cartão e sem "pix"/"débito"/"dinheiro"/"avulso": cartão padrão. A
+  // keyword é a saída para o que não passou pela fatura.
+  const batchFallback = await resolveCommandCard();
+  const cardLines = normal.filter((e) => e.cardHint !== null || (!e.loose && batchFallback !== null));
+  const plainLines = normal.filter((e) => e.cardHint === null && (e.loose || batchFallback === null));
 
   let skippedDup = 0;
   for (const e of recurringLines) {
@@ -668,7 +675,7 @@ async function handleBatchText(chatId: number, text: string) {
 
   const perCard = new Map<string, { card: CardRef; cents: number; months: Set<string> }>();
   for (const e of cardLines) {
-    const card = cardByHint.get(e.cardHint!)!;
+    const card = e.cardHint ? cardByHint.get(e.cardHint)! : batchFallback!;
     const startMonth = cardTargetMonth(card, undefined, defaultMonth);
     const { months } = await addPurchaseToCard(card, startMonth, Math.round(e.amountReais * 100), e.installments, {
       description: e.description,
@@ -892,6 +899,27 @@ async function handleSingleText(chatId: number, text: string) {
       `✅ ${parsed.description} — ${valor} no ${card.name} · ${fmtMonthSpan(months)} (fatura ${fmtMonth(months[0])}: ${formatCents(firstMonthTotalCents)})`,
     );
     return;
+  }
+
+  // Compra digitada sem cartão: cai no padrão (⭐). "pix"/"débito"/"dinheiro"/
+  // "avulso" após o valor mantém fora do cartão; sem padrão configurado, o
+  // comportamento antigo (avulso) continua valendo.
+  if (!parsed.loose) {
+    const card = await resolveCommandCard();
+    if (card) {
+      const startMonth = cardTargetMonth(card, undefined, defaultMonth);
+      const { months, firstMonthTotalCents } = await addPurchaseToCard(card, startMonth, amountCents, parsed.installments, {
+        description: parsed.description,
+      });
+      revalidateFinance();
+      const valor =
+        parsed.installments > 1 ? `${parsed.installments}x de ${formatCents(amountCents)}` : formatCents(amountCents);
+      await reply(
+        chatId,
+        `✅ ${parsed.description} — ${valor} no ${card.name} ⭐ · ${fmtMonthSpan(months)} (fatura ${fmtMonth(months[0])}: ${formatCents(firstMonthTotalCents)})\nFora do cartão? Termine com "pix".`,
+      );
+      return;
+    }
   }
 
   const { count } = await createPurchaseCore({

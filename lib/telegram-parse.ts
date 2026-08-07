@@ -18,6 +18,12 @@ export type ParsedExpense = {
   businessDay: number | null;
   /** Frequência em meses ("bimestral"=2, "trimestral"=3, "a cada N meses"). */
   intervalMonths: number | null;
+  /**
+   * "pix"/"débito"/"dinheiro"/"avulso" após o valor: compra FORA do cartão.
+   * Sem a keyword e sem cartão, o bot manda a compra para o cartão padrão —
+   * esta é a saída para o que não passou pela fatura.
+   */
+  loose: boolean;
 };
 
 const AMOUNT_RE = /^\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?$|^\d+(?:[.,]\d{1,2})?$/;
@@ -34,6 +40,7 @@ const INCOME_PREFIX_RE = /^recebi$/i;
 const PREPAYMENT_PREFIX_RE = /^antecip\S*$/i; // antecipei, antecipado, antecipação… (\S: \w não casa ç/ã)
 const INCOME_SUFFIX_RE = /^(receita|recebimento)$/i;
 const BUSINESS_DAY_RE = /^(\d{1,2})du$/i;
+const LOOSE_RE = /^(pix|debito|dinheiro|avulso)$/i;
 
 const WEEKDAYS: Record<string, number> = {
   dom: 0, domingo: 0,
@@ -89,6 +96,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
 
   let installments = 1;
   let recurring = false;
+  let loose = false;
   let businessDay: number | null = null;
   let intervalMonths: number | null = null;
   const weekdaySet = new Set<number>();
@@ -105,6 +113,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
       intervalMonths = INTERVAL_KEYWORDS[norm];
     }
     else if (INCOME_SUFFIX_RE.test(t)) income = true;
+    else if (LOOSE_RE.test(norm)) loose = true;
     else if (norm in WEEKDAYS) weekdaySet.add(WEEKDAYS[norm]);
     else cardWords.push(t);
   }
@@ -138,6 +147,7 @@ export function parseExpenseMessage(text: string): ParsedExpense | null {
     recurring,
     income,
     prepayment,
+    loose,
     weekdays: weekdaySet.size > 0 ? [...weekdaySet].sort((a, b) => a - b) : null,
     businessDay,
     intervalMonths,

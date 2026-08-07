@@ -11,6 +11,7 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -25,6 +26,7 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -39,6 +41,7 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -51,6 +54,7 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -65,6 +69,7 @@ describe("parseExpenseMessage", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -88,6 +93,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -102,6 +108,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -115,6 +122,7 @@ describe("recorrência mensal (palavra-chave)", () => {
       recurring: true,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -132,6 +140,7 @@ describe("recebimentos", () => {
       recurring: false,
       income: true,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -146,6 +155,7 @@ describe("recebimentos", () => {
       recurring: false,
       income: true,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -161,6 +171,7 @@ describe("recebimentos", () => {
       recurring: true,
       income: true,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -178,6 +189,7 @@ describe("pagamento antecipado", () => {
       recurring: false,
       income: false,
       prepayment: true,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -186,11 +198,13 @@ describe("pagamento antecipado", () => {
   it("variações do prefixo e sem cartão", () => {
     expect(parseExpenseMessage("antecipado 1.000,00")).toMatchObject({
       prepayment: true,
+      loose: false,
       amountReais: 1000,
       cardHint: null,
     });
     expect(parseExpenseMessage("antecipação fatura 250 itau")).toMatchObject({
       prepayment: true,
+      loose: false,
       description: "fatura",
       cardHint: "itau",
     });
@@ -207,6 +221,7 @@ describe("recorrência semanal (dias da semana)", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: [2, 5],
       businessDay: null,
       intervalMonths: null,
@@ -281,6 +296,7 @@ describe("parseExpenseLines", () => {
       recurring: false,
       income: false,
       prepayment: false,
+      loose: false,
       weekdays: null,
       businessDay: null,
       intervalMonths: null,
@@ -299,5 +315,37 @@ describe("parseExpenseLines", () => {
     const { entries, failedLines } = parseExpenseLines("almoço 42,50");
     expect(entries).toHaveLength(1);
     expect(failedLines).toEqual([]);
+  });
+});
+
+describe("compra fora do cartão (pix/débito/dinheiro/avulso)", () => {
+  it("keyword após o valor marca loose e sai do cardHint", () => {
+    const p = parseExpenseMessage("mercado 250 pix");
+    expect(p?.loose).toBe(true);
+    expect(p?.cardHint).toBeNull();
+    expect(p?.description).toBe("mercado");
+  });
+
+  it("débito com e sem acento", () => {
+    expect(parseExpenseMessage("padaria 30 débito")?.loose).toBe(true);
+    expect(parseExpenseMessage("padaria 30 debito")?.loose).toBe(true);
+  });
+
+  it("sem keyword, loose é false (vai para o cartão padrão)", () => {
+    expect(parseExpenseMessage("posto 200")?.loose).toBe(false);
+  });
+
+  it("keyword convive com parcelas e não vira nome de cartão", () => {
+    const p = parseExpenseMessage("geladeira 3000 3x avulso");
+    expect(p?.loose).toBe(true);
+    expect(p?.installments).toBe(3);
+    expect(p?.cardHint).toBeNull();
+  });
+
+  it("'pix' no MEIO da descrição não marca loose", () => {
+    // "pix" antes do valor é parte do nome do estabelecimento/descrição.
+    const p = parseExpenseMessage("transferência pix maria 100");
+    expect(p?.loose).toBe(false);
+    expect(p?.description).toBe("transferência pix maria");
   });
 });

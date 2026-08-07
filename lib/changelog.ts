@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.11.0",
+    date: "2026-08-07",
+    title: "Compra sem nome de cartão vai para o padrão",
+    items: [
+      "\"mercado 250\" no bot agora cai direto na fatura do cartão padrão (⭐ Nubank) — sem digitar o nome. O SMS do Bradesco continua indo para o Bradesco, porque ele já traz o cartão.",
+      "Compra que NÃO foi no cartão: termine com pix, débito, dinheiro ou avulso — \"mercado 250 pix\" fica fora da fatura, como antes.",
+      "Compartilhamento do Nubank que vier sem a linha do cartão também cai no padrão, em vez de virar lançamento solto.",
+      "Recorrências e recebimentos não mudam: conta fixa não é compra de cartão.",
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-08-07",
     title: "Estorno pelo bot e cartão padrão",
