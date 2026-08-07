@@ -70,8 +70,26 @@ export async function createCardSubscription(opts: {
   const existing = await findActiveItemByName(opts.description);
   if (existing) {
     const alreadyLinked = await prisma.cardSubscription.findUnique({ where: { itemId: existing.id } });
-    if (alreadyLinked) {
+    if (alreadyLinked?.active) {
       return { error: `"${existing.name}" já é assinatura do cartão ${alreadyLinked.cardId === opts.card.id ? "atual" : "outro"}.` };
+    }
+    if (alreadyLinked) {
+      // Cancelada: REATIVA com os dados novos. Sem isto, quem desativou não
+      // conseguia voltar — o vínculo inativo bloqueava o recadastro para sempre.
+      await prisma.cardSubscription.update({
+        where: { id: alreadyLinked.id },
+        data: {
+          active: true,
+          cardId: opts.card.id,
+          description: opts.description,
+          bankDescription: opts.bankDescription?.trim() || null,
+          amount: opts.amount,
+          chargeDay: opts.chargeDay,
+          months,
+        },
+      });
+      if (!existing.active) await prisma.item.update({ where: { id: existing.id }, data: { active: true } });
+      return { firstMonth, months, adopted: true };
     }
     await prisma.cardSubscription.create({
       data: {
@@ -110,29 +128,25 @@ export async function createCardSubscription(opts: {
 }
 
 /**
- * Cancela a assinatura: exclui as linhas provisionadas NÃO pagas de fromMonth
- * em diante e desativa item + cadastro. Meses consumidos ficam como histórico.
+ * Desativa a assinatura — e SÓ isso.
+ *
+ * A versão anterior também apagava as provisões futuras e desativava (ou
+ * excluía) o item. Na prática isso destruiu dados: o usuário desativou as
+ * assinaturas esperando que as linhas do mês ficassem, e perdeu provisões até
+ * 2028. Desativar o vínculo não pode custar o histórico nem o futuro da conta
+ * — quem quiser apagar as linhas apaga na tela do Mês, onde vê o que apaga.
+ *
+ * Efeito de ficar inativa: a cobrança da fatura deixa de consumir a linha do
+ * mês, então a conta volta a contar em dobro quando a fatura chegar. É a
+ * troca explícita de quem desativa.
  */
-export async function cancelCardSubscription(subscriptionId: string, fromMonth: string): Promise<{ removed: number }> {
+// A assinatura mantém fromMonth (o chamador passa; removê-lo quebraria a action).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function cancelCardSubscription(subscriptionId: string, _fromMonth: string): Promise<{ removed: number }> {
   const sub = await prisma.cardSubscription.findUnique({ where: { id: subscriptionId } });
   if (!sub) return { removed: 0 };
-  let removed = 0;
-  if (sub.itemId) {
-    const { count } = await prisma.monthlyEntry.deleteMany({
-      where: { itemId: sub.itemId, month: { gte: monthToDate(fromMonth) }, paid: false },
-    });
-    removed = count;
-    // Sem histórico (nenhum lançamento restante): exclui o item — senão a
-    // tela de Itens acumula cascas de assinaturas canceladas.
-    const remaining = await prisma.monthlyEntry.count({ where: { itemId: sub.itemId } });
-    if (remaining === 0) {
-      await prisma.item.delete({ where: { id: sub.itemId } }); // sub.itemId → SetNull
-    } else {
-      await prisma.item.update({ where: { id: sub.itemId }, data: { active: false } });
-    }
-  }
   await prisma.cardSubscription.update({ where: { id: subscriptionId }, data: { active: false } });
-  return { removed };
+  return { removed: 0 };
 }
 
 /**

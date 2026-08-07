@@ -47,7 +47,7 @@ export function SubscriptionsDialog({
   useActionToast(createState, { success: "Assinatura criada e provisionada." });
 
   const [cancelState, cancelAction, cancelPending] = useActionState<ActionState, FormData>(cancelSubscription, {});
-  useActionToast(cancelState, { success: "Assinatura cancelada — provisões futuras removidas." });
+  useActionToast(cancelState, { success: "Assinatura desativada — as linhas do mês ficam." });
 
   const [bankState, bankAction, bankPending] = useActionState<ActionState, FormData>(
     updateSubscriptionBankDescription,

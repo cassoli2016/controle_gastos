@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.3",
+    date: "2026-08-07",
+    title: "Desativar assinatura não apaga mais nada",
+    items: [
+      "Desativar uma assinatura agora só desliga o vínculo com o cartão: as linhas dos meses — passadas e futuras — ficam onde estão. Antes, desativar apagava as provisões futuras e desativava a conta, sem avisar.",
+      "Recadastrar uma assinatura desativada volta a funcionar: o cadastro reativa o vínculo em vez de recusar.",
+      "Atenção: com a assinatura desativada, a cobrança na fatura deixa de dar baixa automática na linha do mês — a conta volta a contar duas vezes quando a fatura chegar.",
+    ],
+  },
+  {
     version: "1.8.2",
     date: "2026-08-07",
     title: "Conferir o Face ID na hora",
