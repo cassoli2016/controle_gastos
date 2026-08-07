@@ -59,5 +59,11 @@
     "tsx": "^4.23.1",
     "typescript": "^5",
     "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "next-auth": {
+      "@simplewebauthn/browser": "^13.3.0",
+      "@simplewebauthn/server": "^13.3.2"
+    }
   }
 }

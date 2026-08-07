@@ -11,3 +11,4 @@ type: Log
 2026-08-05 — produção: coluna CardTransaction.bankDescription (nullable) e backfill de 230 linhas do Bradesco com o texto do banco; nenhum valor de lançamento alterado
 2026-08-05 — added sobra realizada do mês (recebido − pago) como métrica própria: nem plannedBalance (ignora baixa) nem saldo a realizar (é o oposto); usada no depósito em caixinha e no comando "reserva" do bot
 2026-08-06 — added CardSubscription.bankDescription: nome fantasia (tela) separado do texto da fatura (casamento). O nome fantasia como chave falhava — "YouTube Premium" não está contido em "Google Youtubepremium"
+2026-08-06 — npm overrides escopado em next-auth para @simplewebauthn: o next-auth beta declara peer OPCIONAL em ^9 e nós usamos ^13 num fluxo próprio (não o provider dele). Sem o override, `npm ci` falha com ERESOLVE e o deploy quebra
