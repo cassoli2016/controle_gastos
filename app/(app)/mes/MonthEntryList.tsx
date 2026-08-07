@@ -10,6 +10,7 @@ import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PayCell } from "./PayCell";
@@ -261,9 +262,7 @@ export function MonthEntryList({
                   {paidCount}/{payable.length} {doneLabel}
                 </span>
               )}
-              <Badge variant={g.categoryType === "INCOME" ? "default" : "secondary"}>
-                {g.categoryType === "INCOME" ? "Receita" : "Despesa"}
-              </Badge>
+              <CategoryTypeBadge type={g.categoryType} />
               <span className="font-semibold tabular-nums">{formatCents(g.subtotalCents)}</span>
               {isReserve && (
                 <ChevronDown

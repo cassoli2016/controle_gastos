@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { Badge } from "@/components/ui/badge";
+import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { TableRow, TableCell } from "@/components/ui/table";
 import {
   Dialog,
@@ -67,9 +67,7 @@ export function CategoryRow({ category }: { category: Category }) {
   }
 
   const typeBadge = (
-    <Badge variant={category.type === "INCOME" ? "default" : "secondary"}>
-      {category.type === "INCOME" ? "Receita" : "Despesa"}
-    </Badge>
+    <CategoryTypeBadge type={category.type} />
   );
 
   const colorChip = (

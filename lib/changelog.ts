@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.8.4",
+    date: "2026-08-07",
+    title: "Tag de despesa com cor",
+    items: [
+      "A tag \"Despesa\" ganhou o mesmo tom rosa do card de Despesas — no Mês, no Panorama e em Categorias. Vermelho é gasto em qualquer canto do app.",
+    ],
+  },
+  {
     version: "1.8.3",
     date: "2026-08-07",
     title: "Desativar assinatura não apaga mais nada",

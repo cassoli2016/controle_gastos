@@ -20,7 +20,7 @@ import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { CellAction } from "./CellAction";
 
 export const dynamic = "force-dynamic";
@@ -269,9 +269,7 @@ function SectionRows({
         <td className="sticky left-0 z-10 bg-muted px-4 py-1.5 font-medium">
           <span className="flex items-center gap-2">
             {section.categoryName}
-            <Badge variant={section.categoryType === "INCOME" ? "default" : "secondary"} className="text-[10px]">
-              {section.categoryType === "INCOME" ? "Receita" : "Despesa"}
-            </Badge>
+            <CategoryTypeBadge type={section.categoryType} className="text-[10px]" />
           </span>
         </td>
         {columns.map((col) => {
