@@ -353,9 +353,10 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
     expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 
-  it("conta que SÓ começa no futuro fica — ela não está paga, está por vir", () => {
+  it("conta que SÓ começa no futuro também some — no mês ela é uma linha de traços", () => {
+    // Pedido explícito do usuário (2026-08-08): sem valor até o mês atual = fora.
     const row: MatrixRow = { line: "Parcela nova", cells: { "2026-09": cell(false, 100) }, totalCents: 100 };
-    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(true);
   });
 
   it("histórico todo pago até agora some", () => {

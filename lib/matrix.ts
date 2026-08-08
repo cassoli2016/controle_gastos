@@ -212,27 +212,19 @@ export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[
 
 /**
  * Linha sem NADA em aberto até o mês atual — a regra do "Ocultar pagos".
+ * Visualização do mês:
  *
- * A regra anterior (rowSettledInMonths sobre todos os meses visíveis) exigia a
- * linha paga até o FIM do horizonte, e como quase toda conta tem provisão
- * meses à frente, o botão não escondia quase nada. Para "visualização do mês":
- *
- *   paga no mês atual, provisão futura longa → some (é o caso comum)
+ *   paga no mês atual, provisão futura longa → some (o caso comum)
  *   atrasada de mês passado                  → fica (pendência real)
  *   em aberto no mês atual                   → fica
- *   só começa no futuro                      → fica (não está paga, está por vir)
- *
- * Exige ao menos uma célula até o mês atual: sem isso, conta futura seria
- * "quitada por vacuidade" e sumiria sem nunca ter sido paga.
+ *   sem valor nenhum até o mês atual         → some (só existe no futuro; na
+ *                                              visão do mês é uma linha de traços)
  */
 export function rowSettledThroughMonth(row: MatrixRow, months: string[], currentMonth: string): boolean {
-  let hasCell = false;
   for (const m of months) {
     if (m > currentMonth) continue;
     const cell = row.cells[m];
-    if (!cell) continue;
-    hasCell = true;
-    if (!cell.allPaid) return false;
+    if (cell && !cell.allPaid) return false;
   }
-  return hasCell;
+  return true;
 }

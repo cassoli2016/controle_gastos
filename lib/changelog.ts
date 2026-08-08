@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.11.2",
+    date: "2026-08-08",
+    title: "Ocultar pagos também esconde o que não tem valor no mês",
+    items: [
+      "Com o \"Ocultar pagos\" ligado, contas sem nenhum valor até o mês atual — as que só existem em meses futuros — também somem. O que sobra é exatamente o que ainda mexe no seu mês: em aberto agora ou atrasado.",
+    ],
+  },
+  {
     version: "1.11.1",
     date: "2026-08-08",
     title: "Ocultar pagos do Panorama olha o mês atual",
