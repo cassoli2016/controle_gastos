@@ -60,7 +60,20 @@ async function main() {
     ],
   });
   await prisma.$disconnect();
-  console.log(`seed ok (${E2E_MONTH}: SALÁRIO 10000 / ALUGUEL 2000)`);
+  // Mês CORRENTE (o de verdade, não o fixo de 2030): o "Ocultar pagos" do
+  // Panorama usa o mês atual como régua, e sem dado aqui o e2e não exercita o
+  // esconder — a paga some, a aberta fica.
+  const nowMonth = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
+  const pagaE2E = await prisma.item.create({ data: { name: "PAGA E2E", categoryId: moradia.id, dueDay: 2 } });
+  const abertaE2E = await prisma.item.create({ data: { name: "ABERTA E2E", categoryId: moradia.id, dueDay: 20 } });
+  await prisma.monthlyEntry.createMany({
+    data: [
+      { itemId: pagaE2E.id, month: nowMonth, plannedAmount: 50, paid: true, paidAmount: 50, paidDate: nowMonth },
+      { itemId: abertaE2E.id, month: nowMonth, plannedAmount: 60 },
+    ],
+  });
+
+  console.log(`seed ok (${E2E_MONTH}: SALÁRIO 10000 / ALUGUEL 2000; mês corrente: PAGA E2E 50 paga / ABERTA E2E 60)`);
 }
 
 main().then(() => process.exit(0)).catch((e) => {

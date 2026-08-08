@@ -14,7 +14,7 @@ import {
   shortMonthLabel,
   type MatrixColumn,
   type MatrixEntry,
-  rowSettledInMonths,
+  rowSettledThroughMonth,
 } from "@/lib/matrix";
 import { parseHidePaid } from "@/lib/month-filter";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -113,10 +113,13 @@ export default async function PanoramaPage({
 
   // "Ocultar pagos" filtra só a EXIBIÇÃO das linhas: os totais por mês e o
   // rodapé saem de buildMatrix, antes do filtro — esconder não muda número.
+  // A régua é o MÊS ATUAL (visualização do mês): paga até agora some, mesmo
+  // provisionada até o fim do horizonte; atrasada ou por vir fica. Usa todos
+  // os meses da matriz, então o resultado independe do toggle de quitados.
   // Seção que fica sem nenhuma linha sai junto (só sobraria o cabeçalho).
   const visibleSections = hidePaid
     ? matrix.sections
-        .map((sec) => ({ ...sec, rows: sec.rows.filter((r) => !rowSettledInMonths(r, visibleMonths)) }))
+        .map((sec) => ({ ...sec, rows: sec.rows.filter((r) => !rowSettledThroughMonth(r, matrix.months, currentMonth)) }))
         .filter((sec) => sec.rows.length > 0)
     : matrix.sections;
 

@@ -314,9 +314,9 @@ describe("sumMonthsOrNull", () => {
   });
 });
 
-import { rowSettledInMonths, type MatrixRow } from "@/lib/matrix";
+import { rowSettledThroughMonth, type MatrixRow } from "@/lib/matrix";
 
-describe("rowSettledInMonths — ocultar linhas quitadas", () => {
+describe("rowSettledThroughMonth — visualização do mês", () => {
   const cell = (allPaid: boolean, remainingCents: number): MatrixRow["cells"][string] => ({
     cents: 100,
     remainingCents,
@@ -326,34 +326,49 @@ describe("rowSettledInMonths — ocultar linhas quitadas", () => {
     entries: [],
     kind: "item",
   });
+  const MONTHS = ["2026-06", "2026-07", "2026-08", "2026-09", "2026-12"];
+  const NOW = "2026-08";
 
-  it("linha toda paga nos meses visíveis está quitada", () => {
-    const row: MatrixRow = { line: "Aluguel", cells: { "2026-08": cell(true, 0), "2026-09": cell(true, 0) }, totalCents: 200 };
-    expect(rowSettledInMonths(row, ["2026-08", "2026-09"])).toBe(true);
+  it("paga no mês atual SOME, mesmo provisionada até o fim do ano", () => {
+    // O caso que motivou a regra: conta fixa quitada em agosto com futuro longo.
+    const row: MatrixRow = {
+      line: "Luz",
+      cells: { "2026-08": cell(true, 0), "2026-09": cell(false, 100), "2026-12": cell(false, 100) },
+      totalCents: 300,
+    };
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(true);
   });
 
-  it("uma célula em aberto mantém a linha", () => {
-    const row: MatrixRow = { line: "Luz", cells: { "2026-08": cell(true, 0), "2026-09": cell(false, 100) }, totalCents: 200 };
-    expect(rowSettledInMonths(row, ["2026-08", "2026-09"])).toBe(false);
+  it("atrasada de mês passado FICA, mesmo paga em agosto", () => {
+    const row: MatrixRow = {
+      line: "IPVA",
+      cells: { "2026-07": cell(false, 500), "2026-08": cell(true, 0) },
+      totalCents: 600,
+    };
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 
-  it("só os meses VISÍVEIS contam: aberto fora da janela não segura a linha", () => {
-    const row: MatrixRow = { line: "Luz", cells: { "2026-08": cell(true, 0), "2026-12": cell(false, 100) }, totalCents: 200 };
-    expect(rowSettledInMonths(row, ["2026-08"])).toBe(true);
+  it("em aberto no mês atual FICA", () => {
+    const row: MatrixRow = { line: "Água", cells: { "2026-08": cell(false, 80) }, totalCents: 80 };
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 
-  it("baixa parcial (célula com allPaid=false) mantém a linha", () => {
-    const row: MatrixRow = { line: "Diarista", cells: { "2026-08": cell(false, 220) }, totalCents: 880 };
-    expect(rowSettledInMonths(row, ["2026-08"])).toBe(false);
+  it("conta que SÓ começa no futuro fica — ela não está paga, está por vir", () => {
+    const row: MatrixRow = { line: "Parcela nova", cells: { "2026-09": cell(false, 100) }, totalCents: 100 };
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 
-  it("linha sem célula nenhuma nos meses visíveis some (seria só traços)", () => {
-    const row: MatrixRow = { line: "Antiga", cells: { "2025-01": cell(true, 0) }, totalCents: 100 };
-    expect(rowSettledInMonths(row, ["2026-08"])).toBe(true);
+  it("histórico todo pago até agora some", () => {
+    const row: MatrixRow = {
+      line: "Escola",
+      cells: { "2026-06": cell(true, 0), "2026-07": cell(true, 0), "2026-08": cell(true, 0) },
+      totalCents: 300,
+    };
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(true);
   });
 
   it("reserva do dia a dia nunca some: a célula derivada nunca é paga", () => {
     const row: MatrixRow = { line: "Reserva do dia a dia", cells: { "2026-08": cell(false, 3100) }, totalCents: 3100 };
-    expect(rowSettledInMonths(row, ["2026-08"])).toBe(false);
+    expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 });

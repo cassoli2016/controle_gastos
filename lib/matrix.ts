@@ -211,19 +211,28 @@ export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[
 }
 
 /**
- * Linha "quitada" nos meses visíveis: toda célula existente ali está
- * integralmente paga. Serve ao "Ocultar pagos" do Panorama — a linha some da
- * EXIBIÇÃO, mas os totais da seção e o rodapé continuam vindo do conjunto
- * inteiro (calculados em buildMatrix, antes de qualquer filtro).
+ * Linha sem NADA em aberto até o mês atual — a regra do "Ocultar pagos".
  *
- * Só os meses visíveis contam: com os meses quitados ocultos, uma conta paga
- * neles e sem lançamentos futuros viraria uma linha de traços — some junto.
- * A reserva do dia a dia nunca some: a célula derivada nunca é paga.
+ * A regra anterior (rowSettledInMonths sobre todos os meses visíveis) exigia a
+ * linha paga até o FIM do horizonte, e como quase toda conta tem provisão
+ * meses à frente, o botão não escondia quase nada. Para "visualização do mês":
+ *
+ *   paga no mês atual, provisão futura longa → some (é o caso comum)
+ *   atrasada de mês passado                  → fica (pendência real)
+ *   em aberto no mês atual                   → fica
+ *   só começa no futuro                      → fica (não está paga, está por vir)
+ *
+ * Exige ao menos uma célula até o mês atual: sem isso, conta futura seria
+ * "quitada por vacuidade" e sumiria sem nunca ter sido paga.
  */
-export function rowSettledInMonths(row: MatrixRow, months: string[]): boolean {
+export function rowSettledThroughMonth(row: MatrixRow, months: string[], currentMonth: string): boolean {
+  let hasCell = false;
   for (const m of months) {
+    if (m > currentMonth) continue;
     const cell = row.cells[m];
-    if (cell && !cell.allPaid) return false;
+    if (!cell) continue;
+    hasCell = true;
+    if (!cell.allPaid) return false;
   }
-  return true;
+  return hasCell;
 }

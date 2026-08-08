@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.11.1",
+    date: "2026-08-08",
+    title: "Ocultar pagos do Panorama olha o mês atual",
+    items: [
+      "O \"Ocultar pagos\" do Panorama agora esconde a conta que não tem mais nada em aberto ATÉ o mês atual — mesmo que ela tenha provisão até o fim do ano. Antes, a linha só sumia se estivesse paga em todos os meses, o que na prática não escondia quase nada.",
+      "Conta atrasada de mês passado continua aparecendo, e conta que só começa no futuro também — ela não está paga, está por vir.",
+    ],
+  },
+  {
     version: "1.11.0",
     date: "2026-08-07",
     title: "Compra sem nome de cartão vai para o padrão",
