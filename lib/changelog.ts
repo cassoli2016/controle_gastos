@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.1",
+    date: "2026-08-15",
+    title: "Cópia do ano passado avisa quem ficou de fora",
+    items: [
+      "O \"Copiar mês do ano passado\" continua não trazendo contas arquivadas — mas agora avisa: o aviso de sucesso lista quais contas ficaram de fora por estarem arquivadas, em vez de sumir com elas em silêncio.",
+      "Se uma dessas contas ainda existe de verdade, reative-a na tela Itens e copie de novo.",
+    ],
+  },
+  {
     version: "1.12.0",
     date: "2026-08-15",
     title: "Valor novo aplicado aos meses seguintes",

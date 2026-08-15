@@ -30,7 +30,13 @@ const updateInstallmentSchema = z.object({
 const deleteInstallmentSchema = z.object({ installmentId: z.string().min(1) });
 
 /** Estado retornado por todas as Server Actions consumidas via useActionState. */
-export type ActionState = { error?: string; ok?: boolean; count?: number };
+export type ActionState = {
+  error?: string;
+  ok?: boolean;
+  count?: number;
+  /** Contas arquivadas que a cópia do ano passado deixou de fora (nomes). */
+  skipped?: string[];
+};
 
 export const upsertEntry = guardAction(async function upsertEntry(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = entryUpsertSchema.safeParse({
@@ -269,7 +275,7 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
   const sourceEntries = await prisma.monthlyEntry.findMany({
     where: { month: source, itemId: { not: null } },
     include: {
-      item: { select: { active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true } },
+      item: { select: { name: true, active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true } },
     },
   });
   const looseSource = await prisma.monthlyEntry.findMany({
@@ -277,6 +283,11 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
   });
   if (sourceEntries.length === 0 && looseSource.length === 0)
     return { error: `Nenhuma conta fixa em ${sourceMonth} para copiar.` };
+
+  // Contas arquivadas não recorrem, então ficam fora da cópia — mas o pulo
+  // era silencioso e parecia bug ("tinha lançamento ano passado e não veio").
+  // Devolve os nomes para o toast avisar quem ficou de fora.
+  const skipped = [...new Set(sourceEntries.filter((e) => e.item && !e.item.active).map((e) => e.item!.name))];
 
   let copied = 0;
   await prisma.$transaction(async (tx) => {
@@ -309,7 +320,7 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
     copied += await copyWeeklyGroups(tx, looseSource, month);
   });
   revalidateFinance();
-  return { ok: true, count: copied };
+  return { ok: true, count: copied, skipped };
 });
 
 /**

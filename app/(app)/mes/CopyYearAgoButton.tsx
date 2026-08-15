@@ -8,7 +8,14 @@ import { useActionToast } from "@/hooks/use-action-toast";
 /** Copia as contas fixas do mesmo mês do ano anterior (ex.: jan/26 → jan/27). */
 export function CopyYearAgoButton({ month }: { month: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(copyYearAgoMonthAction, {});
-  useActionToast(state, { success: (s) => `Copiado do mesmo mês do ano passado (${s.count ?? 0}).` });
+  useActionToast(state, {
+    success: (s) => {
+      const base = `Copiado do mesmo mês do ano passado (${s.count ?? 0}).`;
+      return s.skipped?.length
+        ? `${base} Fora da cópia por estarem arquivadas: ${s.skipped.join(", ")}.`
+        : base;
+    },
+  });
   return (
     <form action={formAction}>
       <input type="hidden" name="month" value={month} />

@@ -4,8 +4,10 @@ import { toast } from "sonner";
 
 type State = { error?: string; ok?: boolean; count?: number };
 
-export function useActionToast(state: State, opts: { success: string | ((s: State) => string) }) {
-  const seen = useRef<State>(state);
+// Genérico: o callback de sucesso enxerga o ActionState COMPLETO do chamador
+// (campos extras como `skipped`), não só o mínimo que o hook exige.
+export function useActionToast<S extends State>(state: S, opts: { success: string | ((s: S) => string) }) {
+  const seen = useRef<S>(state);
   useEffect(() => {
     if (state === seen.current) return;
     seen.current = state;
