@@ -18,7 +18,12 @@ export function PlannedCell({
   plannedCents: number;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(upsertEntry, {});
-  useActionToast(state, { success: "Previsto atualizado." });
+  useActionToast(state, {
+    success: (s) =>
+      s.count
+        ? `Previsto atualizado em +${s.count} ${s.count === 1 ? "mês seguinte" : "meses seguintes"}.`
+        : "Previsto atualizado.",
+  });
 
   const [open, setOpen] = useState(false);
   // Fecha o popover assim que a action retorna sucesso (padrão "adjust state
@@ -49,6 +54,10 @@ export function PlannedCell({
             </label>
             <CurrencyInput id={fieldId} name="plannedAmount" defaultCents={plannedCents} />
           </div>
+          <label className="flex items-start gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" name="applyFollowing" className="mt-0.5 size-4 shrink-0 accent-primary" />
+            Aplicar aos meses seguintes já lançados (não pagos)
+          </label>
           <Button type="submit" size="sm" disabled={pending}>
             Salvar
           </Button>

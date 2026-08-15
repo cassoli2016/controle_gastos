@@ -40,13 +40,28 @@ export const upsertEntry = guardAction(async function upsertEntry(_prevState: Ac
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { itemId, month, plannedAmount } = parsed.data;
-  await prisma.monthlyEntry.upsert({
-    where: { itemId_month: { itemId, month: monthToDate(month) } },
-    create: { itemId, month: monthToDate(month), plannedAmount },
-    update: { plannedAmount },
+  // Checkbox "Aplicar aos meses seguintes": propaga o valor novo aos
+  // lançamentos FUTUROS do item que já existem e estão em aberto — não cria
+  // meses novos (isso é o "Aplicar em lote") nem toca em pagos.
+  const applyFollowing = formData.get("applyFollowing") !== null;
+  const monthDate = monthToDate(month);
+  let count = 0;
+  await prisma.$transaction(async (tx) => {
+    await tx.monthlyEntry.upsert({
+      where: { itemId_month: { itemId, month: monthDate } },
+      create: { itemId, month: monthDate, plannedAmount },
+      update: { plannedAmount },
+    });
+    if (applyFollowing) {
+      const res = await tx.monthlyEntry.updateMany({
+        where: { itemId, month: { gt: monthDate }, paid: false },
+        data: { plannedAmount },
+      });
+      count = res.count;
+    }
   });
   revalidateFinance();
-  return { ok: true };
+  return { ok: true, count };
 });
 
 export const markPaid = guardAction(async function markPaid(_prevState: ActionState, formData: FormData): Promise<ActionState> {

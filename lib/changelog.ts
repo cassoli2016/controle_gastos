@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.0",
+    date: "2026-08-15",
+    title: "Valor novo aplicado aos meses seguintes",
+    items: [
+      "A conta subiu de preço? Ao editar o valor previsto na tela do Mês, marque \"Aplicar aos meses seguintes já lançados\" — todos os lançamentos futuros daquela conta que já existem sobem para o valor novo de uma vez (a academia que reajustou, por exemplo).",
+      "Só mexe no que está em aberto: lançamentos já pagos ficam como estão, e meses ainda não criados continuam por conta do provisionamento (que copia o valor novo dali em diante).",
+    ],
+  },
+  {
     version: "1.11.2",
     date: "2026-08-08",
     title: "Ocultar pagos também esconde o que não tem valor no mês",
