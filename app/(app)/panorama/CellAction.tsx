@@ -1,11 +1,21 @@
 "use client";
 import { useActionState, useState } from "react";
-import { setEntriesPaid, updateEntryValue, type ActionState } from "../mes/actions";
+import { setEntriesPaid, updateEntryValue, deleteEntries, deleteEntryFollowing, type ActionState } from "../mes/actions";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 
 export type CellEntry = { id: string; cents: number; paid: boolean };
@@ -48,6 +58,26 @@ export function CellAction({
   const [valState, valAction, valPending] = useActionState<ActionState, FormData>(updateEntryValue, {});
   useActionToast(valState, { success: "Valor atualizado." });
 
+  // Exclusão pela célula: um mês (todas as ocorrências da célula) ou a conta
+  // deste mês em diante. O AlertDialog vive FORA do popover — aninhado, o
+  // clique nos botões do dialog contaria como "fora" do popover e o fecharia
+  // no meio da confirmação.
+  const [confirm, setConfirm] = useState<null | "one" | "following">(null);
+  const [delState, delAction, delPending] = useActionState<ActionState, FormData>(deleteEntries, {});
+  useActionToast(delState, {
+    success: (s) => (s.count && s.count > 1 ? `${s.count} lançamentos excluídos.` : "Lançamento excluído."),
+  });
+  const [delFState, delFAction, delFPending] = useActionState<ActionState, FormData>(deleteEntryFollowing, {});
+  useActionToast(delFState, {
+    success: (s) =>
+      s.count
+        ? `${s.count} lançamento(s) excluído(s) deste mês em diante.`
+        : "Nada a excluir — lançamentos pagos ficam como história.",
+  });
+  // Âncora do "em diante": um lançamento em aberto da célula (o servidor
+  // resolve o alcance por item/grupo a partir dele).
+  const anchorId = (entries.find((e) => !e.paid) ?? entries[0]).id;
+
   // Fecha o popover ao suceder (padrão "adjust state while rendering").
   const [seen, setSeen] = useState({ payState, valState });
   if (payState !== seen.payState || valState !== seen.valState) {
@@ -66,6 +96,7 @@ export function CellAction({
   const payIds = allPaid ? entries.map((e) => e.id) : entries.filter((e) => !e.paid).map((e) => e.id);
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
@@ -156,8 +187,68 @@ export function CellAction({
               </Button>
             </form>
           )}
+
+          {(kind === "item" || kind === "loose") && (
+            <div className="flex items-center gap-2 border-t pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-destructive hover:text-destructive"
+                onClick={() => {
+                  setConfirm("one");
+                  setOpen(false);
+                }}
+              >
+                Excluir mês
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="flex-1 text-destructive hover:text-destructive"
+                onClick={() => {
+                  setConfirm("following");
+                  setOpen(false);
+                }}
+              >
+                Excluir em diante
+              </Button>
+            </div>
+          )}
         </div>
       </PopoverContent>
     </Popover>
+
+    <AlertDialog open={confirm !== null} onOpenChange={(o) => !o && setConfirm(null)}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {confirm === "following"
+              ? `Excluir "${line}" de ${monthLabel} em diante?`
+              : `Excluir "${line}" de ${monthLabel}?`}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {confirm === "following"
+              ? "Apaga os lançamentos em aberto desta conta, deste mês até o fim do horizonte. Os já pagos ficam — são história. Não dá para desfazer."
+              : `Apaga ${count > 1 ? `as ${count} ocorrências` : "o lançamento"} deste mês. Não dá para desfazer.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <form action={confirm === "following" ? delFAction : delAction}>
+          {confirm === "following" ? (
+            <input type="hidden" name="entryId" value={anchorId} />
+          ) : (
+            <input type="hidden" name="entryIds" value={JSON.stringify(entries.map((e) => e.id))} />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+            <AlertDialogAction type="submit" disabled={delPending || delFPending}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </form>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

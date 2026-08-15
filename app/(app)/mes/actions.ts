@@ -529,6 +529,41 @@ export const deleteEntry = guardAction(async function deleteEntry(_prevState: Ac
 });
 
 /**
+ * Exclui os lançamentos de uma célula do Panorama (um mês de uma linha — a
+ * célula pode agregar várias ocorrências, ex.: diarista).
+ */
+export const deleteEntries = guardAction(async function deleteEntries(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = entryIdsSchema.shape.entryIds.safeParse(formData.get("entryIds"));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { count } = await prisma.monthlyEntry.deleteMany({ where: { id: { in: parsed.data } } });
+  revalidateFinance();
+  return { ok: true, count };
+});
+
+/**
+ * Exclui a conta "deste mês em diante" a partir do lançamento âncora da
+ * célula: apaga os lançamentos NÃO PAGOS do mesmo item (conta fixa) ou do
+ * mesmo grupo (recorrência semanal) com competência >= à da célula. Pagos
+ * ficam — são história. Avulso sem item/grupo: apaga só o próprio.
+ */
+export const deleteEntryFollowing = guardAction(async function deleteEntryFollowing(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = deleteEntrySchema.safeParse({ entryId: formData.get("entryId") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const entry = await prisma.monthlyEntry.findUnique({ where: { id: parsed.data.entryId } });
+  if (!entry) return { error: "Lançamento não encontrado." };
+  const scope = entry.itemId
+    ? { itemId: entry.itemId }
+    : entry.installmentId
+      ? { installmentId: entry.installmentId }
+      : { id: entry.id };
+  const { count } = await prisma.monthlyEntry.deleteMany({
+    where: { ...scope, month: { gte: entry.month }, paid: false },
+  });
+  revalidateFinance();
+  return { ok: true, count };
+});
+
+/**
  * Atualiza o valor previsto de todas as parcelas em aberto (paid=false) de um
  * parcelamento. Parcelas já pagas não são alteradas — o valor pago fica
  * como registrado no momento do pagamento.

@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.13.0",
+    date: "2026-08-15",
+    title: "Excluir contas direto pelo Panorama",
+    items: [
+      "Clique numa célula do Panorama e, além de editar e dar baixa, agora dá para excluir: \"Excluir mês\" apaga o lançamento daquele mês; \"Excluir em diante\" encerra a conta dali até o fim do horizonte.",
+      "O \"em diante\" só apaga o que está em aberto — lançamentos já pagos ficam, são o seu histórico. Tudo com confirmação antes, porque exclusão não tem volta.",
+    ],
+  },
+  {
     version: "1.12.1",
     date: "2026-08-15",
     title: "Cópia do ano passado avisa quem ficou de fora",
