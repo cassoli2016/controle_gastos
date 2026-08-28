@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.14.1",
+    date: "2026-08-28",
+    title: "Proventos da B3 que sumiam da agenda",
+    items: [
+      "Provento de ação alugada agora entra. Quando alguém aluga seus papéis, a B3 não escreve \"Dividendo\" — escreve \"Reembolso\", porque quem alugou é que devolve o provento a você. O importador não conhecia esse nome e pulava a linha calado: era o caso de ALOS3 e BBSE3.",
+      "A agenda parou de embaralhar provento de valor repetido. O casamento olhava só o valor (±2%) e ignorava a data — como RECV3 anuncia R$ 477,85 para 31/12 de 2026, 2027 e 2028, cada linha \"corrigia\" a data da outra e a de 2026 desaparecia. Agora a data também conta, e cada anúncio casa com um provento só.",
+      "Parcelas de valor parecido no mesmo dia pararam de se engolir: os JSCP de R$ 8,87 e R$ 8,98 da CMIG4 têm 11 centavos de diferença, cabiam nos 2% e contavam como um.",
+      "Sua agenda foi corrigida com a planilha de 27/08: entraram ALOS3 de 02/09 (R$ 291,91 e R$ 59,54), BBSE3 de 03/09 (R$ 1.586,61 e R$ 2.181,61, no lugar da linha que estava somada à mão) e RECV3 de 31/12/2026 (R$ 477,85); saíram as duplicatas de CMIG4 e RECV3.",
+    ],
+  },
+  {
     version: "1.14.0",
     date: "2026-08-15",
     title: "Seguro anual parcelado se renova sozinho",

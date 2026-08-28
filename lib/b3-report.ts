@@ -88,6 +88,24 @@ const INCOME_TYPES: Record<string, B3Income["type"]> = {
   rendimento: "Rendimento",
 };
 
+/**
+ * Tipo do provento a partir do texto do evento/movimentação; null = não é
+ * provento (negócio, empréstimo, bonificação...).
+ *
+ * "Reembolso" é o provento de ação alugada (BTC): quem tomou emprestado
+ * reembolsa o dividendo/JSCP ao doador. A B3 escreve só "Reembolso" no
+ * extrato de pagos e "Reembolso - DIVIDENDO" nos provisionados — sem o evento
+ * explícito, assume Dividendos.
+ */
+function incomeTypeFromEvent(raw: unknown): B3Income["type"] | null {
+  const text = normalizeHeader(raw);
+  const direct = INCOME_TYPES[text];
+  if (direct) return direct;
+  const reimbursed = /^reembolso\b\s*-?\s*(.*)$/.exec(text);
+  if (reimbursed) return INCOME_TYPES[reimbursed[1].trim()] ?? "Dividendos";
+  return null;
+}
+
 export function parseB3Report(buffer: ArrayBuffer | Buffer): B3ParseResult {
   const wb = XLSX.read(buffer, { type: "buffer", cellDates: true });
   const ws = wb.Sheets[wb.SheetNames[0]];
@@ -149,7 +167,7 @@ export function parseB3Report(buffer: ArrayBuffer | Buffer): B3ParseResult {
     let skipped = 0;
     for (const row of rows.slice(1)) {
       if (!row || row.length === 0) continue;
-      const movType = INCOME_TYPES[normalizeHeader(row[movIdx])];
+      const movType = incomeTypeFromEvent(row[movIdx]);
       if (!movType) {
         skipped++; // negócios/atualizações/bonificações ficam de fora de propósito
         continue;
@@ -193,7 +211,7 @@ export function parseB3Report(buffer: ArrayBuffer | Buffer): B3ParseResult {
     let skipped = 0;
     for (const row of rows.slice(1)) {
       if (!row || row.length === 0) continue;
-      const movType = INCOME_TYPES[normalizeHeader(row[eventoIdx])];
+      const movType = incomeTypeFromEvent(row[eventoIdx]);
       const ticker = typeof row[prodIdx] === "string" ? tickerFromProduto(row[prodIdx] as string) : null;
       const dateISO = toISO(row[pagamentoIdx]);
       const value = toNumber(row[valueIdx]);
