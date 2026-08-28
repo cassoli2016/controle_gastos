@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.14.0",
+    date: "2026-08-15",
+    title: "Seguro anual parcelado se renova sozinho",
+    items: [
+      "A renovação parcelada de um item (seguro em 4x, por exemplo) agora provisiona TODAS as renovações até o último mês que você já tem lançado — quem planeja 2028 vê o seguro de 2028 hoje, sem depender do botão de copiar.",
+      "O \"Copiar mês anterior\" parou de arrastar parcelas de renovação para o mês seguinte — as linhas dessas contas nascem da provisão, no mês certo de cada ano.",
+      "Seguro C3 e Seguro Duster foram convertidos para esse formato: os lançamentos de 2027 continuam onde estão e as parcelas de 2028 entram automaticamente.",
+    ],
+  },
+  {
     version: "1.13.0",
     date: "2026-08-15",
     title: "Excluir contas direto pelo Panorama",

@@ -183,7 +183,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
   const prevEntries = await prisma.monthlyEntry.findMany({
     where: { month: prev },
     include: {
-      item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true, intervalMonths: true, businessDay: true } },
+      item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true, intervalMonths: true, businessDay: true, renewalInstallments: true } },
     },
   });
 
@@ -191,7 +191,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
   // mês anterior, e sim o mês (alvo - intervalo) — mantém a cadência.
   const intervalItems = await prisma.item.findMany({
     where: { active: true, intervalMonths: { gt: 1 } },
-    select: { id: true, intervalMonths: true, businessDay: true, adjustMonth: true, adjustPercent: true, adjustAmount: true },
+    select: { id: true, intervalMonths: true, businessDay: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, renewalInstallments: true },
   });
   const intervalEntries: typeof prevEntries = [];
   for (const item of intervalItems) {
@@ -208,6 +208,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
           adjustAmount: item.adjustAmount,
           intervalMonths: item.intervalMonths,
           businessDay: item.businessDay,
+          renewalInstallments: item.renewalInstallments,
         },
       } as (typeof prevEntries)[number]);
     }
@@ -218,6 +219,10 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
     for (const e of [...prevEntries, ...intervalEntries]) {
       // Só copia contas fixas (item recorrente); avulsos/parcelas de cartão não são "copiados".
       if (e.itemId === null) continue;
+      // Item de renovação parcelada (seguro em 4x): as linhas dele nascem da
+      // provisão (ensureRenewalProvision), não da cópia — copiar arrastaria a
+      // última parcela para o mês seguinte e o seguro viraria conta mensal.
+      if (e.item?.renewalInstallments) continue;
       // Item com frequência > 1 vindo de prevEntries: fora de cadência, pula
       // (a cópia correta dele veio em intervalEntries, do mês alvo-intervalo).
       if ((e.item?.intervalMonths ?? 1) > 1 && e.month.getTime() === prev.getTime()) continue;

@@ -50,6 +50,25 @@ export function nextRenewalStartMonth(renewalMonth: number, currentMonthISO: str
 }
 
 /**
+ * Competências (YYYY-MM) de TODAS as ocorrências anuais da renovação, da
+ * próxima até o horizonte (incluso). Entra a ocorrência que COMEÇA dentro do
+ * horizonte — a cauda das parcelas pode ultrapassá-lo.
+ */
+export function renewalStartMonthsThrough(
+  renewalMonth: number,
+  currentMonthISO: string,
+  horizonISO: string,
+): string[] {
+  const starts: string[] = [];
+  let [year] = nextRenewalStartMonth(renewalMonth, currentMonthISO).split("-").map(Number);
+  const mm = String(renewalMonth).padStart(2, "0");
+  for (let start = `${year}-${mm}`; start <= horizonISO; start = `${++year}-${mm}`) {
+    starts.push(start);
+  }
+  return starts;
+}
+
+/**
  * Divide um total em N parcelas de centavos que SOMAM exatamente o total
  * (última parcela absorve o resto do arredondamento).
  */
