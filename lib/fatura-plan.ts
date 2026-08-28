@@ -8,7 +8,7 @@
  *   parcela atrasada    app tinha 3/6, fatura não  → cobrado até 2, cauda 3..6
  */
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
-import type { FaturaBank, FaturaLine } from "@/lib/fatura-core";
+import { CENTS_TOLERANCE, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
 import { canonicalFaturaDescription, type AppRow } from "@/lib/fatura-match";
 
 export type PlanState = {
@@ -24,17 +24,6 @@ export type PlanState = {
 
 /** Balde → planos daquele grupo. Ver `planBucket` e `findPlan`. */
 export type PlanIndex = Map<string, PlanState[]>;
-
-/**
- * Tolerância de centavos ao casar o valor da parcela.
- *
- * O banco arredonda entre as parcelas do mesmo plano: na fatura de ago/2026,
- * `Renner 427 Jockey Plaz` é R$ 159,88 na parcela 1 e R$ 159,86 na 3;
- * `Mlp*Magalu-Loja Hasbro` vai de 87,52 a 87,49. Medido, o desvio máximo foi de
- * 3 centavos — 10 dá folga sem chegar perto de confundir planos distintos (as
- * duas Privalia de 5x do mesmo mês estão a R$ 22,28 uma da outra).
- */
-const CENTS_TOLERANCE = 10;
 
 /**
  * Balde do plano: loja + nº de parcelas, SEM o valor.

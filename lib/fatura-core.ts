@@ -53,6 +53,22 @@ export type ParsedFatura = {
   warnings: string[];
 };
 
+/**
+ * Tolerância de centavos ao casar o valor de uma parcela.
+ *
+ * O banco arredonda entre as parcelas do mesmo plano: na fatura de ago/2026,
+ * `Renner 427 Jockey Plaz` é R$ 159,88 na parcela 1 e R$ 159,86 na 3;
+ * `Mlp*Magalu-Loja Hasbro` vai de 87,52 a 87,49. Medido, o desvio máximo foi de
+ * 3 centavos — 10 dá folga sem chegar perto de confundir planos distintos (as
+ * duas Privalia de 5x do mesmo mês estão a R$ 22,28 uma da outra).
+ *
+ * Mora aqui porque o casamento de PLANO (`fatura-plan`) e o de LINHA
+ * (`fatura-match`) têm que usar a mesma régua: enquanto o de linha exigia valor
+ * exato, a diferença de centavos que o de plano perdoava transformava parcela já
+ * cobrada em "parcela atrasada" e dobrava a cauda.
+ */
+export const CENTS_TOLERANCE = 10;
+
 /** Soma líquida dos lançamentos SEM o pagamento da fatura anterior. */
 export function sumFaturaLines(lines: FaturaLine[]): number {
   return lines.filter((l) => l.kind !== "payment").reduce((acc, l) => acc + l.cents, 0);

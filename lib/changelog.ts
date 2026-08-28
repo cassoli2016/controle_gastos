@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.14.2",
+    date: "2026-08-28",
+    title: "Fatura do Bradesco não duplica mais a parcela já lançada",
+    items: [
+      "Compra feita depois do fechamento você lança na hora, pelo aviso do banco — que traz o nome curto da loja (\"AMAZON BR\") e a parcela dividida do total (R$ 435,90 ÷ 10 = R$ 43,59). Quando a fatura chegava com o nome completo do vendedor e o valor real da parcela (R$ 43,61), o app não reconhecia que era a mesma compra: tratava como parcela atrasada, empurrava o parcelamento um mês e criava uma segunda sequência de parcelas ao lado da certa.",
+      "Agora a parcela também casa por número de parcelas + parcela + valor com folga de centavos, quando o nome divergiu — a mesma folga que o app já usava para reconhecer o parcelamento. Havendo dois candidatos possíveis, ele não arrisca e deixa como antes.",
+      "Sua fatura de setembro foi corrigida: saíram 86 linhas duplicadas, R$ 3.372,61 espalhados de outubro/2026 a julho/2027. Outubro caiu de R$ 2.171,33 para R$ 1.780,54, e julho/2027 — que só existia por causa do erro — desapareceu. Setembro, a competência da fatura que fechou, não foi tocado.",
+      "Na importação de fatura, o botão ao lado da data de pagamento passou a dizer o que faz: era \"Usar o vencimento (10/09)\", que parecia só registrar a data, e agora é \"Já paguei — usar o vencimento (10/09)\" — clicar nele dá baixa na fatura. O campo continua nascendo em branco, e em branco a fatura fica em aberto.",
+    ],
+  },
+  {
     version: "1.14.1",
     date: "2026-08-28",
     title: "Proventos da B3 que sumiam da agenda",

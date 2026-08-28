@@ -212,6 +212,67 @@ describe("findOrphans", () => {
   });
 });
 
+describe("findOrphans — parcela casa por (plano, parcela, valor) quando o nome divergiu", () => {
+  // Caso real da fatura fechada em 27/08/2026: 12 compras do ciclo novo já
+  // estavam no app pelo caminho curto (nome como vem no aviso do banco, sem a
+  // cidade, e parcela = total ÷ nº de parcelas). A fatura trouxe o nome do
+  // seller com cidade e o valor real da parcela. Nenhuma casou: cada uma virou
+  // "parcela atrasada", o plano deslocou e a cauda dobrou — R$ 3.372,61 a mais
+  // espalhados de out/2026 a jul/2027.
+  it("nome curto do aviso do banco x nome com cidade da fatura", () => {
+    const rows = [app("1", "AMAZON BR(01/10)", 7133, 1, 10)];
+    const lines = [inv("AMAZON BR SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("tolera os centavos que o Bradesco arredonda entre parcelas", () => {
+    // App: 435,90 ÷ 10 = 43,59. Fatura: 43,61 na parcela.
+    const rows = [app("1", "AMAZONMKTPLC*RETLAWCOM(01/10)", 4359, 1, 10)];
+    const lines = [inv("AMAZONMKTPLC*RETLAWCOM SAO PAULO(01/10)", 4361, 1, 10)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("parcela diferente não casa", () => {
+    const rows = [app("1", "AMAZON BR(03/10)", 7133, 3, 10)];
+    const lines = [inv("AMAZON BR SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("plano de outro tamanho não casa", () => {
+    const rows = [app("1", "AMAZON BR(01/06)", 7133, 1, 6)];
+    const lines = [inv("AMAZON BR SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("valor fora da tolerância não casa", () => {
+    const rows = [app("1", "AMAZON BR(01/10)", 7000, 1, 10)];
+    const lines = [inv("AMAZON BR SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("ambíguo segue órfã: sem o nome para desempatar, casar seria chute", () => {
+    const rows = [app("1", "LOJA X(01/05)", 5000, 1, 5)];
+    const lines = [inv("LOJA A SAO PAULO(01/05)", 5002, 1, 5), inv("LOJA B SAO PAULO(01/05)", 4998, 1, 5)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+
+  it("não rouba a linha que já casou exato", () => {
+    const rows = [
+      app("1", "AMAZON BR SAO PAULO(01/10)", 7133, 1, 10),
+      app("2", "AMAZON BR(01/10)", 7133, 1, 10),
+    ];
+    const lines = [inv("AMAZON BR SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines).map((o) => o.id)).toEqual(["2"]);
+  });
+
+  it("preserva a parcela atrasada: o que a fatura não cobrou segue órfã", () => {
+    // É esta órfã que faz o plano deslocar em `fatura-plan` — não pode casar.
+    const rows = [app("1", "Loja(03/06)", 5000, 3, 6)];
+    const lines = [inv("Outra Coisa SAO PAULO(01/10)", 7133, 1, 10)];
+    expect(findOrphans(rows, lines)).toHaveLength(1);
+  });
+});
+
 describe("findOrphans — estorno casa por valor", () => {
   it("estorno manual casa com o crédito da fatura mesmo com nome diferente", () => {
     // Digitado no bot: "estorno 56,71 shopee". A fatura escreve outra coisa.
