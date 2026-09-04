@@ -23,7 +23,7 @@ describe("filterViews", () => {
   });
 });
 
-import { parseHidePaid, visibleRows } from "@/lib/month-filter";
+import { parseHidePaid, visibleRows, visibleGroups } from "@/lib/month-filter";
 
 describe("parseHidePaid", () => {
   it("só '0' esconde", () => {
@@ -57,4 +57,33 @@ describe("visibleRows", () => {
   it("categoria toda paga fica vazia na exibição", () => {
     expect(visibleRows([{ itemName: "Água", paid: true }], true)).toEqual([]);
   });
+});
+
+describe("visibleGroups", () => {
+  const g = (categoryName: string, rows: { paid: boolean; readOnlyHint?: string }[]) => ({
+    categoryName,
+    rows,
+  });
+  const pago = { paid: true };
+  const aberto = { paid: false };
+
+  it("sem esconder pagas, todo grupo aparece", () => {
+    const grupos = [g("Retirada da reserva", [pago, pago]), g("Moradia", [aberto])];
+    expect(visibleGroups(grupos, false)).toEqual(grupos);
+  });
+
+  it("grupo com tudo pago some quando as pagas estão escondidas", () => {
+    // É o caso de "Retirada da reserva 2/2 recebidos": com o filtro ligado, o
+    // cabeçalho ficava ocupando espaço sem uma linha sequer embaixo.
+    const grupos = [g("Retirada da reserva", [pago, pago]), g("Moradia", [aberto, pago])];
+    expect(visibleGroups(grupos, true).map((x) => x.categoryName)).toEqual(["Moradia"]);
+  });
+
+  it("grupo que ainda tem conta em aberto continua", () =>
+    expect(visibleGroups([g("Moradia", [pago, aberto])], true)).toHaveLength(1));
+
+  it("grupo só com a reserva do dia a dia continua — ela nunca é paga", () =>
+    expect(visibleGroups([g("Reserva do dia a dia", [{ paid: true, readOnlyHint: "cai por dia" }])], true)).toHaveLength(1));
+
+  it("grupo vazio não aparece", () => expect(visibleGroups([g("Vazio", [])], true)).toHaveLength(0));
 });
