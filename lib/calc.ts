@@ -8,10 +8,45 @@ export type EntryView = {
   plannedCents: number;
   paid: boolean;
   paidCents: number | null;
+  /**
+   * Movimento entre bolsos seus (depósito/retirada de caixinha), não ganho nem
+   * gasto. Fica FORA de todas as métricas daqui, menos `cashBalance` — ver a
+   * nota sobre os dois saldos abaixo.
+   */
+  isTransfer?: boolean;
 };
 
-const income = (e: EntryView[]) => e.filter((x) => x.categoryType === "INCOME");
-const expense = (e: EntryView[]) => e.filter((x) => x.categoryType === "EXPENSE");
+/**
+ * Existem DOIS saldos, de propósito, e trocar um pelo outro reintroduz bugs
+ * antigos:
+ *
+ *   `plannedBalance` — "sobrou ou faltou no mês". Ignora transferências:
+ *     guardar R$ 16 mil na caixinha não é despesa, e o mês não fechou no
+ *     vermelho por causa disso.
+ *   `cashBalance` — "quanto entrou e saiu da conta". Conta as transferências,
+ *     porque o depósito de fato sai da conta corrente. É o que o PATRIMÔNIO
+ *     projetado acumula: ele já parte do total das caixinhas, então usar o
+ *     saldo sem transferência contaria o dinheiro guardado duas vezes.
+ */
+const isTransfer = (x: EntryView) => x.isTransfer === true;
+const income = (e: EntryView[]) => e.filter((x) => x.categoryType === "INCOME" && !isTransfer(x));
+const expense = (e: EntryView[]) => e.filter((x) => x.categoryType === "EXPENSE" && !isTransfer(x));
+
+/**
+ * Quanto ficou guardado no mês: depósitos menos retiradas. Negativo no mês em
+ * que se tirou mais da caixinha do que se pôs.
+ */
+export function savedInMonth(e: EntryView[]): number {
+  const transfers = e.filter(isTransfer);
+  const deposits = transfers.filter((x) => x.categoryType === "EXPENSE");
+  const withdrawals = transfers.filter((x) => x.categoryType === "INCOME");
+  return sumCents(deposits.map((x) => x.plannedCents)) - sumCents(withdrawals.map((x) => x.plannedCents));
+}
+
+/** Saldo do dinheiro na conta: o do mês menos o que foi para as caixinhas. */
+export function cashBalance(e: EntryView[]): number {
+  return plannedBalance(e) - savedInMonth(e);
+}
 
 export function plannedIncome(e: EntryView[]): number {
   return sumCents(income(e).map((x) => x.plannedCents));
@@ -47,9 +82,22 @@ export function receivedIncome(e: EntryView[]): number {
  * de propósito (progresso do mês); aqui o que vale é o valor efetivo.
  */
 export function realizedBalance(e: EntryView[]): number {
-  const settled = (rows: EntryView[]) =>
-    sumCents(rows.filter((x) => x.paid).map((x) => x.paidCents ?? x.plannedCents));
   return settled(income(e)) - settled(expense(e));
+}
+
+const settled = (rows: EntryView[]) =>
+  sumCents(rows.filter((x) => x.paid).map((x) => x.paidCents ?? x.plannedCents));
+
+/**
+ * Sobra realizada CONTANDO as transferências: o que ainda dá para guardar.
+ *
+ * É o número que alimenta a sugestão do depósito, e por isso não pode ser o
+ * `realizedBalance`: quem já mandou a sobra para a caixinha veria o app
+ * sugerindo guardar o mesmo dinheiro outra vez.
+ */
+export function realizedCashBalance(e: EntryView[]): number {
+  const all = (type: "INCOME" | "EXPENSE") => e.filter((x) => x.categoryType === type);
+  return settled(all("INCOME")) - settled(all("EXPENSE"));
 }
 
 /** Percentual inteiro 0–100 (clampado); total <= 0 → 0, sem divisão por zero. */

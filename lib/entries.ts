@@ -2,15 +2,24 @@ import { decimalToCents } from "@/lib/money";
 import type { EntryView } from "@/lib/calc";
 import { DAILY_BUDGET_ENTRY_ID, type DailyBudgetLine } from "@/lib/daily-budget";
 
+type PrismaCategory = {
+  id: string;
+  name: string;
+  type: "INCOME" | "EXPENSE";
+  // Categorias antigas (e fixtures de teste) podem não trazer o campo: sem
+  // marcação explícita, o lançamento é ganho/gasto de verdade.
+  isTransfer?: boolean;
+};
+
 type PrismaEntryRow = {
   // `unknown` porque o Prisma entrega Decimal e a conversão é feita aqui com
   // String(...) — exigir string|number obrigaria todo chamador a converter antes.
   plannedAmount: unknown;
   paid: boolean;
   paidAmount: unknown;
-  item?: { name: string; category: { id: string; name: string; type: "INCOME" | "EXPENSE" } } | null;
+  item?: { name: string; category: PrismaCategory } | null;
   description?: string | null;
-  category?: { id: string; name: string; type: "INCOME" | "EXPENSE" } | null;
+  category?: PrismaCategory | null;
 };
 
 export function toEntryView(row: PrismaEntryRow): EntryView {
@@ -23,6 +32,7 @@ export function toEntryView(row: PrismaEntryRow): EntryView {
     plannedCents: decimalToCents(String(row.plannedAmount)),
     paid: row.paid,
     paidCents: row.paidAmount == null ? null : decimalToCents(String(row.paidAmount)),
+    isTransfer: category?.isTransfer === true,
   };
 }
 
@@ -40,5 +50,7 @@ export function dailyBudgetEntryView(line: DailyBudgetLine): EntryView {
     plannedCents: line.cents,
     paid: false,
     paidCents: null,
+    // Sai da conta e some no dia a dia — não vira saldo em caixinha nenhuma.
+    isTransfer: false,
   };
 }

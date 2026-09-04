@@ -37,6 +37,8 @@ export async function resolveCategoryId(spec: {
   name: string;
   type: "INCOME" | "EXPENSE";
   color: string;
+  /** Só na criação: categoria que já existe não é reclassificada por aqui. */
+  isTransfer?: boolean;
 }): Promise<string> {
   const existing = await prisma.category.findFirst({ where: { name: spec.name, type: spec.type } });
   if (existing) return existing.id;

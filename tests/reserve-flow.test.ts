@@ -41,11 +41,25 @@ describe("withdrawalEntryData", () => {
 
 describe("categorias dos movimentos", () => {
   it("nomes e tipos distintos, mesma cor", () => {
-    expect(RESERVE_CATEGORY).toEqual({ name: "Reserva", type: "EXPENSE", color: "#14b8a6" });
+    expect(RESERVE_CATEGORY).toEqual({
+      name: "Reserva",
+      type: "EXPENSE",
+      color: "#14b8a6",
+      isTransfer: true,
+    });
     expect(RESERVE_WITHDRAWAL_CATEGORY).toEqual({
       name: "Retirada da reserva",
       type: "INCOME",
       color: "#14b8a6",
+      isTransfer: true,
     });
   });
+});
+
+describe("categorias de caixinha são transferências", () => {
+  // O flag é o que mantém depósito e retirada fora de Receitas/Despesas/Saldo
+  // (lib/calc.ts). Categoria nova nasce com ele por causa daqui; as que já
+  // existiam foram marcadas pela migration category_is_transfer.
+  it("depósito é transferência", () => expect(RESERVE_CATEGORY.isTransfer).toBe(true));
+  it("retirada é transferência", () => expect(RESERVE_WITHDRAWAL_CATEGORY.isTransfer).toBe(true));
 });
