@@ -1,5 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { upcomingRenewals, renewalLabel, nextRenewalStartMonth, splitInstallmentsCents } from "@/lib/renewals";
+import { upcomingRenewals, renewalLabel, nextRenewalStartMonth, renewalStartMonthsThrough, splitInstallmentsCents } from "@/lib/renewals";
+
+describe("renewalStartMonthsThrough", () => {
+  it("uma ocorrência por ano, da próxima até o horizonte", () => {
+    expect(renewalStartMonthsThrough(5, "2026-08", "2028-12")).toEqual(["2027-05", "2028-05"]);
+    expect(renewalStartMonthsThrough(9, "2026-08", "2028-12")).toEqual(["2026-09", "2027-09", "2028-09"]);
+  });
+  it("ocorrência que COMEÇA no mês do horizonte entra (a cauda pode passar)", () => {
+    expect(renewalStartMonthsThrough(5, "2026-08", "2027-05")).toEqual(["2027-05"]);
+  });
+  it("horizonte antes da próxima renovação: nada a provisionar", () => {
+    expect(renewalStartMonthsThrough(5, "2026-08", "2027-04")).toEqual([]);
+  });
+  it("mês corrente é o próprio mês de renovação: começa neste ano", () => {
+    expect(renewalStartMonthsThrough(8, "2026-08", "2027-12")).toEqual(["2026-08", "2027-08"]);
+  });
+});
 
 describe("upcomingRenewals", () => {
   const items = [

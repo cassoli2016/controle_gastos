@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { decimalToCents, centsToNumber } from "@/lib/money";
+import { pickDividendMatch, type PendingDividendRef } from "@/lib/dividend-match";
 import type { B3Trade, B3Income } from "@/lib/b3-report";
 
 /**
@@ -83,6 +84,46 @@ export async function applyB3Trades(trades: B3Trade[]): Promise<TradeImportResul
   return result;
 }
 
+/** Pendente da agenda + os campos que o anúncio pode refrescar. */
+type AgendaPending = PendingDividendRef & { quantity: number; unitValue: number };
+
+/**
+ * Agenda "a receber" dos ativos do relatório, por ticker, carregada de UMA vez
+ * por importação. Ler uma vez (em vez de a cada linha) é o que permite marcar
+ * o pendente como já usado: cada anúncio da agenda casa com um provento só, e
+ * o que esta importação cria não entra no pool — duas linhas iguais na
+ * planilha são dois proventos, não um.
+ */
+async function loadAgenda(incomes: B3Income[]): Promise<Map<string, AgendaPending[]>> {
+  const tickers = [...new Set(incomes.map((i) => i.ticker))];
+  const byTicker = new Map<string, AgendaPending[]>();
+  if (tickers.length === 0) return byTicker;
+
+  const rows = await prisma.dividend.findMany({
+    where: { received: false, asset: { ticker: { in: tickers } } },
+    select: {
+      id: true,
+      payDate: true,
+      net: true,
+      quantity: true,
+      unitValue: true,
+      asset: { select: { ticker: true } },
+    },
+  });
+  for (const row of rows) {
+    const list = byTicker.get(row.asset.ticker) ?? [];
+    list.push({
+      id: row.id,
+      payDate: row.payDate,
+      netCents: decimalToCents(String(row.net)),
+      quantity: row.quantity,
+      unitValue: Number(row.unitValue),
+    });
+    byTicker.set(row.asset.ticker, list);
+  }
+  return byTicker;
+}
+
 export type IncomeImportResult = {
   matched: number;
   created: number;
@@ -93,8 +134,8 @@ export type IncomeImportResult = {
 
 /**
  * Aplica os proventos do relatório de Movimentação: casa com a agenda "a
- * receber" (mesmo ativo, valor ±2%) marcando como recebido, ou cria um
- * provento recebido novo.
+ * receber" (ver pickDividendMatch) marcando como recebido, ou cria um provento
+ * recebido novo.
  */
 export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportResult> {
   const result: IncomeImportResult = {
@@ -104,6 +145,8 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
     skippedOld: 0,
     totalCents: 0,
   };
+  const agenda = await loadAgenda(incomes);
+  const used = new Set<string>();
 
   for (const income of incomes) {
     if (income.dateISO < INITIAL_LOAD_CUTOFF) {
@@ -128,12 +171,17 @@ export async function applyB3Incomes(incomes: B3Income[]): Promise<IncomeImportR
       continue;
     }
 
-    // Casa com a agenda: pendente do mesmo ativo com valor líquido ±2%.
-    const pending = await prisma.dividend.findMany({ where: { assetId: asset.id, received: false } });
-    const tolerance = Math.max(2, Math.round(valueCents * 0.02));
-    const match = pending.find((d) => Math.abs(decimalToCents(String(d.net)) - valueCents) <= tolerance);
+    // Casa com a agenda. allowStale: o pagamento pode dar baixa numa previsão
+    // antiga (atrasada ou placeholder), mas nunca na do ciclo seguinte.
+    const match = pickDividendMatch(agenda.get(income.ticker) ?? [], {
+      valueCents,
+      date: payDate,
+      used,
+      allowStale: true,
+    });
 
     if (match) {
+      used.add(match.id);
       await prisma.dividend.update({
         where: { id: match.id },
         data: { received: true, payDate, net: centsToNumber(valueCents) },
@@ -168,11 +216,14 @@ export type ProvisionedImportResult = {
 
 /**
  * Proventos PROVISIONADOS (anunciados, ainda não pagos): alimentam a agenda
- * "a receber". Pendente do mesmo ativo com valor ±2% ganha a data de previsão
- * (refresca placeholders); sem correspondência, cria pendente novo.
+ * "a receber". O pendente que corresponde ao anúncio (ver pickDividendMatch)
+ * ganha a data de previsão (refresca placeholders); sem correspondência, cria
+ * pendente novo.
  */
 export async function applyB3Provisioned(incomes: B3Income[]): Promise<ProvisionedImportResult> {
   const result: ProvisionedImportResult = { created: 0, updated: 0, duplicated: 0, totalCents: 0 };
+  const agenda = await loadAgenda(incomes);
+  const used = new Set<string>();
 
   for (const income of incomes) {
     const valueCents = Math.round(income.value * 100);
@@ -193,10 +244,9 @@ export async function applyB3Provisioned(incomes: B3Income[]): Promise<Provision
       continue;
     }
 
-    const pending = await prisma.dividend.findMany({ where: { assetId: asset.id, received: false } });
-    const tolerance = Math.max(2, Math.round(valueCents * 0.02));
-    const match = pending.find((d) => Math.abs(decimalToCents(String(d.net)) - valueCents) <= tolerance);
+    const match = pickDividendMatch(agenda.get(income.ticker) ?? [], { valueCents, date: payDate, used });
     if (match) {
+      used.add(match.id);
       // Mesmo anúncio: se a data já bate, é duplicata; senão refresca a previsão.
       if (match.payDate.getTime() === payDate.getTime()) {
         result.duplicated++;

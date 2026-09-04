@@ -67,4 +67,12 @@ Formato de cada linha: `dd/mm  DESCRIÇÃO CIDADE(pp/tt)  valor`
    parcelada cancela o plano inteiro (sem parcelas futuras). Gabarito:
    `scripts/fix-faturas-futuras-bradesco.ts`.
 
+5. **Compra do ciclo novo já lançada:** o aviso do banco traz o nome CURTO da loja
+   (`AMAZON BR`) e você lança a parcela por divisão do total (435,90 ÷ 10 = 43,59);
+   a fatura traz o nome do seller com cidade (`AMAZONMKTPLC*RETLAWCOM SAO PAULO`) e
+   o valor real da parcela (43,61). São a mesma compra — `findOrphans` casa isso no
+   3º passe por (nº de parcelas, parcela, valor ±10 centavos). Sem ele a parcela já
+   cobrada virava "parcela atrasada" e a cauda dobrava (medido: R$ 3.372,61 em 86
+   linhas na fatura de 27/08/2026).
+
 Relacionados: [cartao-credito](cartao-credito.md)

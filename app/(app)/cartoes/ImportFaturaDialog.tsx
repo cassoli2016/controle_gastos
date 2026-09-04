@@ -175,7 +175,7 @@ export function ImportFaturaDialog({ cardId, cardName }: { cardId: string; cardN
                 className="h-8 w-40"
               />
               <Button type="button" variant="ghost" size="sm" onClick={() => setPaidDate(preview.dueDateISO)}>
-                Usar o vencimento ({shortDate(preview.dueDateISO)})
+                Já paguei — usar o vencimento ({shortDate(preview.dueDateISO)})
               </Button>
               {paidDate === "" && (
                 <span className="text-xs text-muted-foreground">Em branco: a fatura fica em aberto</span>

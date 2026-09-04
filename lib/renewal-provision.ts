@@ -1,15 +1,19 @@
 import { prisma } from "@/lib/prisma";
-import { monthToDate } from "@/lib/dates";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
 import { installmentMonths } from "@/lib/installments";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { nextRenewalStartMonth, splitInstallmentsCents } from "@/lib/renewals";
+import { nextRenewalStartMonth, renewalStartMonthsThrough, splitInstallmentsCents } from "@/lib/renewals";
 import { descriptionsMatch } from "@/lib/description-match";
 
 /**
- * Garante a provisão da PRÓXIMA renovação parcelada de um item (seguro em
- * 4-5x): cria V÷N nos meses [renovação .. renovação+N-1]. Idempotente —
- * meses que já têm lançamento do item ficam como estão.
+ * Garante a provisão das renovações parceladas de um item (seguro em 4-5x):
+ * cria V÷N nos meses [renovação .. renovação+N-1] de CADA ocorrência anual,
+ * da próxima até o último mês já lançado no banco — quem planeja anos à
+ * frente vê o seguro de 2028 hoje, sem depender de cópia de mês. Sem
+ * horizonte além da próxima renovação, provisiona só ela (comportamento
+ * original). Idempotente — meses que já têm lançamento do item ficam como
+ * estão.
  */
 export async function ensureRenewalProvision(item: {
   id: string;
@@ -23,21 +27,29 @@ export async function ensureRenewalProvision(item: {
   const totalCents = decimalToCents(String(item.renewalAmount));
   if (totalCents <= 0) return { created: 0, months: [] };
 
-  const start = nextRenewalStartMonth(item.renewalMonth, todayISOInSaoPaulo().slice(0, 7));
-  const months = installmentMonths(start, item.renewalInstallments);
+  const current = todayISOInSaoPaulo().slice(0, 7);
+  const nextStart = nextRenewalStartMonth(item.renewalMonth, current);
+  const last = await prisma.monthlyEntry.findFirst({ orderBy: { month: "desc" }, select: { month: true } });
+  const horizon = last ? monthStringFromDate(last.month) : nextStart;
+  const starts = renewalStartMonthsThrough(item.renewalMonth, current, horizon > nextStart ? horizon : nextStart);
   const parts = splitInstallmentsCents(totalCents, item.renewalInstallments);
 
   let created = 0;
-  for (let i = 0; i < months.length; i++) {
-    const monthDate = monthToDate(months[i]);
-    const existing = await prisma.monthlyEntry.findUnique({
-      where: { itemId_month: { itemId: item.id, month: monthDate } },
-    });
-    if (existing) continue;
-    await prisma.monthlyEntry.create({
-      data: { itemId: item.id, month: monthDate, plannedAmount: centsToNumber(parts[i]) },
-    });
-    created++;
+  const months: string[] = [];
+  for (const start of starts) {
+    const occurrence = installmentMonths(start, item.renewalInstallments);
+    months.push(...occurrence);
+    for (let i = 0; i < occurrence.length; i++) {
+      const monthDate = monthToDate(occurrence[i]);
+      const existing = await prisma.monthlyEntry.findUnique({
+        where: { itemId_month: { itemId: item.id, month: monthDate } },
+      });
+      if (existing) continue;
+      await prisma.monthlyEntry.create({
+        data: { itemId: item.id, month: monthDate, plannedAmount: centsToNumber(parts[i]) },
+      });
+      created++;
+    }
   }
   return { created, months };
 }

@@ -1,17 +1,20 @@
 /**
  * Casamento entre o que o app tem no mês e o que a fatura cobrou.
  *
- * Duas dificuldades resolvidas aqui:
+ * Três dificuldades resolvidas aqui:
  *   1. O app grava parcela de dois jeitos — `installmentSeq/Count` nas colunas
  *      (bot/share, descrição sem marcador) ou marcador na descrição (importação
  *      de CSV/fatura, colunas nulas).
  *   2. As descrições divergem: a fatura prefixa "Antecipada - " na quitação
  *      antecipada e usa outro nome para o NuTag.
+ *   3. A compra do ciclo novo já está no app com o nome curto do aviso do banco
+ *      e a parcela por divisão do total, contra o nome do seller e o valor real
+ *      da parcela na fatura — ver o 3º passe de `findOrphans`.
  */
 import { normalizeDescription } from "@/lib/description-match";
 import { decimalToCents } from "@/lib/money";
 import { FATURA_ALIASES } from "@/lib/fatura-aliases";
-import type { FaturaLine } from "@/lib/fatura-core";
+import { CENTS_TOLERANCE, type FaturaLine } from "@/lib/fatura-core";
 
 const NUBANK_MARKER_RE = / - Parcela (\d+)\/(\d+)$/;
 const BRADESCO_MARKER_RE = /\((\d{2})\/(\d{2})\)$/;
@@ -116,33 +119,31 @@ export function toAppRow(row: {
 }
 
 /**
- * Linhas do app no mês da fatura que a fatura NÃO cobrou. Cada par é consumido
- * uma vez, então duas linhas iguais no app precisam de duas na fatura.
+ * Linhas do app no mês da fatura que a fatura NÃO cobrou. Cada linha da fatura
+ * é consumida uma vez, então duas linhas iguais no app precisam de duas na
+ * fatura.
  *
  * O pagamento da fatura anterior fica fora do pool: ele não é importado, logo
  * nada no app deveria casar com ele.
+ *
+ * Três passes, do mais estrito ao mais frouxo — o estrito consome primeiro, para
+ * um casamento frouxo nunca roubar a linha de quem casou exato.
  */
 export function findOrphans(appRows: AppRow[], faturaLines: FaturaLine[]): AppRow[] {
-  const pool = new Map<string, number>();
-  // Estornos sobrando na fatura, indexados só pelo valor — ver o 2º passe.
-  const refundPool = new Map<number, number>();
-  for (const line of faturaLines) {
-    if (line.kind === "payment") continue;
-    const k = matchKey(line.description, line.cents);
-    pool.set(k, (pool.get(k) ?? 0) + 1);
-    if (line.cents < 0) refundPool.set(line.cents, (refundPool.get(line.cents) ?? 0) + 1);
+  type Slot = { line: FaturaLine; taken: boolean };
+  const slots: Slot[] = faturaLines.filter((l) => l.kind !== "payment").map((line) => ({ line, taken: false }));
+  const byKey = new Map<string, Slot[]>();
+  for (const slot of slots) {
+    const k = matchKey(slot.line.description, slot.line.cents);
+    byKey.set(k, [...(byKey.get(k) ?? []), slot]);
   }
 
-  // 1º passe: casamento exato (descrição canônica + valor). Estorno que casa
-  // pelo nome também sai do pool por valor, senão contaria duas vezes.
+  // 1º passe: casamento exato (descrição canônica + valor).
   const pending: AppRow[] = [];
   for (const row of appRows) {
-    const k = matchKey(row.description, row.cents);
-    const available = pool.get(k) ?? 0;
-    if (available > 0) {
-      pool.set(k, available - 1);
-      if (row.cents < 0) refundPool.set(row.cents, (refundPool.get(row.cents) ?? 0) - 1);
-    } else pending.push(row);
+    const slot = byKey.get(matchKey(row.description, row.cents))?.find((s) => !s.taken);
+    if (slot) slot.taken = true;
+    else pending.push(row);
   }
 
   // 2º passe, SÓ para negativos: estorno casa por valor. O bot registra
@@ -150,12 +151,42 @@ export function findOrphans(appRows: AppRow[], faturaLines: FaturaLine[]): AppRo
   // nome moveria o estorno manual para o mês seguinte como órfã. Positivos
   // nunca caem aqui: duas compras de 50,00 em lojas diferentes são compras
   // diferentes; estorno é raro e o valor exato identifica.
-  const orphans: AppRow[] = [];
+  const stillPending: AppRow[] = [];
   for (const row of pending) {
     if (row.cents < 0) {
-      const available = refundPool.get(row.cents) ?? 0;
-      if (available > 0) {
-        refundPool.set(row.cents, available - 1);
+      const slot = slots.find((s) => !s.taken && s.line.cents === row.cents);
+      if (slot) {
+        slot.taken = true;
+        continue;
+      }
+    }
+    stillPending.push(row);
+  }
+
+  // 3º passe, SÓ para parcelas positivas: mesmo tamanho de plano, mesma parcela
+  // e valor dentro da tolerância — sem exigir o nome.
+  //
+  // A compra do ciclo novo entra no app pelo aviso do banco, que traz o nome
+  // curto do estabelecimento ("AMAZON BR") e o valor por divisão do total
+  // (435,90 ÷ 10 = 43,59); a fatura traz o nome do seller com cidade e o valor
+  // real da parcela (43,61). Sem este passe, a parcela JÁ cobrada era lida como
+  // "parcela atrasada", o plano deslocava um mês e a cauda inteira dobrava.
+  //
+  // Exige candidato ÚNICO: sem o nome para desempatar, dois planos do mesmo
+  // tamanho e valor parecido não dão para distinguir, e casar seria chute.
+  const orphans: AppRow[] = [];
+  for (const row of stillPending) {
+    const installment = row.installment;
+    if (installment && row.cents > 0) {
+      const candidates = slots.filter(
+        (s) =>
+          !s.taken &&
+          s.line.installment?.count === installment.count &&
+          s.line.installment?.seq === installment.seq &&
+          Math.abs(s.line.cents - row.cents) <= CENTS_TOLERANCE,
+      );
+      if (candidates.length === 1) {
+        candidates[0].taken = true;
         continue;
       }
     }

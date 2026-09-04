@@ -14,6 +14,38 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.14.2",
+    date: "2026-08-28",
+    title: "Fatura do Bradesco não duplica mais a parcela já lançada",
+    items: [
+      "Compra feita depois do fechamento você lança na hora, pelo aviso do banco — que traz o nome curto da loja (\"AMAZON BR\") e a parcela dividida do total (R$ 435,90 ÷ 10 = R$ 43,59). Quando a fatura chegava com o nome completo do vendedor e o valor real da parcela (R$ 43,61), o app não reconhecia que era a mesma compra: tratava como parcela atrasada, empurrava o parcelamento um mês e criava uma segunda sequência de parcelas ao lado da certa.",
+      "Agora a parcela também casa por número de parcelas + parcela + valor com folga de centavos, quando o nome divergiu — a mesma folga que o app já usava para reconhecer o parcelamento. Havendo dois candidatos possíveis, ele não arrisca e deixa como antes.",
+      "Sua fatura de setembro foi corrigida: saíram 86 linhas duplicadas, R$ 3.372,61 espalhados de outubro/2026 a julho/2027. Outubro caiu de R$ 2.171,33 para R$ 1.780,54, e julho/2027 — que só existia por causa do erro — desapareceu. Setembro, a competência da fatura que fechou, não foi tocado.",
+      "Na importação de fatura, o botão ao lado da data de pagamento passou a dizer o que faz: era \"Usar o vencimento (10/09)\", que parecia só registrar a data, e agora é \"Já paguei — usar o vencimento (10/09)\" — clicar nele dá baixa na fatura. O campo continua nascendo em branco, e em branco a fatura fica em aberto.",
+    ],
+  },
+  {
+    version: "1.14.1",
+    date: "2026-08-28",
+    title: "Proventos da B3 que sumiam da agenda",
+    items: [
+      "Provento de ação alugada agora entra. Quando alguém aluga seus papéis, a B3 não escreve \"Dividendo\" — escreve \"Reembolso\", porque quem alugou é que devolve o provento a você. O importador não conhecia esse nome e pulava a linha calado: era o caso de ALOS3 e BBSE3.",
+      "A agenda parou de embaralhar provento de valor repetido. O casamento olhava só o valor (±2%) e ignorava a data — como RECV3 anuncia R$ 477,85 para 31/12 de 2026, 2027 e 2028, cada linha \"corrigia\" a data da outra e a de 2026 desaparecia. Agora a data também conta, e cada anúncio casa com um provento só.",
+      "Parcelas de valor parecido no mesmo dia pararam de se engolir: os JSCP de R$ 8,87 e R$ 8,98 da CMIG4 têm 11 centavos de diferença, cabiam nos 2% e contavam como um.",
+      "Sua agenda foi corrigida com a planilha de 27/08: entraram ALOS3 de 02/09 (R$ 291,91 e R$ 59,54), BBSE3 de 03/09 (R$ 1.586,61 e R$ 2.181,61, no lugar da linha que estava somada à mão) e RECV3 de 31/12/2026 (R$ 477,85); saíram as duplicatas de CMIG4 e RECV3.",
+    ],
+  },
+  {
+    version: "1.14.0",
+    date: "2026-08-15",
+    title: "Seguro anual parcelado se renova sozinho",
+    items: [
+      "A renovação parcelada de um item (seguro em 4x, por exemplo) agora provisiona TODAS as renovações até o último mês que você já tem lançado — quem planeja 2028 vê o seguro de 2028 hoje, sem depender do botão de copiar.",
+      "O \"Copiar mês anterior\" parou de arrastar parcelas de renovação para o mês seguinte — as linhas dessas contas nascem da provisão, no mês certo de cada ano.",
+      "Seguro C3 e Seguro Duster foram convertidos para esse formato: os lançamentos de 2027 continuam onde estão e as parcelas de 2028 entram automaticamente.",
+    ],
+  },
+  {
     version: "1.13.0",
     date: "2026-08-15",
     title: "Excluir contas direto pelo Panorama",

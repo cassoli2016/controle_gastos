@@ -40,7 +40,8 @@ test.describe("importação de fatura em PDF", () => {
     await expect(page.getByText("R$ 17.884,29").first()).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("Impacto por mês se você confirmar")).toBeVisible();
     await expect(page.getByLabel("Data do pagamento")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Usar o vencimento/ })).toBeVisible();
+    // O rótulo diz que o botão DÁ BAIXA, não que só preenche a data.
+    await expect(page.getByRole("button", { name: /Já paguei/ })).toBeVisible();
     await page.screenshot({ path: "test-results/fatura-preview.png", fullPage: true });
 
     // --- Aplica sem baixa (data em branco) ---
