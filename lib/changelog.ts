@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.18.0",
+    date: "2026-09-04",
+    title: "Copiar o mês do ano passado parou de dobrar a diarista",
+    items: [
+      "Sua diarista vem 2x por semana, e isso sempre esteve certo no app. O que não estava: em 9 meses de 2027 a 2029 ela aparecia 4x por semana, porque duas séries semanais conviviam no mesmo mês — a que vale, de julho/2027 em diante, e a antiga, que deveria ter parado em junho/2027.",
+      "A culpa era do \"Copiar mês do ano passado\": ele conferia se AQUELA série já estava no mês de destino, e não se a conta já estava lá. Como a série velha não estava, ele copiava por cima da nova. Agora a conferência é pela conta (nome e categoria), então nenhuma cópia dobra uma conta semanal que já existe.",
+      "As 78 linhas a mais que já estão lançadas (R$ 17.160 espalhados por 2027–2029) continuam onde estão — isso é uma limpeza à parte, quando você quiser.",
+      "No mês que fecha no vermelho depois de você tirar dinheiro da reserva, o card Saldo agora diz \"R$ 6.929,84 vieram da caixinha\" em vez de só \"tirado da caixinha\": é o que explica o buraco. Agosto é o caso — entraram R$ 50.895,43, saíram R$ 58.243,20, e a diferença veio de lá.",
+    ],
+  },
+  {
     version: "1.17.0",
     date: "2026-09-04",
     title: "Desmarcar uma conta paga pela caixinha devolve o dinheiro",
