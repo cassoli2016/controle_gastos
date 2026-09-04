@@ -37,7 +37,7 @@ export type ReserveEntryData = {
 export function depositEntryData(reserveName: string, amount: number, dateISO: string): ReserveEntryData {
   const date = new Date(dateISO + "T00:00:00Z");
   return {
-    description: `Depósito · ${reserveName}`,
+    description: `${DEPOSIT_PREFIX}${reserveName}`,
     month: monthToDate(dateISO.slice(0, 7)),
     purchaseDate: date,
     plannedAmount: amount,
@@ -67,4 +67,28 @@ export function withdrawalEntryData(
     paidAmount: amount,
     paidDate: date,
   };
+}
+
+/** Prefixo das descrições geradas por `depositEntryData`. */
+export const DEPOSIT_PREFIX = "Depósito · ";
+
+/**
+ * Caixinha a pré-selecionar ao guardar dinheiro: a do depósito mais recente.
+ *
+ * `descriptions` vem do banco já ordenada da mais recente para a mais antiga.
+ * Um depósito de caixinha renomeada ou excluída simplesmente não casa e a
+ * busca segue para o anterior — daí a varredura em vez de olhar só o primeiro.
+ */
+export function lastUsedReserveId(
+  descriptions: string[],
+  boxes: { id: string; name: string }[],
+): string | null {
+  for (const d of descriptions) {
+    if (!d.startsWith(DEPOSIT_PREFIX)) continue;
+    // slice, não split: caixinha pode ter "·" no próprio nome.
+    const name = d.slice(DEPOSIT_PREFIX.length);
+    const box = boxes.find((b) => b.name === name);
+    if (box) return box.id;
+  }
+  return boxes[0]?.id ?? null;
 }

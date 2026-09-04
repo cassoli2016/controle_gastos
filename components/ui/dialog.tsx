@@ -119,7 +119,11 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         // sticky: o botão de enviar fica alcançável mesmo com o formulário rolando.
-        "sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // mt-4 devolve ao fluxo o que -mb-4 tira: sem ele o footer entra 16px
+        // no espaço do conteúdo e, sendo opaco (bg + z-10), come a última
+        // linha do texto que vem antes — dava para ver no aviso de sobra do
+        // depósito, cortado ao meio.
+        "sticky bottom-0 z-10 -mx-4 -mb-4 mt-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
