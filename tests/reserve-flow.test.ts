@@ -4,6 +4,7 @@ import {
   withdrawalEntryData,
   RESERVE_CATEGORY,
   RESERVE_WITHDRAWAL_CATEGORY,
+  lastUsedReserveId,
 } from "@/lib/reserve-flow";
 
 describe("depositEntryData", () => {
@@ -62,4 +63,32 @@ describe("categorias de caixinha são transferências", () => {
   // existiam foram marcadas pela migration category_is_transfer.
   it("depósito é transferência", () => expect(RESERVE_CATEGORY.isTransfer).toBe(true));
   it("retirada é transferência", () => expect(RESERVE_WITHDRAWAL_CATEGORY.isTransfer).toBe(true));
+});
+
+describe("lastUsedReserveId", () => {
+  const boxes = [
+    { id: "b1", name: "Cristian Cassoli" },
+    { id: "b2", name: "Turbo NuCel" },
+    { id: "b3", name: "Turbo Ultravioleta" },
+  ];
+
+  it("escolhe a caixinha do depósito mais recente", () => {
+    // As descrições chegam já ordenadas do banco, da mais recente para a mais
+    // antiga (paidDate desc).
+    expect(lastUsedReserveId(["Depósito · Turbo NuCel", "Depósito · Cristian Cassoli"], boxes)).toBe("b2");
+  });
+
+  it("sem depósito nenhum, fica com a primeira da lista", () =>
+    expect(lastUsedReserveId([], boxes)).toBe("b1"));
+
+  it("caixinha que foi renomeada ou excluída não trava a escolha", () =>
+    expect(lastUsedReserveId(["Depósito · Viagem", "Depósito · Turbo NuCel"], boxes)).toBe("b2"));
+
+  it("caixinha com '·' no próprio nome continua casando", () =>
+    expect(
+      lastUsedReserveId(["Depósito · Casa · Reforma"], [{ id: "b9", name: "Casa · Reforma" }]),
+    ).toBe("b9"));
+
+  it("sem caixinha nenhuma devolve null", () =>
+    expect(lastUsedReserveId(["Depósito · Turbo NuCel"], [])).toBe(null));
 });

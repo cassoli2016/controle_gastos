@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.16.0",
+    date: "2026-09-04",
+    title: "Guardar a sobra sem sair da tela do Mês",
+    items: [
+      "Botão \"Guardar a sobra\" na tela do Mês: escolhe a caixinha, confirma o valor e pronto. Antes era pagar as contas no Mês, ir até Reservas e abrir o depósito lá — três telas para uma decisão só.",
+      "A caixinha vem pré-selecionada: a do seu último depósito. Com três caixinhas cadastradas, era o campo que você sempre trocava na mão.",
+      "O valor sugerido desconta o que já foi guardado no mês. Depois de mandar os R$ 16 mil de setembro para a caixinha, o app não oferece guardar a mesma sobra outra vez — ele diz quanto você já guardou e avisa que guardar mais sai de outro mês.",
+      "Correção de um recorte antigo: em qualquer janela do app, a última linha de texto antes do botão ficava escondida atrás dele. Aparecia, por exemplo, no aviso de sobra ao depositar na caixinha.",
+    ],
+  },
+  {
     version: "1.15.0",
     date: "2026-09-04",
     title: "Guardar dinheiro deixou de parecer gasto",

@@ -6,7 +6,7 @@ import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget, getReserves } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { isOverdue } from "@/lib/calc";
+import { isOverdue, realizedBalance, realizedCashBalance } from "@/lib/calc";
 import { dailyCashflow } from "@/lib/cashflow";
 import { MonthNav } from "@/components/MonthNav";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -18,6 +18,8 @@ import { BulkApplyForm } from "./BulkApplyForm";
 import { PurchaseDialog } from "./PurchaseDialog";
 import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
+import { SaveLeftoverDialog } from "./SaveLeftoverDialog";
+import { lastUsedReserveId, DEPOSIT_PREFIX } from "@/lib/reserve-flow";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
 import { parseHidePaid } from "@/lib/month-filter";
 import { CashflowCard } from "./CashflowCard";
@@ -32,7 +34,7 @@ export default async function MesPage({
   const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems, activeCards, categories, budget, reserves] = await Promise.all([
+  const [rows, activeItems, activeCards, categories, budget, reserves, recentDeposits] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
       include: { item: { include: { category: true } }, category: true, card: true },
@@ -43,8 +45,17 @@ export default async function MesPage({
     prisma.category.findMany({ orderBy: { name: "asc" } }),
     getDailyBudget(),
     getReserves(),
+    // Para pré-selecionar a caixinha do último depósito. Sem createdAt na
+    // tabela, paidDate é a ordem disponível — e depósito nasce sempre pago.
+    prisma.monthlyEntry.findMany({
+      where: { description: { startsWith: DEPOSIT_PREFIX } },
+      orderBy: { paidDate: "desc" },
+      select: { description: true },
+      take: 20,
+    }),
   ]);
   const reserveOptions = reserves.map((r) => ({ id: r.id, name: r.name }));
+  const depositDescriptions = recentDeposits.map((d) => d.description ?? "");
 
   const today = todayISOInSaoPaulo();
   const realViews: DisplayRow[] = rows.map((r) => {
@@ -132,6 +143,12 @@ export default async function MesPage({
           <div className="flex flex-wrap items-center gap-2">
             <TransferDialog
               entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+            />
+            <SaveLeftoverDialog
+              reserves={reserveOptions}
+              defaultReserveId={lastUsedReserveId(depositDescriptions, reserveOptions)}
+              leftoverCents={realizedCashBalance(realViews)}
+              monthLeftoverCents={realizedBalance(realViews)}
             />
             <CopyPreviousMonthButton month={month} />
             <CopyYearAgoButton month={month} />
