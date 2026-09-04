@@ -5,6 +5,7 @@ import {
   RESERVE_CATEGORY,
   RESERVE_WITHDRAWAL_CATEGORY,
   lastUsedReserveId,
+  reserveReversal,
 } from "@/lib/reserve-flow";
 
 describe("depositEntryData", () => {
@@ -91,4 +92,33 @@ describe("lastUsedReserveId", () => {
 
   it("sem caixinha nenhuma devolve null", () =>
     expect(lastUsedReserveId(["Depósito · Turbo NuCel"], [])).toBe(null));
+});
+
+describe("reserveReversal", () => {
+  const retirada = (over: Partial<Parameters<typeof reserveReversal>[0] & object> = {}) => ({
+    id: "w1",
+    reserveBoxId: "b1",
+    plannedAmount: "1453.59",
+    paidAmount: "1453.59",
+    ...over,
+  });
+
+  it("devolve o valor da retirada para a caixinha dela", () =>
+    expect(reserveReversal(retirada())).toEqual({
+      withdrawalId: "w1",
+      boxId: "b1",
+      amountCents: 145359,
+    }));
+
+  it("conta que não foi paga pela caixinha não devolve nada", () =>
+    expect(reserveReversal(null)).toBe(null));
+
+  it("caixinha excluída depois do pagamento: não há para onde devolver", () =>
+    expect(reserveReversal(retirada({ reserveBoxId: null }))).toBe(null));
+
+  it("usa o valor da RETIRADA, não o da conta — quem editou a baixa depois não tira dinheiro a mais", () =>
+    expect(reserveReversal(retirada({ paidAmount: "1000.00" }))?.amountCents).toBe(100000));
+
+  it("retirada sem valor de baixa cai no previsto", () =>
+    expect(reserveReversal(retirada({ paidAmount: null }))?.amountCents).toBe(145359));
 });

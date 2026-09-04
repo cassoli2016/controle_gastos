@@ -14,7 +14,7 @@ function fileStamp(): string {
 }
 
 /**
- * Baixa todos os lançamentos em CSV (backup do usuário). O middleware não
+ * Baixa todos os lançamentos em CSV (backup do usuário). O proxy (ex-middleware) não
  * cobre /api, então a sessão é checada aqui — e a resposta é 401, não um
  * redirect, para não baixar a página de login com cara de CSV.
  */
