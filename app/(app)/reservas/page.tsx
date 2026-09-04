@@ -10,14 +10,17 @@ import { ReserveCard } from "./ReserveCard";
 import { DailyBudgetCard } from "./DailyBudgetCard";
 import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
-import { realizedBalance } from "@/lib/calc";
+import { realizedCashBalance } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
 
 /**
- * Sobra REALIZADA do mês corrente: o que entrou menos o que saiu, contando só o
- * que já foi baixado. É o número que responde "quanto posso guardar" — o card
- * "Saldo" do Mês não serve, porque ignora a baixa e contaria salário que ainda
- * não caiu.
+ * Quanto ainda dá para guardar neste mês: o que entrou menos o que saiu,
+ * contando só o que já foi baixado E descontando o que já foi para as
+ * caixinhas.
+ *
+ * Nenhuma das métricas vizinhas serve aqui: o card "Saldo" do Mês ignora a
+ * baixa (contaria salário que não caiu) e o `realizedBalance` ignora os
+ * depósitos (sugeriria guardar de novo o dinheiro que já está guardado).
  */
 async function getMonthLeftover(): Promise<number> {
   const month = todayISOInSaoPaulo().slice(0, 7);
@@ -25,7 +28,7 @@ async function getMonthLeftover(): Promise<number> {
     where: { month: monthToDate(month) },
     include: { item: { include: { category: true } }, category: true },
   });
-  return realizedBalance(entries.map(toEntryView));
+  return realizedCashBalance(entries.map(toEntryView));
 }
 
 export default async function ReservasPage() {

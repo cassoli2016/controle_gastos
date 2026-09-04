@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   plannedIncome, plannedExpense, plannedBalance, remainingToPay,
   paidExpense, receivedIncome, progressPct, isOverdue,
-  expenseRanking, expenseByCategory, realizedBalance, type EntryView,
+  expenseRanking, expenseByCategory, realizedBalance, realizedCashBalance, savedInMonth, cashBalance, type EntryView,
 } from "@/lib/calc";
 import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -153,5 +153,96 @@ describe("realizedBalance — a sobra de fato do mês", () => {
 
   it("mês vazio é zero", () => {
     expect(realizedBalance([])).toBe(0);
+  });
+});
+
+describe("transferências (movimentos de caixinha)", () => {
+  // Guardar não é gastar, e tirar da caixinha não é ganhar: as duas pontas do
+  // movimento de caixinha ficam fora das métricas que respondem "sobrou ou
+  // faltou no mês". Cenário real de set/2026: salário de 25.000, 13.185,54 de
+  // contas, depósito de 16.118,64 e uma retirada de 1.453,59 para a fatura.
+  const t = (
+    type: "INCOME" | "EXPENSE",
+    cents: number,
+    isTransfer: boolean,
+    paid = true,
+  ): EntryView => ({
+    itemName: isTransfer ? (type === "EXPENSE" ? "Depósito · Cristian" : "Retirada · Cristian") : "Conta",
+    categoryId: isTransfer ? "cat-reserva" : "cat-comum",
+    categoryName: isTransfer ? "Reserva" : "Moradia",
+    categoryType: type,
+    plannedCents: cents,
+    paid,
+    paidCents: paid ? cents : null,
+    isTransfer,
+  });
+
+  const mes: EntryView[] = [
+    t("INCOME", 2500000, false),
+    t("EXPENSE", 1318554, false),
+    t("EXPENSE", 1611864, true),
+    t("INCOME", 145359, true),
+  ];
+
+  it("plannedIncome ignora a retirada da caixinha", () =>
+    expect(plannedIncome(mes)).toBe(2500000));
+
+  it("plannedExpense ignora o depósito na caixinha", () =>
+    expect(plannedExpense(mes)).toBe(1318554));
+
+  it("plannedBalance mostra a sobra real do mês, não o vermelho do depósito", () =>
+    expect(plannedBalance(mes)).toBe(1181446));
+
+  it("realizedBalance também ignora as duas pontas", () =>
+    expect(realizedBalance(mes)).toBe(1181446));
+
+  it("remainingToPay ignora depósito ainda não feito", () => {
+    const comDepositoEmAberto = [t("EXPENSE", 500000, false, false), t("EXPENSE", 100000, true, false)];
+    expect(remainingToPay(comDepositoEmAberto)).toBe(500000);
+  });
+
+  it("paidExpense e receivedIncome ignoram transferências", () => {
+    expect(paidExpense(mes)).toBe(1318554);
+    expect(receivedIncome(mes)).toBe(2500000);
+  });
+
+  it("expenseByCategory e expenseRanking não listam o depósito", () => {
+    expect(expenseByCategory(mes)).toEqual([
+      { categoryId: "cat-comum", categoryName: "Moradia", cents: 1318554 },
+    ]);
+    expect(expenseRanking(mes)).toEqual([{ itemName: "Conta", cents: 1318554 }]);
+  });
+
+  it("savedInMonth é o que ficou guardado: depósitos menos retiradas", () =>
+    expect(savedInMonth(mes)).toBe(1466505));
+
+  it("savedInMonth é negativo no mês em que se tira mais do que se guarda", () =>
+    expect(savedInMonth([t("INCOME", 145359, true)])).toBe(-145359));
+
+  it("cashBalance conta as transferências — é o dinheiro que sai da conta", () =>
+    expect(cashBalance(mes)).toBe(-285059));
+
+  it("cashBalance = plannedBalance − savedInMonth (o patrimônio depende disso)", () => {
+    // Se essa identidade quebrar, o patrimônio projetado passa a contar o
+    // dinheiro guardado duas vezes: dentro do total das caixinhas E dentro do
+    // saldo acumulado do mês. Foi o bug que o depósito transacional resolveu.
+    expect(cashBalance(mes)).toBe(plannedBalance(mes) - savedInMonth(mes));
+  });
+
+  it("realizedCashBalance desconta o que já foi guardado — é o que ainda dá para guardar", () => {
+    // A sugestão do depósito sai daqui. Com o saldo sem transferências, o app
+    // sugeriria guardar de novo os R$ 11.814,46 que já estão na caixinha.
+    expect(realizedCashBalance(mes)).toBe(-285059);
+    expect(realizedBalance(mes)).toBe(1181446);
+  });
+
+  it("realizedCashBalance ignora o que ainda não foi baixado", () => {
+    const depositoPlanejado = [t("INCOME", 2500000, false), t("EXPENSE", 1000000, true, false)];
+    expect(realizedCashBalance(depositoPlanejado)).toBe(2500000);
+  });
+
+  it("mês sem transferência nenhuma: cashBalance e plannedBalance coincidem", () => {
+    expect(cashBalance(E)).toBe(plannedBalance(E));
+    expect(savedInMonth(E)).toBe(0);
   });
 });

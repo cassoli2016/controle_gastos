@@ -14,7 +14,7 @@ import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expen
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
 import { budgetLines } from "@/lib/budget";
-import { accumulateBalance } from "@/lib/patrimony";
+import { patrimonyProjection } from "@/lib/patrimony";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -98,29 +98,34 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     list.push(toEntryView(r as never));
     viewsByMonth.set(key, list);
   }
-  const balanceData: MonthlyBalancePoint[] = chartMonths.map((m) => {
+  // Cada mês do gráfico carrega a sua reserva: mês cheio à frente, decaindo
+  // no corrente, zero atrás. Mesma regra da tela Mês: mês sem nenhum
+  // lançamento real fica de fora — senão o gráfico desenharia saldo
+  // negativo fabricado para meses futuros sem lançamento nenhum.
+  const monthlyViews = chartMonths.map((m) => {
     const base = viewsByMonth.get(m) ?? [];
-    // Cada mês do gráfico carrega a sua reserva: mês cheio à frente, decaindo
-    // no corrente, zero atrás. Mesma regra da tela Mês: mês sem nenhum
-    // lançamento real fica de fora — senão o gráfico desenharia saldo
-    // negativo fabricado para meses futuros sem lançamento nenhum.
-    const v =
-      base.length === 0
-        ? base
-        : budget
-          ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))]
-          : base;
     return {
       month: formatCompetencia(monthToDate(m)),
-      incomeCents: plannedIncome(v),
-      expenseCents: plannedExpense(v),
-      balanceCents: plannedBalance(v),
+      views:
+        base.length === 0
+          ? base
+          : budget
+            ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))]
+            : base,
     };
   });
+  const balanceData: MonthlyBalancePoint[] = monthlyViews.map(({ month: m, views: v }) => ({
+    month: m,
+    incomeCents: plannedIncome(v),
+    expenseCents: plannedExpense(v),
+    balanceCents: plannedBalance(v),
+  }));
 
-  // Patrimônio projetado: reservas + carteira hoje, somando o saldo previsto
-  // de cada mês do gráfico. Estimativa — investimentos flutuam.
-  const patrimonyData = accumulateBalance(reservesTotalCents + portfolio.valueCents, balanceData);
+  // Patrimônio projetado: caixinhas + carteira hoje, somando o saldo de CAIXA
+  // de cada mês — não o saldo do gráfico acima, que ignora as transferências.
+  // O ponto de partida já contém o dinheiro das caixinhas; usar o saldo do mês
+  // contaria um depósito duas vezes. Estimativa — investimentos flutuam.
+  const patrimonyData = patrimonyProjection(reservesTotalCents + portfolio.valueCents, monthlyViews);
 
   // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
   // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade

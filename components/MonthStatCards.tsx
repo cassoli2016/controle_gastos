@@ -4,6 +4,7 @@ import {
   plannedIncome,
   plannedExpense,
   plannedBalance,
+  savedInMonth,
   remainingToPay,
   paidExpense,
   receivedIncome,
@@ -34,6 +35,16 @@ export function MonthStatCards({
   const remaining = remainingToPay(views);
   const receivedInc = receivedIncome(views);
   const balance = plannedBalance(views);
+  // Guardar não entra no saldo (não é gasto), mas some da tela se não for dito
+  // em algum lugar: o mês em que a sobra foi para a caixinha parece igual ao
+  // mês em que ela ficou parada na conta.
+  const saved = savedInMonth(views);
+  const savedDetail =
+    saved > 0
+      ? `${formatCents(saved)} guardado na caixinha`
+      : saved < 0
+        ? `${formatCents(-saved)} tirado da caixinha`
+        : undefined;
 
   const unpaidCount = realViews.filter((v) => v.categoryType === "EXPENSE" && !v.paid).length;
   const contasLabel = `${unpaidCount} ${unpaidCount === 1 ? "conta" : "contas"}`;
@@ -71,6 +82,7 @@ export function MonthStatCards({
           value={formatCents(balance)}
           tone={balance < 0 ? "expense" : "default"}
           icon={Wallet}
+          detail={savedDetail}
         />
       )}
       <StatCard

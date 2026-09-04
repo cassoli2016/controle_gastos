@@ -12,7 +12,7 @@ import { parseRefundCommand, refundDescription } from "@/lib/refund-parse";
 import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
 import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { resolveCategoryId } from "@/lib/purchases";
-import { realizedBalance } from "@/lib/calc";
+import { realizedCashBalance } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
 import { normalizeDescription } from "@/lib/description-match";
 import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
@@ -459,7 +459,9 @@ async function handleReserveCommand(chatId: number, cmd: ReserveCommand) {
     where: { month: monthToDate(month) },
     include: { item: { include: { category: true } }, category: true },
   });
-  const leftoverCents = realizedBalance(entries.map(toEntryView));
+  // Desconta o que já foi para as caixinhas — senão o bot ofereceria guardar
+  // duas vezes a mesma sobra.
+  const leftoverCents = realizedCashBalance(entries.map(toEntryView));
 
   if (cmd.kind === "query") {
     const lines = [

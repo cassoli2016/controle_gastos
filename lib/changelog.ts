@@ -14,6 +14,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.15.0",
+    date: "2026-09-04",
+    title: "Guardar dinheiro deixou de parecer gasto",
+    items: [
+      "Depósito na caixinha e retirada dela pararam de contar como despesa e receita do mês. Setembro é o exemplo: você recebeu os R$ 25.000, pagou as contas e mandou R$ 16.118,64 para a caixinha — e o app respondia que o mês tinha fechado R$ 14.446,83 no vermelho. O saldo agora é -R$ 3.646,78, que é o que realmente falta acontecer no mês.",
+      "O card \"Meses no vermelho\" saiu de -R$ 14.446,83 para -R$ 5.795,42. Ele existe para dizer quanto as caixinhas precisam cobrir; apontar o mês em que você ENCHEU a caixinha era o oposto do que ele serve para mostrar.",
+      "O card Saldo passou a dizer embaixo quanto foi guardado no mês (\"R$ 14.445,05 guardado na caixinha\"), para o dinheiro não sumir da tela só por não ser mais despesa.",
+      "O depósito também saiu do ranking de despesas e da pizza por categoria — ele aparecia lá como se fosse o seu maior gasto do mês.",
+      "O que NÃO mudou, de propósito: o fluxo de caixa por dia continua descontando o depósito (o dinheiro sai mesmo da conta corrente) e o patrimônio projetado segue igual, porque guardar não deixa ninguém mais rico — só troca o dinheiro de bolso.",
+      "A sugestão de valor ao depositar continua descontando o que você já guardou: depois de mandar os R$ 16 mil, o app não oferece guardar a mesma sobra de novo.",
+    ],
+  },
+  {
     version: "1.14.2",
     date: "2026-08-28",
     title: "Fatura do Bradesco não duplica mais a parcela já lançada",

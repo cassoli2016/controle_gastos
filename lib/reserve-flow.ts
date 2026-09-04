@@ -9,11 +9,17 @@ import { monthToDate } from "@/lib/dates";
  * mesma transação que ajusta ReserveBox.amount — assim o dinheiro está OU no
  * mês OU na caixinha, nunca nos dois (spec 2026-07-31-deposito-caixinha).
  */
-export const RESERVE_CATEGORY = { name: "Reserva", type: "EXPENSE", color: "#14b8a6" } as const;
+export const RESERVE_CATEGORY = {
+  name: "Reserva",
+  type: "EXPENSE",
+  color: "#14b8a6",
+  isTransfer: true,
+} as const;
 export const RESERVE_WITHDRAWAL_CATEGORY = {
   name: "Retirada da reserva",
   type: "INCOME",
   color: "#14b8a6",
+  isTransfer: true,
 } as const;
 
 export type ReserveEntryData = {
