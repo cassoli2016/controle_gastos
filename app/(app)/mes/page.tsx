@@ -1,6 +1,7 @@
 import { Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { monthToDate, sanitizeMonth } from "@/lib/dates";
+import { decimalToCents } from "@/lib/money";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget, getReserves } from "@/lib/planning";
@@ -37,7 +38,7 @@ export default async function MesPage({
   const [rows, activeItems, activeCards, categories, budget, reserves, recentDeposits] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
-      include: { item: { include: { category: true } }, category: true, card: true },
+      include: { item: { include: { category: true } }, category: true, card: true, reserveBox: true },
       orderBy: { item: { name: "asc" } },
     }),
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -58,6 +59,19 @@ export default async function MesPage({
   const depositDescriptions = recentDeposits.map((d) => d.description ?? "");
 
   const today = todayISOInSaoPaulo();
+  // Retirada e conta paga vivem na MESMA competência (withdrawalEntryData), então
+  // as retiradas do mês já estão em `rows` — não precisa de outra query.
+  const withdrawalByEntry = new Map(
+    rows
+      .filter((r) => r.withdrawalForId !== null && r.reserveBox !== null)
+      .map((r) => [
+        r.withdrawalForId as string,
+        {
+          boxName: r.reserveBox!.name,
+          amountCents: decimalToCents(String(r.paidAmount ?? r.plannedAmount)),
+        },
+      ]),
+  );
   const realViews: DisplayRow[] = rows.map((r) => {
     const view = {
       ...toEntryView(r as never),
@@ -76,6 +90,7 @@ export default async function MesPage({
       installmentCount: r.installmentCount,
       readOnlyHint: null,
       overdue: false,
+      paidFromReserve: withdrawalByEntry.get(r.id) ?? null,
     };
     return { ...view, overdue: isOverdue(view, month, today) };
   });
@@ -106,6 +121,7 @@ export default async function MesPage({
           installmentCount: null,
           readOnlyHint: budgetLine.hint,
           overdue: false,
+          paidFromReserve: null,
         },
       ]
     : realViews;

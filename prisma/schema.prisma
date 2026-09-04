@@ -177,12 +177,22 @@ model MonthlyEntry {
   paid             Boolean     @default(false)
   paidAmount       Decimal?    @db.Decimal(12, 2)
   paidDate         DateTime?   @db.Date
+  createdAt        DateTime    @default(now())
+  // Caixinha do movimento (depósito e retirada). Sem isto, desfazer dependia
+  // de reler o nome na descrição — e nome de caixinha o usuário edita.
+  reserveBox       ReserveBox? @relation(fields: [reserveBoxId], references: [id], onDelete: SetNull)
+  reserveBoxId     String?
+  // Só na retirada: a conta que ela pagou. Campo solto (mesmo padrão do
+  // installmentId) — é o que permite devolver o dinheiro exato ao desmarcar a
+  // baixa, em vez de adivinhar por mês/valor/data.
+  withdrawalForId  String?
 
   @@unique([itemId, month])
   @@index([month])
   @@index([categoryId])
   @@index([cardId])
   @@index([installmentId])
+  @@index([withdrawalForId])
 }
 
 /**
@@ -214,6 +224,7 @@ model ReserveBox {
   name      String
   amount    Decimal  @db.Decimal(12, 2)
   createdAt DateTime @default(now())
+  entries   MonthlyEntry[]
 }
 
 // Reserva do dia a dia: teto diário de gasto variável (mercado, combustível,

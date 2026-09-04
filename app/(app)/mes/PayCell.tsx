@@ -8,6 +8,17 @@ import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 
 /** Data já gravada (meia-noite UTC) formatada; sem data, hoje em São Paulo. */
@@ -28,6 +39,7 @@ export function PayCell({
   paidDate,
   income = false,
   reserves = [],
+  paidFromReserve = null,
 }: {
   entryId: string;
   plannedCents: number;
@@ -38,6 +50,8 @@ export function PayCell({
   income?: boolean;
   /** Caixinhas para pagar "pela caixinha" (só faz sentido em despesas). */
   reserves?: { id: string; name: string }[];
+  /** Presente quando ESTA conta foi paga por uma caixinha: desmarcar devolve. */
+  paidFromReserve?: { boxName: string; amountCents: number } | null;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(markPaid, {});
   useActionToast(state, { success: income ? "Recebimento atualizado." : "Pagamento atualizado." });
@@ -52,14 +66,59 @@ export function PayCell({
   }
 
   if (paid) {
-    return (
-      <form action={formAction} className="flex flex-wrap items-center gap-2">
-        <input type="hidden" name="entryId" value={entryId} />
-        <input type="hidden" name="paid" value="false" />
+    const resumo = (
+      <>
         <span className="font-medium tabular-nums">{paidCents !== null ? formatCents(paidCents) : "—"}</span>
         <span className="text-xs text-muted-foreground">
           {paidDate ? formatDateBR(toDateInputValue(paidDate)) : ""}
         </span>
+      </>
+    );
+
+    // Conta paga pela caixinha: o form vive DENTRO do AlertDialogContent (mesmo
+    // padrão do CategoryRow). O conteúdo do alert sai num portal — um submit
+    // ali fora do form não dispara action nenhuma, e o "Desmarcar e devolver"
+    // não fazia nada.
+    if (paidFromReserve) {
+      return (
+        <div className="flex flex-wrap items-center gap-2">
+          {resumo}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" disabled={pending}>
+                Desmarcar
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Desfazer o pagamento pela caixinha?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta conta foi paga pela caixinha “{paidFromReserve.boxName}”. Desmarcar devolve{" "}
+                  {formatCents(paidFromReserve.amountCents)} para ela e apaga a retirada do mês. A
+                  conta volta a ficar em aberto.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <form action={formAction}>
+                <input type="hidden" name="entryId" value={entryId} />
+                <input type="hidden" name="paid" value="false" />
+                <AlertDialogFooter>
+                  <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction type="submit" disabled={pending}>
+                    Desmarcar e devolver
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </form>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      );
+    }
+
+    return (
+      <form action={formAction} className="flex flex-wrap items-center gap-2">
+        <input type="hidden" name="entryId" value={entryId} />
+        <input type="hidden" name="paid" value="false" />
+        {resumo}
         <Button type="submit" variant="ghost" size="sm" disabled={pending}>
           Desmarcar
         </Button>

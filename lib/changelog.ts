@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.17.0",
+    date: "2026-09-04",
+    title: "Desmarcar uma conta paga pela caixinha devolve o dinheiro",
+    items: [
+      "Até agora, desmarcar a baixa de uma conta paga pela caixinha deixava o dinheiro no limbo: a conta voltava a dever e a caixinha seguia mais pobre, sem aviso nenhum. Agora o app pergunta — \"esta conta foi paga pela caixinha X, devolver R$ Y para ela?\" — e, confirmando, devolve o valor, apaga a retirada e deixa a conta em aberto, tudo de uma vez.",
+      "Ele devolve o valor da RETIRADA, não o da conta: quem editou a baixa depois de pagar não tira da caixinha um dinheiro que nunca saiu de lá.",
+      "Seus movimentos antigos foram ligados às contas que pagaram: das 21 retiradas, 11 tinham correspondência exata (mesma competência, data e valor) e agora podem ser desfeitas assim. As outras 10 não tinham candidato único — nelas o app não arrisca e desmarcar segue como antes.",
+      "Pagar duas contas pela mesma caixinha ao mesmo tempo não estoura mais o saldo. A conferência e o débito viraram uma operação só; antes cabia um segundo pagamento entre as duas, e a soma passava do que havia guardado.",
+      "Cada lançamento passou a registrar quando foi criado — base para responder \"o que eu lancei hoje\" e para desfazer importações em lote mais adiante.",
+    ],
+  },
+  {
     version: "1.16.0",
     date: "2026-09-04",
     title: "Guardar a sobra sem sair da tela do Mês",

@@ -33,6 +33,8 @@ export type DisplayRow = EntryView & {
   readOnlyHint: string | null;
   /** Despesa não paga com vencimento para trás (isOverdue): destaque na coluna Dia. */
   overdue: boolean;
+  /** Conta paga por caixinha: desmarcar devolve o dinheiro, então confirma antes. */
+  paidFromReserve: { boxName: string; amountCents: number } | null;
 };
 
 /** Categorias de movimentos de caixinha: iniciam recolhidas (já concluídos). */
@@ -86,6 +88,7 @@ function EntryRow({
   ) : (
     <PayCell
       entryId={row.entryId}
+      paidFromReserve={row.paidFromReserve}
       plannedCents={row.plannedCents}
       paid={row.paid}
       paidCents={row.paidCents}

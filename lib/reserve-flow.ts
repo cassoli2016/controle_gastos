@@ -1,4 +1,5 @@
 import { monthToDate } from "@/lib/dates";
+import { decimalToCents } from "@/lib/money";
 
 // ATENÇÃO: este módulo é importado por Client Component (MonthEntryList usa as
 // categorias). Nada de prisma aqui — a gravação vive em lib/reserve-deposit.ts,
@@ -91,4 +92,33 @@ export function lastUsedReserveId(
     if (box) return box.id;
   }
   return boxes[0]?.id ?? null;
+}
+
+export type ReserveReversal = { withdrawalId: string; boxId: string; amountCents: number };
+
+/**
+ * O que devolver à caixinha ao desmarcar a baixa de uma conta paga por ela.
+ *
+ * `null` quando não há nada a fazer: conta paga do jeito comum, ou retirada
+ * cuja caixinha foi excluída depois (não há para onde devolver — o registro da
+ * retirada continua lá como histórico).
+ *
+ * O valor é o da RETIRADA, nunca o da conta: quem editou a baixa depois de
+ * pagar tiraria da caixinha um valor que nunca saiu dela.
+ */
+export function reserveReversal(
+  withdrawal: {
+    id: string;
+    reserveBoxId: string | null;
+    plannedAmount: unknown;
+    paidAmount: unknown;
+  } | null,
+): ReserveReversal | null {
+  if (!withdrawal || !withdrawal.reserveBoxId) return null;
+  const amount = withdrawal.paidAmount ?? withdrawal.plannedAmount;
+  return {
+    withdrawalId: withdrawal.id,
+    boxId: withdrawal.reserveBoxId,
+    amountCents: decimalToCents(String(amount)),
+  };
 }

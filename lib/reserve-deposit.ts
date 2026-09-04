@@ -27,7 +27,11 @@ export async function depositToReserveBox(opts: {
       data: { amount: { increment: amount } },
     });
     await tx.monthlyEntry.create({
-      data: { categoryId: opts.categoryId, ...depositEntryData(box.name, amount, opts.dateISO) },
+      data: {
+        categoryId: opts.categoryId,
+        reserveBoxId: opts.boxId,
+        ...depositEntryData(box.name, amount, opts.dateISO),
+      },
     });
     return b;
   });

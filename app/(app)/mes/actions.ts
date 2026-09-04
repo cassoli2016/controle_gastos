@@ -12,7 +12,7 @@ import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCate
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay } from "@/lib/fatura";
 import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth } from "@/lib/recurrence";
-import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
+import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData, reserveReversal } from "@/lib/reserve-flow";
 
 // Schemas locais: validam os formulários de excluir lançamento e
 // editar/excluir parcelamento (os compartilhados vivem em lib/validators.ts).
@@ -87,7 +87,32 @@ export const markPaid = guardAction(async function markPaid(_prevState: ActionSt
     paidDate: paid && paidDate ? new Date(paidDate + "T00:00:00Z") : null,
   };
 
-  if (!paid || !reserveId) {
+  if (!paid) {
+    // Desmarcar uma conta que foi paga PELA CAIXINHA devolve o dinheiro: sem
+    // isso a retirada continuava lançada e o valor sumia do patrimônio — a
+    // conta voltava a dever e a caixinha seguia mais pobre. O aviso e a
+    // confirmação ficam na UI; aqui é sempre estorno, para nenhum caminho
+    // deixar dinheiro no limbo.
+    const withdrawal = await prisma.monthlyEntry.findFirst({ where: { withdrawalForId: entryId } });
+    const reversal = reserveReversal(withdrawal);
+    if (!reversal) {
+      await prisma.monthlyEntry.update({ where: { id: entryId }, data });
+      revalidateFinance();
+      return { ok: true };
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.monthlyEntry.update({ where: { id: entryId }, data });
+      await tx.monthlyEntry.delete({ where: { id: reversal.withdrawalId } });
+      await tx.reserveBox.update({
+        where: { id: reversal.boxId },
+        data: { amount: { increment: centsToNumber(reversal.amountCents) } },
+      });
+    });
+    revalidateFinance();
+    return { ok: true };
+  }
+
+  if (!reserveId) {
     await prisma.monthlyEntry.update({ where: { id: entryId }, data });
     revalidateFinance();
     return { ok: true };
@@ -100,17 +125,29 @@ export const markPaid = guardAction(async function markPaid(_prevState: ActionSt
   if (!paidDate) return { error: "Informe a data do pagamento." };
   const box = await prisma.reserveBox.findUnique({ where: { id: reserveId } });
   if (!box) return { error: "Caixinha não encontrada." };
-  if (decimalToCents(String(box.amount)) < Math.round(paidAmount * 100))
-    return { error: "Saldo insuficiente na caixinha." };
 
   const categoryId = await resolveCategoryId(RESERVE_WITHDRAWAL_CATEGORY);
-  await prisma.$transaction(async (tx) => {
-    const entry = await tx.monthlyEntry.update({ where: { id: entryId }, data });
-    await tx.reserveBox.update({ where: { id: reserveId }, data: { amount: { decrement: paidAmount } } });
-    await tx.monthlyEntry.create({
-      data: { categoryId, ...withdrawalEntryData(box.name, paidAmount, entry.month, paidDate) },
+  const enough = await prisma.$transaction(async (tx) => {
+    // O decremento é condicional (amount >= valor) em vez de "conferir e
+    // depois debitar": entre a leitura e a escrita cabe outro pagamento pela
+    // mesma caixinha, e a soma dos dois passava do saldo.
+    const { count } = await tx.reserveBox.updateMany({
+      where: { id: reserveId, amount: { gte: paidAmount } },
+      data: { amount: { decrement: paidAmount } },
     });
+    if (count === 0) return false;
+    const entry = await tx.monthlyEntry.update({ where: { id: entryId }, data });
+    await tx.monthlyEntry.create({
+      data: {
+        categoryId,
+        reserveBoxId: reserveId,
+        withdrawalForId: entryId,
+        ...withdrawalEntryData(box.name, paidAmount, entry.month, paidDate),
+      },
+    });
+    return true;
   });
+  if (!enough) return { error: "Saldo insuficiente na caixinha." };
   revalidateFinance();
   return { ok: true };
 });
