@@ -1,5 +1,5 @@
 import { monthToDate } from "@/lib/dates";
-import { decimalToCents } from "@/lib/money";
+import { decimalToCents, formatCents } from "@/lib/money";
 
 // ATENÇÃO: este módulo é importado por Client Component (MonthEntryList usa as
 // categorias). Nada de prisma aqui — a gravação vive em lib/reserve-deposit.ts,
@@ -121,4 +121,19 @@ export function reserveReversal(
     boxId: withdrawal.reserveBoxId,
     amountCents: decimalToCents(String(amount)),
   };
+}
+
+/**
+ * Frase do card "Saldo" sobre o movimento de caixinha do mês.
+ *
+ * O caso que importa é o mês fechado no vermelho DEPOIS de tirar da reserva:
+ * "tirado da caixinha" só conta metade — quem lê quer saber que o buraco do
+ * mês foi tapado por ali. Agosto/2026 é o exemplo: saldo de -R$ 7.347,77 com
+ * R$ 6.929,84 vindos da caixinha.
+ */
+export function savedInMonthLabel(balanceCents: number, savedCents: number): string | null {
+  if (savedCents === 0) return null;
+  if (savedCents > 0) return `${formatCents(savedCents)} guardado na caixinha`;
+  const taken = formatCents(-savedCents);
+  return balanceCents < 0 ? `${taken} vieram da caixinha` : `${taken} tirado da caixinha`;
 }

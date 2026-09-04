@@ -12,6 +12,7 @@ import {
   type EntryView,
 } from "@/lib/calc";
 import { formatCents } from "@/lib/money";
+import { savedInMonthLabel } from "@/lib/reserve-flow";
 import type { DailyBudgetLine } from "@/lib/daily-budget";
 
 /**
@@ -38,13 +39,7 @@ export function MonthStatCards({
   // Guardar não entra no saldo (não é gasto), mas some da tela se não for dito
   // em algum lugar: o mês em que a sobra foi para a caixinha parece igual ao
   // mês em que ela ficou parada na conta.
-  const saved = savedInMonth(views);
-  const savedDetail =
-    saved > 0
-      ? `${formatCents(saved)} guardado na caixinha`
-      : saved < 0
-        ? `${formatCents(-saved)} tirado da caixinha`
-        : undefined;
+  const savedDetail = savedInMonthLabel(balance, savedInMonth(views)) ?? undefined;
 
   const unpaidCount = realViews.filter((v) => v.categoryType === "EXPENSE" && !v.paid).length;
   const contasLabel = `${unpaidCount} ${unpaidCount === 1 ? "conta" : "contas"}`;

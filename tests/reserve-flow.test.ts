@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { formatCents } from "@/lib/money";
 import {
   depositEntryData,
   withdrawalEntryData,
@@ -6,6 +7,7 @@ import {
   RESERVE_WITHDRAWAL_CATEGORY,
   lastUsedReserveId,
   reserveReversal,
+  savedInMonthLabel,
 } from "@/lib/reserve-flow";
 
 describe("depositEntryData", () => {
@@ -121,4 +123,20 @@ describe("reserveReversal", () => {
 
   it("retirada sem valor de baixa cai no previsto", () =>
     expect(reserveReversal(retirada({ paidAmount: null }))?.amountCents).toBe(145359));
+});
+
+describe("savedInMonthLabel", () => {
+  it("mês no vermelho com retirada líquida: diz que a caixinha cobriu", () =>
+    // Agosto/2026: entrou R$ 50.895,43, saiu R$ 58.243,20, e a diferença veio
+    // da reserva. Dizer só "tirado da caixinha" não liga uma coisa à outra.
+    expect(savedInMonthLabel(-734777, -692984)).toBe(`${formatCents(692984)} vieram da caixinha`));
+
+  it("mês no azul com retirada líquida: só informa a retirada", () =>
+    expect(savedInMonthLabel(500000, -100000)).toBe(`${formatCents(100000)} tirado da caixinha`));
+
+  it("guardou no mês: diz quanto foi guardado", () =>
+    expect(savedInMonthLabel(-364678, 1444505)).toBe(`${formatCents(1444505)} guardado na caixinha`));
+
+  it("sem movimento de caixinha: nada a dizer", () =>
+    expect(savedInMonthLabel(-100000, 0)).toBe(null));
 });

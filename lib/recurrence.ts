@@ -227,3 +227,27 @@ export async function convertEntryToRecurring(
   });
   return { ok: true, name, count: months.length };
 }
+
+/**
+ * O mês de destino já tem esta conta semanal? Olha a CONTA (descrição +
+ * categoria), não o `installmentId`.
+ *
+ * Checar só o installmentId deixava duas séries da mesma conta conviverem: a
+ * Diarista ganhou uma série nova em 2027-07, e "Copiar mês do ano passado"
+ * trouxe a série velha por cima em 9 meses de 2027 a 2029 — 4 diaristas por
+ * semana onde havia 2, R$ 17.160 a mais no planejamento.
+ *
+ * Só série semanal bloqueia: lançamento avulso ou parcela de compra com o
+ * mesmo nome não impede a cópia.
+ */
+export function weeklyGroupAlreadyIn(group: WeeklyGroup, targetEntries: WeeklyEntryInput[]): boolean {
+  return targetEntries.some(
+    (e) =>
+      !e.itemId &&
+      !e.cardId &&
+      e.installmentId !== null &&
+      e.installmentSeq === null &&
+      e.description === group.description &&
+      e.categoryId === group.categoryId,
+  );
+}

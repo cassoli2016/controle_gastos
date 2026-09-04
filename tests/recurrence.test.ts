@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { weekdayDatesInMonth, weeklyGroupsFrom } from "@/lib/recurrence";
+import {
+  weekdayDatesInMonth,
+  weeklyGroupsFrom,
+  weeklyGroupAlreadyIn,
+  type WeeklyGroup,
+  type WeeklyEntryInput,
+} from "@/lib/recurrence";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
@@ -88,4 +94,50 @@ describe("weeklyGroupsFrom", () => {
     ]);
     expect(grupos.map((g) => g.installmentId).sort()).toEqual(["g1", "g2"]);
   });
+});
+
+describe("weeklyGroupAlreadyIn", () => {
+  const grupo: WeeklyGroup = {
+    installmentId: "plano-novo",
+    description: "Diarista",
+    categoryId: "cat-moradia",
+    amount: 220,
+    weekdays: [2, 5],
+  };
+  const lanc = (over: Partial<WeeklyEntryInput> = {}): WeeklyEntryInput => ({
+    itemId: null,
+    cardId: null,
+    installmentId: "plano-velho",
+    installmentSeq: null,
+    description: "Diarista",
+    categoryId: "cat-moradia",
+    plannedAmount: "220.00",
+    purchaseDate: new Date("2028-05-02T00:00:00Z"),
+    ...over,
+  });
+
+  it("mês de destino vazio: pode copiar", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [])).toBe(false));
+
+  it("mesmo grupo já no destino: não copia de novo", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [lanc({ installmentId: "plano-novo" })])).toBe(true));
+
+  it("OUTRA série da mesma conta já no destino: também não copia", () => {
+    // É o caso da Diarista: a série de 2027-07 em diante já cobria maio/2028, e
+    // copiar o mês do ano passado trouxe a série velha por cima — 4 diaristas
+    // por semana em 9 meses de 2027 a 2029.
+    expect(weeklyGroupAlreadyIn(grupo, [lanc()])).toBe(true);
+  });
+
+  it("conta semanal diferente no destino não bloqueia", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [lanc({ description: "Aula de inglês" })])).toBe(false));
+
+  it("mesma descrição em categoria diferente não bloqueia", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [lanc({ categoryId: "cat-outra" })])).toBe(false));
+
+  it("lançamento avulso com o mesmo nome não bloqueia — só série semanal conta", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [lanc({ installmentId: null })])).toBe(false));
+
+  it("parcela de compra parcelada com o mesmo nome não bloqueia", () =>
+    expect(weeklyGroupAlreadyIn(grupo, [lanc({ installmentSeq: 3 })])).toBe(false));
 });

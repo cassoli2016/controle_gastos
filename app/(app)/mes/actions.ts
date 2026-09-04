@@ -11,7 +11,7 @@ import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId, resolveCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay } from "@/lib/fatura";
-import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth } from "@/lib/recurrence";
+import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth, weeklyGroupAlreadyIn, type WeeklyEntryInput } from "@/lib/recurrence";
 import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData, reserveReversal } from "@/lib/reserve-flow";
 
 // Schemas locais: validam os formulários de excluir lançamento e
@@ -191,24 +191,39 @@ async function copyWeeklyGroups(
   const groups = weeklyGroupsFrom(sourceEntries);
   if (groups.length === 0) return 0;
   const target = monthToDate(targetMonth);
+  // O que o destino já tem, carregado UMA vez. A checagem é por conta
+  // (descrição + categoria), não por installmentId: uma conta que ganhou série
+  // nova continuava aceitando a série velha por cima, e o mês ficava com o
+  // dobro das ocorrências.
+  const existing: WeeklyEntryInput[] = await tx.monthlyEntry.findMany({
+    where: { month: target },
+    select: {
+      itemId: true,
+      cardId: true,
+      installmentId: true,
+      installmentSeq: true,
+      description: true,
+      categoryId: true,
+      plannedAmount: true,
+      purchaseDate: true,
+    },
+  });
   let created = 0;
   for (const g of groups) {
-    const existing = await tx.monthlyEntry.count({
-      where: { installmentId: g.installmentId, month: target },
-    });
-    if (existing > 0) continue;
+    if (weeklyGroupAlreadyIn(g, existing)) continue;
     const dates = weekdayDatesInMonth(targetMonth, g.weekdays);
     if (dates.length === 0) continue;
-    await tx.monthlyEntry.createMany({
-      data: dates.map((purchaseDate) => ({
-        installmentId: g.installmentId,
-        description: g.description,
-        categoryId: g.categoryId,
-        month: target,
-        plannedAmount: g.amount,
-        purchaseDate,
-      })),
-    });
+    const data = dates.map((purchaseDate) => ({
+      installmentId: g.installmentId,
+      description: g.description,
+      categoryId: g.categoryId,
+      month: target,
+      plannedAmount: g.amount,
+      purchaseDate,
+    }));
+    await tx.monthlyEntry.createMany({ data });
+    // Dois grupos da mesma conta na origem: o segundo tem de ver o primeiro.
+    existing.push(...data.map((d) => ({ ...d, itemId: null, cardId: null, installmentSeq: null })));
     created += dates.length;
   }
   return created;
