@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.23.0",
+    date: "2026-09-04",
+    title: "Panorama mostra só o que ainda tem a acontecer",
+    items: [
+      "Conta sem nada a pagar nem a receber deste mês em diante deixou de aparecer no Panorama. Saíram 6: ERS Transportes, ICP Gobrax, Closet e Estacionamento, que acabaram e viravam uma linha de traços, mais o Depósito e a Retirada de caixinha de setembro, que já aconteceram.",
+      "Elas voltam com um clique em \"Mostrar quitados\" — o mesmo botão que já revelava os meses fechados. A legenda diz o que está escondido: \"Ocultando 2 meses quitados: jul/26, ago/26 · 6 contas quitadas\".",
+      "Conta paga no mês mas com cobrança à frente continua aparecendo: é o futuro que o Panorama serve para mostrar. Investidor10, PS Plus e Amazon Prime, por exemplo, ficam mesmo só com traços nos primeiros meses, porque a cobrança delas é anual.",
+      "O \"Ocultar pagos\" não mudou: ele continua sendo a visão do mês, escondendo quem já foi quitado até hoje.",
+    ],
+  },
+  {
     version: "1.22.1",
     date: "2026-09-04",
     title: "As diaristas repetidas de 2027 a 2029 saíram",

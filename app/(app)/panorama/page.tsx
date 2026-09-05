@@ -6,7 +6,7 @@ import { decimalToCents } from "@/lib/money";
 import {
   buildMatrix,
   settledPastMonths,
-  hiddenMonthsSummary,
+  hiddenSummary,
   matrixColumns,
   sumMonths,
   sumMonthsOrNull,
@@ -15,6 +15,8 @@ import {
   type MatrixColumn,
   type MatrixEntry,
   rowSettledThroughMonth,
+  rowSettledFromMonth,
+  type MatrixRow,
 } from "@/lib/matrix";
 import { parseHidePaid } from "@/lib/month-filter";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -111,17 +113,27 @@ export default async function PanoramaPage({
   const visibleMonths = showSettled ? matrix.months : matrix.months.filter((m) => !hidden.includes(m));
   const columns = matrixColumns(visibleMonths);
 
-  // "Ocultar pagos" filtra só a EXIBIÇÃO das linhas: os totais por mês e o
-  // rodapé saem de buildMatrix, antes do filtro — esconder não muda número.
-  // A régua é o MÊS ATUAL (visualização do mês): paga até agora some, mesmo
-  // provisionada até o fim do horizonte; atrasada ou por vir fica. Usa todos
-  // os meses da matriz, então o resultado independe do toggle de quitados.
+  // Os dois filtros mexem só na EXIBIÇÃO das linhas: totais por mês e rodapé
+  // saem de buildMatrix, antes deles — esconder linha não muda número.
+  //
+  //   padrão ("Mostrar quitados" desligado): sai a linha sem NADA a pagar ou
+  //     receber do mês corrente em diante. O Panorama é a visão do que ainda
+  //     vai acontecer, e conta encerrada virava linha de traços ocupando
+  //     largura. O mesmo botão que revela os meses fechados revela estas.
+  //   "Ocultar pagos": a régua é o passado até o mês atual — paga até agora
+  //     some mesmo com futuro longo, atrasada fica.
+  //
   // Seção que fica sem nenhuma linha sai junto (só sobraria o cabeçalho).
-  const visibleSections = hidePaid
-    ? matrix.sections
-        .map((sec) => ({ ...sec, rows: sec.rows.filter((r) => !rowSettledThroughMonth(r, matrix.months, currentMonth)) }))
-        .filter((sec) => sec.rows.length > 0)
-    : matrix.sections;
+  const settledRowCount = matrix.sections.reduce(
+    (acc, sec) => acc + sec.rows.filter((r) => rowSettledFromMonth(r, matrix.months, currentMonth)).length,
+    0,
+  );
+  const rowVisible = (r: MatrixRow) =>
+    (showSettled || !rowSettledFromMonth(r, matrix.months, currentMonth)) &&
+    (!hidePaid || !rowSettledThroughMonth(r, matrix.months, currentMonth));
+  const visibleSections = matrix.sections
+    .map((sec) => ({ ...sec, rows: sec.rows.filter(rowVisible) }))
+    .filter((sec) => sec.rows.length > 0);
 
   const monthTh = (m: string) => (
     <th
@@ -157,7 +169,11 @@ export default async function PanoramaPage({
           <CardContent className="px-0">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2.5">
               <span className="text-xs text-muted-foreground">
-                {hidden.length > 0 ? (showSettled ? "Exibindo todos os meses" : hiddenMonthsSummary(hidden)) : ""}
+                {showSettled
+                  ? hidden.length > 0 || settledRowCount > 0
+                    ? "Exibindo tudo, inclusive o que já está quitado"
+                    : ""
+                  : hiddenSummary(hidden, settledRowCount)}
               </span>
               <span className="flex items-center gap-2">
                 <Button asChild variant="outline" size="sm">
@@ -166,11 +182,13 @@ export default async function PanoramaPage({
                     {hidePaid ? "Mostrar pagos" : "Ocultar pagos"}
                   </Link>
                 </Button>
-                {hidden.length > 0 && (
+                {(hidden.length > 0 || settledRowCount > 0) && (
                   <Button asChild variant="outline" size="sm">
                     <Link
                       href={hrefFor(!showSettled, hidePaid)}
-                      aria-label={showSettled ? "Ocultar meses quitados" : "Mostrar meses quitados"}
+                      aria-label={
+                        showSettled ? "Ocultar meses e contas quitados" : "Mostrar meses e contas quitados"
+                      }
                     >
                       {showSettled ? <EyeOff /> : <Eye />}
                       {showSettled ? "Ocultar quitados" : "Mostrar quitados"}
