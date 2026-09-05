@@ -1,5 +1,5 @@
 import { PiggyBank } from "lucide-react";
-import { getReserves, getNegativeMonths, getDailyBudget } from "@/lib/planning";
+import { getReserves, getNegativeMonths, getDailyBudget, getReserveStatements } from "@/lib/planning";
 import { dailyBudget } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { sumCents, formatCents } from "@/lib/money";
@@ -32,11 +32,12 @@ async function getMonthLeftover(): Promise<number> {
 }
 
 export default async function ReservasPage() {
-  const [reserves, negativeMonths, budget, leftoverCents] = await Promise.all([
+  const [reserves, negativeMonths, budget, leftoverCents, statements] = await Promise.all([
     getReserves(),
     getNegativeMonths(),
     getDailyBudget(),
     getMonthLeftover(),
+    getReserveStatements(),
   ]);
   const totalCents = sumCents(reserves.map((r) => r.amountCents));
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
@@ -84,7 +85,12 @@ export default async function ReservasPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {reserves.map((r) => (
-            <ReserveCard key={r.id} reserve={r} leftoverCents={leftoverCents} />
+            <ReserveCard
+              key={r.id}
+              reserve={r}
+              leftoverCents={leftoverCents}
+              statement={statements[r.id] ?? { lines: [], check: { ok: false, differenceCents: r.amountCents } }}
+            />
           ))}
         </div>
       )}

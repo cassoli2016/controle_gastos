@@ -36,14 +36,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { ReserveStatementDialog } from "./ReserveStatementDialog";
+import type { StatementLine } from "@/lib/reserve-statement";
 
 export function ReserveCard({
   reserve,
   leftoverCents,
+  statement,
 }: {
   reserve: { id: string; name: string; amountCents: number };
   /** Sobra realizada do mês: informação para você decidir quanto guardar. */
   leftoverCents: number;
+  /** Extrato e a checagem contra o saldo registrado (lib/reserve-statement). */
+  statement: { lines: StatementLine[]; check: { ok: boolean; differenceCents: number } };
 }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateReserve, {});
   useActionToast(editState, { success: "Caixinha atualizada." });
@@ -91,6 +96,8 @@ export function ReserveCard({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <ReserveStatementDialog reserve={reserve} lines={statement.lines} check={statement.check} />
+
           <Dialog open={depositOpen} onOpenChange={setDepositOpen}>
             <DialogTrigger asChild>
               <Button type="button" variant="ghost" size="icon-sm" aria-label={`Depositar em ${reserve.name}`}>
@@ -202,6 +209,19 @@ export function ReserveCard({
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor={`reserve-amount-${reserve.id}`}>Valor guardado</Label>
                   <CurrencyInput id={`reserve-amount-${reserve.id}`} name="amount" defaultCents={reserve.amountCents} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor={`reserve-reason-${reserve.id}`}>Motivo da mudança</Label>
+                  <Input
+                    id={`reserve-reason-${reserve.id}`}
+                    name="reason"
+                    placeholder="ex.: rendimento do mês"
+                    maxLength={80}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mudar o valor cria uma linha no extrato com a diferença. Em branco, fica
+                    &ldquo;Ajuste manual&rdquo;.
+                  </p>
                 </div>
                 <DialogFooter>
                   <Button type="submit" disabled={editPending}>

@@ -220,11 +220,34 @@ model Passkey {
 }
 
 model ReserveBox {
-  id        String   @id @default(cuid())
-  name      String
-  amount    Decimal  @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
-  entries   MonthlyEntry[]
+  id          String   @id @default(cuid())
+  name        String
+  amount      Decimal  @db.Decimal(12, 2)
+  createdAt   DateTime @default(now())
+  entries     MonthlyEntry[]
+  adjustments ReserveAdjustment[]
+}
+
+/**
+ * Movimento de caixinha que NÃO passa pela conta corrente: saldo de abertura,
+ * rendimento, correção de digitação, conferência contra o extrato do banco.
+ *
+ * Não é MonthlyEntry de propósito. Depósito e retirada viram lançamento porque
+ * o dinheiro atravessa a conta; rendimento não atravessa nada — se virasse
+ * lançamento, o saldo de caixa do mês mostraria uma entrada ou saída que nunca
+ * existiu.
+ */
+model ReserveAdjustment {
+  id        String     @id @default(cuid())
+  box       ReserveBox @relation(fields: [boxId], references: [id], onDelete: Cascade)
+  boxId     String
+  date      DateTime   @db.Date
+  /** Diferença aplicada ao saldo: positiva soma, negativa tira. */
+  amount    Decimal    @db.Decimal(12, 2)
+  reason    String
+  createdAt DateTime   @default(now())
+
+  @@index([boxId, date])
 }
 
 // Reserva do dia a dia: teto diário de gasto variável (mercado, combustível,

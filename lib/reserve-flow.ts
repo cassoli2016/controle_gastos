@@ -23,6 +23,10 @@ export const RESERVE_WITHDRAWAL_CATEGORY = {
   isTransfer: true,
 } as const;
 
+/** Prefixos das descrições geradas por `depositEntryData`/`withdrawalEntryData`. */
+export const DEPOSIT_PREFIX = "Depósito · ";
+export const WITHDRAWAL_PREFIX = "Retirada · ";
+
 export type ReserveEntryData = {
   description: string;
   month: Date;
@@ -60,7 +64,7 @@ export function withdrawalEntryData(
 ): ReserveEntryData {
   const date = new Date(paidDateISO + "T00:00:00Z");
   return {
-    description: `Retirada · ${reserveName}`,
+    description: `${WITHDRAWAL_PREFIX}${reserveName}`,
     month: entryMonth,
     purchaseDate: date,
     plannedAmount: amount,
@@ -70,8 +74,6 @@ export function withdrawalEntryData(
   };
 }
 
-/** Prefixo das descrições geradas por `depositEntryData`. */
-export const DEPOSIT_PREFIX = "Depósito · ";
 
 /**
  * Caixinha a pré-selecionar ao guardar dinheiro: a do depósito mais recente.

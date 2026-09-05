@@ -14,6 +14,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.19.0",
+    date: "2026-09-04",
+    title: "Extrato da caixinha: dá para conferir com o banco",
+    items: [
+      "Cada caixinha ganhou um extrato (o ícone de lista no card, em Reservas): depósitos, retiradas e ajustes numa lista só, do mais recente para o mais antigo, com o saldo depois de cada linha. É a tela para abrir lado a lado com o app do banco.",
+      "As retiradas agora dizem o que pagaram — \"Pagamento de Bradesco Amazon\" no lugar de \"Retirada · Cristian Cassoli\", que só repetia o nome da própria caixinha.",
+      "No topo do extrato, a checagem: o app soma os movimentos e compara com o saldo guardado. Suas três caixinhas fecham certinho.",
+      "Mudar o valor da caixinha na mão deixou de ser invisível. Agora vira uma linha no extrato, com data e motivo — você escreve \"rendimento\" e no mês seguinte sabe de onde veio a diferença. Antes o número simplesmente mudava, e depois não havia como saber se foi rendimento, correção ou um depósito esquecido.",
+      "Seu saldo antigo virou a primeira linha de cada extrato, \"Saldo de abertura\" em 19/07/2026, com o que existia antes de o app registrar movimento: R$ 42.080,93 na Cristian Cassoli, R$ 10.260,79 na Turbo NuCel e R$ 10.330,70 na Turbo Ultravioleta. Agora o extrato fecha do primeiro dia até hoje.",
+      "E tem a conferência: você digita o saldo que a aplicação mostra hoje e o app lança a diferença como ajuste, com a data. De uma conferência para a outra, dá para ver quanto rendeu.",
+    ],
+  },
+  {
     version: "1.18.0",
     date: "2026-09-04",
     title: "Copiar o mês do ano passado parou de dobrar a diarista",
