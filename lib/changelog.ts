@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.5",
+    date: "2026-09-05",
+    title: "A compra parcelada da Associação Franciscana estava pela metade",
+    items: [
+      "Das 8 parcelas de R$ 31,00, só 4 estavam lançadas — faltavam a 2ª, a 4ª, a 5ª e a 7ª, R$ 124,00 que o planejamento não previa. Agora as oito estão lá, de outubro/2026 a maio/2027.",
+      "As que existiam também estavam um mês adiantadas: com a primeira parcela em outubro, a terceira tem que cair em dezembro, e não em novembro. Isso era efeito da correção do ciclo de ontem, que moveu a primeira parcela sem levar a fila junto.",
+      "O valor da sua fatura de novembro não muda: R$ 6.573,67, com uma parcela de R$ 31,00 da Franciscana — o que mudou foi o número dela, que agora é a 2ª de 8.",
+      "Conferi as outras 121 compras parceladas do Nubank: nenhuma tem parcela faltando no meio.",
+    ],
+  },
+  {
     version: "1.25.4",
     date: "2026-09-05",
     title: "Na importação, quem manda é o arquivo do banco",
