@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.22.0",
+    date: "2026-09-04",
+    title: "Fechar o mês: o resto vai para a caixinha",
+    items: [
+      "Botão \"Fechar o mês\" na tela do Mês, que aparece quando todas as contas já foram baixadas e ainda sobrou ou faltou dinheiro. Sobrou, ele guarda na caixinha; faltou, ele tira de lá. O mês passa a fechar em zero.",
+      "O motivo de isso ser preciso: o app não tem saldo de conta corrente, então cada mês começa do zero e o resto de um mês fechado fica pendurado para sempre. Julho aparece com R$ 270,00 sobrando (foi o mês em que você começou a usar o app: tem só o salário de R$ 1.150 e quatro diaristas) e agosto com R$ 476,18 faltando, meses depois de terem acabado.",
+      "Para mês antigo existe a opção \"o dinheiro já saiu (ou entrou) na conta de verdade\": o movimento entra no extrato da caixinha, mas o saldo dela continua o mesmo — porque você já fez a transferência no banco lá atrás. As duas linhas aparecem no extrato e explicam a história, em vez de o saldo mudar do nada.",
+      "O valor usado é o que de fato entrou e saiu da conta, contando depósitos e retiradas de caixinha. Um mês pode ter sobrado no papel e ainda assim ter deixado a conta negativa, se a sobra já foi guardada.",
+    ],
+  },
+  {
     version: "1.21.0",
     date: "2026-09-04",
     title: "Dashboard: o que vence, quanto rende e quanto custa cada categoria",

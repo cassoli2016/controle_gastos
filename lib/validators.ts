@@ -141,6 +141,14 @@ export const dailyBudgetSchema = z.object({
 });
 
 /** Depósito numa caixinha: vira lançamento de despesa já pago no mês da data. */
+/** Fechamento do mês: manda o resíduo para a caixinha ou tira dela. */
+export const monthCloseSchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/, "Mês inválido"),
+  reserveId: z.string().min(1, "Escolha a caixinha"),
+  /** "1" quando o dinheiro JÁ foi movido no banco e o saldo não deve mudar. */
+  alreadyMoved: z.coerce.boolean().optional(),
+});
+
 /** Edição manual do saldo: o motivo vira a descrição da linha no extrato. */
 export const reserveAdjustSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),

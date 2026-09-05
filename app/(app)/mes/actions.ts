@@ -4,15 +4,25 @@ import { guardAction } from "@/lib/action-guard";
 import { z } from "zod";
 import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
-import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema, incomeSchema } from "@/lib/validators";
+import { entryUpsertSchema, markPaidSchema, applyRangeSchema, purchaseSchema, transferSchema, incomeSchema, monthCloseSchema } from "@/lib/validators";
 import { monthToDate, monthRange, monthStringFromDate } from "@/lib/dates";
 import { adjustedCents, anniversariesBetween } from "@/lib/adjustment";
 import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId, resolveCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
-import { nthBusinessDay } from "@/lib/fatura";
+import { nthBusinessDay, todayISOInSaoPaulo } from "@/lib/fatura";
 import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth, weeklyGroupAlreadyIn, type WeeklyEntryInput } from "@/lib/recurrence";
-import { RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData, reserveReversal } from "@/lib/reserve-flow";
+import {
+  RESERVE_CATEGORY,
+  RESERVE_WITHDRAWAL_CATEGORY,
+  withdrawalEntryData,
+  depositEntryData,
+  reserveReversal,
+} from "@/lib/reserve-flow";
+import { monthCloseState, closeDateFor } from "@/lib/month-close";
+import { getDailyBudget } from "@/lib/planning";
+import { dailyBudgetLine } from "@/lib/daily-budget";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 
 // Schemas locais: validam os formulários de excluir lançamento e
 // editar/excluir parcelamento (os compartilhados vivem em lib/validators.ts).
@@ -777,4 +787,102 @@ export const updateEntryValue = guardAction(async function updateEntryValue(_pre
   });
   revalidateFinance();
   return { ok: true };
+});
+
+/**
+ * Fecha o mês: o que sobrou vai para a caixinha, o que faltou vem dela, e o
+ * mês passa a bater em zero.
+ *
+ * O resíduo é recalculado AQUI, nunca aceito do formulário: entre abrir a tela
+ * e clicar, uma baixa pode ter mudado o número.
+ *
+ * `alreadyMoved` cobre o mês antigo, em que o dinheiro já andou no banco e o
+ * saldo da caixinha já reflete: o par (lançamento + movimento) é criado
+ * igual, e um ajuste contrário devolve o saldo ao que era. As duas linhas se
+ * cancelam no total e explicam a história no extrato — melhor do que um saldo
+ * que muda sem motivo aparente.
+ */
+export const closeMonth = guardAction(async function closeMonth(_prevState: ActionState, formData: FormData): Promise<ActionState> {
+  const parsed = monthCloseSchema.safeParse({
+    month: formData.get("month"),
+    reserveId: formData.get("reserveId"),
+    alreadyMoved: formData.get("alreadyMoved") ?? undefined,
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { month, reserveId, alreadyMoved } = parsed.data;
+
+  const monthDate = monthToDate(month);
+  const rows = await prisma.monthlyEntry.findMany({
+    where: { month: monthDate },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  const budget = await getDailyBudget();
+  const today = todayISOInSaoPaulo();
+  const derived =
+    budget && rows.length > 0 ? [dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))] : [];
+  const state = monthCloseState(rows.map((r) => toEntryView(r as never)), derived);
+
+  if (state.openCount > 0) return { error: `Ainda há ${state.openCount} conta(s) sem baixa neste mês.` };
+  if (!state.canClose) return { error: "Este mês já fecha em zero." };
+
+  const box = await prisma.reserveBox.findUnique({ where: { id: reserveId } });
+  if (!box) return { error: "Caixinha não encontrada." };
+
+  const dateISO = closeDateFor(month, today);
+  const amountCents = Math.abs(state.residualCents);
+  const amount = centsToNumber(amountCents);
+  const reason = `Fechamento de ${month} já refletido no saldo`;
+
+  if (state.direction === "deposit") {
+    const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
+    await prisma.$transaction(async (tx) => {
+      await tx.reserveBox.update({ where: { id: reserveId }, data: { amount: { increment: amount } } });
+      await tx.monthlyEntry.create({
+        data: {
+          categoryId,
+          reserveBoxId: reserveId,
+          ...depositEntryData(box.name, amount, dateISO),
+          // A competência é o mês FECHADO, não o mês da data: depositEntryData
+          // deriva a competência da data, e um fechamento datado fora do mês
+          // (mês futuro, ou fechado com atraso) cairia na competência errada —
+          // o mês continuaria com resíduo e o dinheiro apareceria noutro.
+          month: monthDate,
+        },
+      });
+      if (alreadyMoved) {
+        await tx.reserveBox.update({ where: { id: reserveId }, data: { amount: { decrement: amount } } });
+        await tx.reserveAdjustment.create({
+          data: { boxId: reserveId, date: new Date(dateISO + "T00:00:00Z"), amount: -amount, reason },
+        });
+      }
+    });
+  } else {
+    const categoryId = await resolveCategoryId(RESERVE_WITHDRAWAL_CATEGORY);
+    const ok = await prisma.$transaction(async (tx) => {
+      // Mesmo decremento condicional do pagamento pela caixinha (TOCTOU).
+      const { count } = await tx.reserveBox.updateMany({
+        where: { id: reserveId, amount: { gte: amount } },
+        data: { amount: { decrement: amount } },
+      });
+      if (count === 0) return false;
+      await tx.monthlyEntry.create({
+        data: {
+          categoryId,
+          reserveBoxId: reserveId,
+          ...withdrawalEntryData(box.name, amount, monthDate, dateISO),
+        },
+      });
+      if (alreadyMoved) {
+        await tx.reserveBox.update({ where: { id: reserveId }, data: { amount: { increment: amount } } });
+        await tx.reserveAdjustment.create({
+          data: { boxId: reserveId, date: new Date(dateISO + "T00:00:00Z"), amount, reason },
+        });
+      }
+      return true;
+    });
+    if (!ok) return { error: "Saldo insuficiente na caixinha." };
+  }
+
+  revalidateFinance();
+  return { ok: true, count: state.residualCents };
 });
