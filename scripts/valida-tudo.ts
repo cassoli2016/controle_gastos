@@ -36,10 +36,7 @@ async function main() {
   // ───────────────────────────────── 1. Cartões: configuração ──────────────
   console.log("\n[1] Configuração dos cartões");
   const cards = await prisma.creditCard.findMany({ where: { active: true } });
-  // closingDay = ÚLTIMO dia que ainda entra na fatura. O Nubank é cadastrado
-  // com 3, e não 4, porque a fatura que vence dia 12 já inclui as compras do
-  // dia 4 — comprovado pelo CSV de 12/10/2026 (ver lib/fatura.ts).
-  const expectCfg: Record<string, [number, number]> = { nubank: [3, 12], bradesco: [27, 10] };
+  const expectCfg: Record<string, [number, number]> = { nubank: [4, 12], bradesco: [27, 10] };
   for (const c of cards) {
     const key = Object.keys(expectCfg).find((k) => c.name.toLowerCase().includes(k));
     if (!key) {
