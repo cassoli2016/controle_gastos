@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.3",
+    date: "2026-09-05",
+    title: "A fatura do Nubank de outubro estava R$ 608,84 menor",
+    items: [
+      "O arquivo da fatura que vence em 12/10 traz compras de 04/09 e de 05/09. O app entendia que o dia 4 ainda pertencia à fatura de setembro (porque o Nubank fecha dia 4) e mandava 7 compras para o mês errado: Abastece Aí R$ 345,44, três compras no Festval, Raia, Ec Melimais e uma parcela da Associação Franciscana, somando exatamente R$ 608,84.",
+      "No Nubank o dia do fechamento já conta na fatura NOVA. As 7 compras foram para outubro e as duas faturas passaram a bater com o arquivo: setembro R$ 22.353,28 — o mesmo valor do \"Pagamento recebido\" que o próprio CSV registra — e outubro R$ 8.442,50.",
+      "O campo de fechamento do cartão agora explica o que preencher: o último dia que ainda entra na fatura. Para bancos que contam o dia do fechamento na fatura nova, informe o dia anterior. O Nubank passou de 4 para 3, e o Bradesco não foi tocado.",
+    ],
+  },
+  {
     version: "1.25.2",
     date: "2026-09-05",
     title: "Importação de fatura parou de comer compras repetidas",
