@@ -129,3 +129,38 @@ export function parseCardCsv(content: string): CsvParseResult {
   }
   return result;
 }
+
+/** Linha de fatura na forma mínima para comparar arquivo × banco. */
+export type MergeRow = { description: string; amountCents: number; dateISO?: string };
+
+/** Compra é a mesma quando coincidem descrição, valor E dia. */
+const mergeKey = (r: MergeRow) => `${r.description}|${r.amountCents}|${r.dateISO ?? ""}`;
+
+/**
+ * O que do arquivo ainda falta gravar, comparando por MULTIPLICIDADE.
+ *
+ * A importação antes perguntava "já existe uma linha assim?" e pulava se
+ * existisse. Isso reimportava sem duplicar, mas comia compra legítima
+ * repetida: dois cafés de R$ 12 no mesmo lugar e no mesmo dia são duas
+ * compras, e a segunda sumia em silêncio. Numa fatura de outubro faltaram
+ * R$ 608,84 assim.
+ *
+ * Contando quantas cópias o arquivo traz e quantas o banco já tem, reimportar
+ * continua não duplicando e nenhuma compra se perde.
+ */
+export function rowsToInsert<T extends MergeRow>(fileRows: T[], existingRows: MergeRow[]): T[] {
+  const disponivel = new Map<string, number>();
+  for (const e of existingRows) {
+    const k = mergeKey(e);
+    disponivel.set(k, (disponivel.get(k) ?? 0) + 1);
+  }
+  const out: T[] = [];
+  for (const r of fileRows) {
+    const k = mergeKey(r);
+    const jaTem = disponivel.get(k) ?? 0;
+    // Cada linha do banco "absorve" uma do arquivo; o resto entra.
+    if (jaTem > 0) disponivel.set(k, jaTem - 1);
+    else out.push(r);
+  }
+  return out;
+}

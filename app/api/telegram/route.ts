@@ -6,7 +6,7 @@ import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@
 import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
-import { parseCardCsv } from "@/lib/csv-import";
+import { parseCardCsv, rowsToInsert } from "@/lib/csv-import";
 import { parseReserveCommand, buildDepositReply, type ReserveCommand } from "@/lib/reserve-parse";
 import { parseRefundCommand, refundDescription } from "@/lib/refund-parse";
 import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
@@ -311,30 +311,33 @@ async function handleCsvDocument(
       totalsByMonth.set(month, totalCents);
       continue;
     }
-    let added = 0;
-    for (const row of monthRows) {
-      const purchaseDate = row.dateISO ? new Date(row.dateISO + "T00:00:00Z") : null;
-      const existing = await prisma.cardTransaction.findFirst({
-        where: {
+    // Compara por MULTIPLICIDADE, não por existência: perguntar "já existe uma
+    // linha assim?" reimportava sem duplicar, mas comia compra legítima
+    // repetida — dois cafés iguais no mesmo dia viravam um. Ver rowsToInsert.
+    const jaNoBanco = await prisma.cardTransaction.findMany({
+      where: { cardId: card.id, month: monthToDate(month) },
+      select: { description: true, amount: true, purchaseDate: true },
+    });
+    const faltando = rowsToInsert(
+      monthRows,
+      jaNoBanco.map((t) => ({
+        description: t.description,
+        amountCents: decimalToCents(String(t.amount)),
+        dateISO: t.purchaseDate?.toISOString().slice(0, 10),
+      })),
+    );
+    if (faltando.length > 0) {
+      await prisma.cardTransaction.createMany({
+        data: faltando.map((row) => ({
           cardId: card.id,
           month: monthToDate(month),
           description: row.description,
-          purchaseDate,
           amount: centsToNumber(row.amountCents),
-        },
+          purchaseDate: row.dateISO ? new Date(row.dateISO + "T00:00:00Z") : null,
+        })),
       });
-      if (existing) continue;
-      await prisma.cardTransaction.create({
-        data: {
-          cardId: card.id,
-          month: monthToDate(month),
-          description: row.description,
-          amount: centsToNumber(row.amountCents),
-          purchaseDate,
-        },
-      });
-      added++;
     }
+    const added = faltando.length;
     const agg = await prisma.cardTransaction.aggregate({
       where: { cardId: card.id, month: monthToDate(month) },
       _sum: { amount: true },
@@ -356,7 +359,14 @@ async function handleCsvDocument(
   if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s) de fatura ignorado(s).`;
   if (failed > 0) msg += `\n⚠️ ${failed} linha(s) não entendida(s).`;
   for (const [month, added] of addedByMonth) {
-    msg += `\nℹ️ ${fmtMonth(month)}: ${added} lançamento(s) acrescentado(s) sem mexer no resto (fatura de outro ciclo).`;
+    // Diz também quantas já estavam lá: pular em silêncio foi o que escondeu
+    // R$ 608,84 numa fatura de outubro.
+    const noArquivo = rowsByMonth.get(month)!.length;
+    const jaTinha = noArquivo - added;
+    msg +=
+      `\nℹ️ ${fmtMonth(month)}: ${added} de ${noArquivo} lançamento(s) acrescentado(s) sem mexer no resto` +
+      (jaTinha > 0 ? ` (${jaTinha} já estava(m) lá)` : "") +
+      ` — fatura de outro ciclo.`;
   }
   await reply(chatId, msg);
 }
