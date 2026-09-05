@@ -1,6 +1,6 @@
 import { Inbox } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { monthToDate, sanitizeMonth } from "@/lib/dates";
+import { monthToDate, sanitizeMonth, formatCompetencia } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
@@ -21,6 +21,8 @@ import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
 import { SaveLeftoverDialog } from "./SaveLeftoverDialog";
 import { MoreActions } from "./MoreActions";
+import { CloseMonthDialog } from "./CloseMonthDialog";
+import { monthCloseState } from "@/lib/month-close";
 import { lastUsedReserveId, DEPOSIT_PREFIX } from "@/lib/reserve-flow";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
 import { parseHidePaid } from "@/lib/month-filter";
@@ -127,6 +129,11 @@ export default async function MesPage({
       ]
     : realViews;
 
+  const closeState = monthCloseState(
+    realViews,
+    budgetLine ? [dailyBudgetEntryView(budgetLine)] : [],
+  );
+
   // Fluxo diário usa realViews + reserva à parte — `views` duplicaria a linha derivada.
   const cashflow = dailyCashflow(realViews, month, today, budgetLine ? { perDayCents: budgetLine.perDayCents } : null);
   const todayDay = month === today.slice(0, 7) ? Number(today.slice(8, 10)) : null;
@@ -156,6 +163,18 @@ export default async function MesPage({
               categories={categories.map((c) => ({ id: c.id, name: c.name }))}
             />
             <IncomeDialog />
+            {/* Fora do "Mais ações" de propósito: só aparece quando o mês está
+                todo baixado e ainda sobra ou falta algo — e aí é a ação que
+                importa na tela. */}
+            {closeState.canClose && (
+              <CloseMonthDialog
+                month={month}
+                monthLabel={formatCompetencia(monthDate)}
+                residualCents={closeState.residualCents}
+                reserves={reserveOptions}
+                defaultReserveId={lastUsedReserveId(depositDescriptions, reserveOptions)}
+              />
+            )}
           </div>
           <MoreActions>
             <SaveLeftoverDialog
