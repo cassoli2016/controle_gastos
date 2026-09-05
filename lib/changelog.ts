@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.0",
+    date: "2026-09-04",
+    title: "Teto do cartão e a fatura que está se formando",
+    items: [
+      "Card novo no topo do Dashboard: \"Fatura em formação\", com a próxima fatura de cada cartão contra o teto que você definir. Hoje ele mostra o Nubank com R$ 7.735,35 de R$ 9.000,00 (86% usado, restam R$ 1.264,65) e o Bradesco Amazon já R$ 67,85 acima do teto — e outubro mal começou.",
+      "Antes você só descobria o tamanho da fatura quando ela fechava, e aí não dava mais para mudar nada. A barra fica verde, âmbar a partir de 80% e vermelha quando passa.",
+      "O teto conta a fatura inteira, parcelas antigas incluídas: elas ocupam o mesmo espaço que as compras novas, e ignorá-las mostraria uma folga que não existe.",
+      "O campo do cartão virou \"Teto mensal de gastos\" e serve para as duas coisas — acompanhar o ciclo em formação e completar a previsão dos meses futuros, que só têm as parcelas já lançadas.",
+      "A fatura acompanhada é sempre a do mês seguinte: a do mês corrente já fechou, e para ela não há mais decisão a tomar.",
+    ],
+  },
+  {
     version: "1.24.0",
     date: "2026-09-04",
     title: "O saldo dos meses futuros parou de mentir",

@@ -17,7 +17,7 @@ import { budgetLines } from "@/lib/budget";
 import { patrimonyProjection } from "@/lib/patrimony";
 import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
-import { cardEstimateLines } from "@/lib/card-estimate";
+import { cardEstimateLines, cardCycleStatus } from "@/lib/card-estimate";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -139,6 +139,11 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     estimateCents: c.monthlyEstimate === null ? null : decimalToCents(String(c.monthlyEstimate)),
   }));
 
+  // Próximo ciclo de cada cartão contra o teto: é a fatura que ainda dá para
+  // mudar. Reusa o consolidado por competência já calculado acima.
+  const nextCycleMonth = chartMonths[1];
+  const cycles = cardCycleStatus(estimateCards, month, bookedByMonthCard.get(nextCycleMonth) ?? {});
+
   const monthlyViews = chartMonths.map((m) => {
     const base = viewsByMonth.get(m) ?? [];
     const estimadas = cardEstimateLines(estimateCards, m, month, bookedByMonthCard.get(m) ?? {}).map(
@@ -253,6 +258,44 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       {/* items-start: cada card fica com a altura do próprio conteúdo. Sem
           isso, "Renovações" sem renovação nenhuma esticava para acompanhar o
           card ao lado — 190px para uma frase. */}
+      {cycles.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCardIcon className="size-4 text-muted-foreground" />
+              Fatura em formação · {formatCompetencia(monthToDate(nextCycleMonth))}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {cycles.map((c) => (
+              <div key={c.cardId} className="space-y-1.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                  <span className="font-medium">{c.name}</span>
+                  <span className="tabular-nums">
+                    {formatCents(c.bookedCents)}
+                    <span className="text-muted-foreground"> de {formatCents(c.limitCents)}</span>
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      c.pct >= 100 ? "bg-rose-500" : c.pct >= 80 ? "bg-amber-500" : "bg-emerald-500",
+                    )}
+                    style={{ width: `${Math.min(100, c.pct)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {c.remainingCents === 0
+                    ? `Passou do teto em ${formatCents(c.bookedCents - c.limitCents)} (${c.pct}%)`
+                    : `Restam ${formatCents(c.remainingCents)} até o teto · ${c.pct}% usado`}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex items-center justify-between gap-2">

@@ -210,16 +210,16 @@ export function CardRow({ card }: { card: Card }) {
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor={`edit-card-estimate-${card.id}`}>Gasto mensal estimado (opcional)</Label>
+              <Label htmlFor={`edit-card-estimate-${card.id}`}>Teto mensal de gastos (opcional)</Label>
               <CurrencyInput
                 id={`edit-card-estimate-${card.id}`}
                 name="monthlyEstimate"
                 defaultCents={card.monthlyEstimateCents ?? 0}
               />
               <p className="text-xs text-muted-foreground">
-                Quanto você costuma gastar por mês neste cartão. A fatura de um mês distante só tem as
-                parcelas já lançadas, e sem isso o saldo daqueles meses parece sobrar. O app completa a
-                diferença até esta estimativa e ela some quando a fatura real chega.
+                Quanto você planeja gastar por mês neste cartão. Serve para duas coisas: acompanhar a
+                fatura em formação no Dashboard e completar a previsão dos meses futuros, que só têm as
+                parcelas já lançadas e por isso pareciam sobrar dinheiro.
               </p>
             </div>
             <div className="flex items-center gap-2">
