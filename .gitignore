@@ -50,3 +50,6 @@ next-env.d.ts
 
 # e2e
 /e2e/.auth
+
+# backups de scripts de limpeza (dados reais — nunca commitar)
+/backups/

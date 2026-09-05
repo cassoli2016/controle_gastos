@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.22.1",
+    date: "2026-09-04",
+    title: "As diaristas repetidas de 2027 a 2029 saíram",
+    items: [
+      "Nove meses de 2027 a 2029 tinham cada visita da diarista lançada duas vezes — o mês cobrava R$ 3.960 em vez de R$ 1.980. Saíram 78 lançamentos, R$ 17.160 no total, e cada um desses meses voltou a ter uma diarista por data, igual aos outros 33.",
+      "Sua cadência de 2x por semana sempre esteve certa: o problema era que duas séries semanais conviviam no mesmo mês, a que vale e uma antiga que deveria ter parado em junho/2027. A causa foi corrigida na versão anterior; isto limpou o que já estava lançado.",
+      "Nenhuma das linhas removidas estava paga e todas eram de meses futuros — nada de histórico foi tocado. O conteúdo delas foi salvo antes, em backups/, e dá para restaurar tudo com um comando se precisar.",
+    ],
+  },
+  {
     version: "1.22.0",
     date: "2026-09-04",
     title: "Fechar o mês: o resto vai para a caixinha",
