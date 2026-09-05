@@ -141,6 +141,19 @@ export const dailyBudgetSchema = z.object({
 });
 
 /** Depósito numa caixinha: vira lançamento de despesa já pago no mês da data. */
+/** Edição manual do saldo: o motivo vira a descrição da linha no extrato. */
+export const reserveAdjustSchema = z.object({
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  amount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
+  reason: z.string().trim().max(80, "Motivo muito longo").optional(),
+});
+
+/** Conferência contra o extrato do banco: você informa o saldo que existe. */
+export const reserveReconcileSchema = z.object({
+  id: z.string().min(1, "Caixinha inválida"),
+  realAmount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
+});
+
 export const depositSchema = z.object({
   id: z.string().min(1, "Caixinha inválida"),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
