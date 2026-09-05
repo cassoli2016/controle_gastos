@@ -36,3 +36,16 @@ describe("pickFaturaMonth", () => {
     expect(pickFaturaMonth(new Map([["2026-09", [1]]]))).toBe("2026-09");
   });
 });
+
+describe("pickFaturaMonth — caso do CSV de 12/10/2026", () => {
+  it("o dia partido não desloca a fatura: vence o mês com mais linhas", () => {
+    // Nubank_20261012.csv: 64 compras de 05/09 (→ out) e 7 de 04/09 (→ set,
+    // pela data). Todas pertencem à fatura de outubro; o corte intradiário do
+    // banco é que deixa o dia 4 dos dois lados.
+    const m = new Map<string, unknown[]>([
+      ["2026-09", new Array(7).fill(0)],
+      ["2026-10", new Array(64).fill(0)],
+    ]);
+    expect(pickFaturaMonth(m)).toBe("2026-10");
+  });
+});

@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.4",
+    date: "2026-09-05",
+    title: "Na importação, quem manda é o arquivo do banco",
+    items: [
+      "Um CSV é sempre de UMA fatura, mas o app decidia lançamento por lançamento pela data — e o dia do fechamento fica partido entre duas faturas, porque o banco corta numa hora, não à meia-noite. Foi assim que 7 compras do dia 04/09, R$ 608,84, foram parar na fatura de setembro, que já estava fechada e paga.",
+      "Agora todas as linhas do arquivo entram na fatura dele. A data continua servindo para o app descobrir de que fatura é o arquivo, e só para isso.",
+      "O dia de fechamento do Nubank voltou para 4, como estava. Eu tinha mudado para 3 na versão anterior tentando resolver isso pela data — mas nenhum dia de fechamento resolve um corte que acontece no meio do dia, e a mudança quebraria o lançamento das parcelas.",
+      "As duas faturas seguem corretas: setembro R$ 22.353,28 e outubro R$ 8.442,50.",
+    ],
+  },
+  {
     version: "1.25.3",
     date: "2026-09-05",
     title: "A fatura do Nubank de outubro estava R$ 608,84 menor",

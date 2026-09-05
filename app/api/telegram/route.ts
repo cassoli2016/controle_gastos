@@ -6,7 +6,7 @@ import { parseNubankShares, isNubankShareFormat, type ShareParseResult } from "@
 import { extractReceiptFromImage, buildBotText } from "@/lib/receipt-vision";
 import { isHelpCommand } from "@/lib/telegram-help";
 import { parseBradescoSms, isBradescoSmsFormat } from "@/lib/bradesco-sms";
-import { parseCardCsv, rowsToInsert } from "@/lib/csv-import";
+import { parseCardCsv } from "@/lib/csv-import";
 import { parseReserveCommand, buildDepositReply, type ReserveCommand } from "@/lib/reserve-parse";
 import { parseRefundCommand, refundDescription } from "@/lib/refund-parse";
 import { RESERVE_CATEGORY } from "@/lib/reserve-flow";
@@ -23,7 +23,6 @@ import {
   addRefundToCard,
   cardTargetMonth,
   replaceCardMonth,
-  upsertCardEntry,
   type CardRef,
   type CardMonthRow,
 } from "@/lib/card-entry";
@@ -35,7 +34,7 @@ import { createWeekdayRecurrence, findActiveItemByName } from "@/lib/recurrence"
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { parseB3Report, type B3Trade } from "@/lib/b3-report";
 import { applyB3Trades, applyB3Incomes, applyB3Provisioned } from "@/lib/b3-import";
-import { decimalToCents, centsToNumber } from "@/lib/money";
+import { decimalToCents } from "@/lib/money";
 import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
@@ -296,78 +295,37 @@ async function handleCsvDocument(
     rowsByMonth.set(month, list);
   }
 
-  const months = [...rowsByMonth.keys()].sort();
-  // Um CSV é de UMA fatura: só o mês majoritário pode ser substituído. Nos
-  // outros, o corte intradiário do banco deixou resíduo — e aquele mês pode ser
-  // uma fatura já fechada, que o replace apagaria inteira.
+  // O ARQUIVO manda: um CSV é de uma fatura só, e todas as suas linhas
+  // pertencem a ela. Rotear linha a linha pela data espalhava o dia do
+  // fechamento entre duas competências — o banco corta numa hora, não à
+  // meia-noite (docs/fatura-nubank.md), e nenhum closingDay resolve isso. Foi
+  // assim que 7 compras de 04/09, R$ 608,84, foram parar na fatura de setembro,
+  // que já estava fechada e paga.
+  //
+  // O roteamento por data continua servindo para ESCOLHER de que fatura é o
+  // arquivo (o mês majoritário), e só para isso.
   const target = pickFaturaMonth(rowsByMonth)!;
-  const totalsByMonth = new Map<string, number>();
-  const addedByMonth = new Map<string, number>();
-
-  for (const month of months) {
-    const monthRows = rowsByMonth.get(month)!;
-    if (month === target) {
-      const { totalCents } = await replaceCardMonth(card, month, monthRows);
-      totalsByMonth.set(month, totalCents);
-      continue;
-    }
-    // Compara por MULTIPLICIDADE, não por existência: perguntar "já existe uma
-    // linha assim?" reimportava sem duplicar, mas comia compra legítima
-    // repetida — dois cafés iguais no mesmo dia viravam um. Ver rowsToInsert.
-    const jaNoBanco = await prisma.cardTransaction.findMany({
-      where: { cardId: card.id, month: monthToDate(month) },
-      select: { description: true, amount: true, purchaseDate: true },
-    });
-    const faltando = rowsToInsert(
-      monthRows,
-      jaNoBanco.map((t) => ({
-        description: t.description,
-        amountCents: decimalToCents(String(t.amount)),
-        dateISO: t.purchaseDate?.toISOString().slice(0, 10),
-      })),
-    );
-    if (faltando.length > 0) {
-      await prisma.cardTransaction.createMany({
-        data: faltando.map((row) => ({
-          cardId: card.id,
-          month: monthToDate(month),
-          description: row.description,
-          amount: centsToNumber(row.amountCents),
-          purchaseDate: row.dateISO ? new Date(row.dateISO + "T00:00:00Z") : null,
-        })),
-      });
-    }
-    const added = faltando.length;
-    const agg = await prisma.cardTransaction.aggregate({
-      where: { cardId: card.id, month: monthToDate(month) },
-      _sum: { amount: true },
-    });
-    const totalCents = agg._sum.amount ? decimalToCents(String(agg._sum.amount)) : 0;
-    await upsertCardEntry({ card, month, amountCents: totalCents, mode: "set" });
-    totalsByMonth.set(month, totalCents);
-    addedByMonth.set(month, added);
-  }
+  const todas: CardMonthRow[] = rows.map((row) => ({
+    description: row.description,
+    amountCents: Math.round(row.amountReais * 100),
+    dateISO: row.date,
+  }));
+  const { totalCents } = await replaceCardMonth(card, target, todas);
 
   revalidateFinance();
 
-  const parts = months.map((m) => {
-    return `${fmtMonth(m)} — ${formatCents(totalsByMonth.get(m)!)} (${rowsByMonth.get(m)!.length} lançamentos)`;
-  });
   const estornos = rows.filter((r) => r.amountReais < 0).length;
-  let msg = `✅ Fatura ${card.name} atualizada:\n${parts.map((p) => `• ${p}`).join("\n")}`;
+  let msg =
+    `✅ Fatura ${card.name} de ${fmtMonth(target)}: ${formatCents(totalCents)} ` +
+    `(${todas.length} lançamentos do arquivo)`;
+  // Quantas linhas o roteamento por data teria mandado para outro mês: é o dia
+  // do fechamento partido pelo banco, e vale dizer que elas entraram aqui.
+  const foraDoAlvo = todas.length - (rowsByMonth.get(target)?.length ?? 0);
+  if (foraDoAlvo > 0)
+    msg += `\nℹ️ ${foraDoAlvo} lançamento(s) do dia do fechamento entraram nesta fatura (é o arquivo que manda).`;
   if (estornos > 0) msg += `\n↩️ ${estornos} estorno(s) abatido(s) do total.`;
   if (ignored > 0) msg += `\nℹ️ ${ignored} pagamento(s) de fatura ignorado(s).`;
   if (failed > 0) msg += `\n⚠️ ${failed} linha(s) não entendida(s).`;
-  for (const [month, added] of addedByMonth) {
-    // Diz também quantas já estavam lá: pular em silêncio foi o que escondeu
-    // R$ 608,84 numa fatura de outubro.
-    const noArquivo = rowsByMonth.get(month)!.length;
-    const jaTinha = noArquivo - added;
-    msg +=
-      `\nℹ️ ${fmtMonth(month)}: ${added} de ${noArquivo} lançamento(s) acrescentado(s) sem mexer no resto` +
-      (jaTinha > 0 ? ` (${jaTinha} já estava(m) lá)` : "") +
-      ` — fatura de outro ciclo.`;
-  }
   await reply(chatId, msg);
 }
 

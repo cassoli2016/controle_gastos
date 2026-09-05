@@ -25,11 +25,13 @@ export function faturaMonth(dateISO: string, closingDay: number, dueDay?: number
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
   // Passo 1: qual ciclo captura a compra — o do próprio mês se ela veio até o
-  // fechamento, senão o do mês seguinte. `closingDay` é o ÚLTIMO dia que ainda
-  // entra na fatura: bancos que já contam o dia do fechamento no ciclo NOVO
-  // devem ser cadastrados com o dia anterior. Foi o caso do Nubank — a fatura
-  // que venceu em 12/10/2026 trazia compras de 04/09, e com closingDay=4 elas
-  // caíam na fatura de setembro (R$ 608,84 no lugar errado).
+  // fechamento, senão o do mês seguinte.
+  //
+  // O dia do fechamento fica PARTIDO entre duas faturas (o banco corta numa
+  // hora, não à meia-noite), e nenhum valor de closingDay resolve isso — ver
+  // docs/fatura-nubank.md. Por isso esta função é uma aproximação para lançar
+  // compra avulsa; quando existe arquivo do banco, quem manda é ele: todas as
+  // linhas de um CSV pertencem à fatura daquele arquivo.
   // Passo 2: em que mês esse ciclo vence — vencimento <= fechamento significa
   // pagar no mês seguinte ao fechamento (uma fatura não fecha e vence no mesmo
   // dia).

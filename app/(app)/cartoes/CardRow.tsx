@@ -182,9 +182,8 @@ export function CardRow({ card }: { card: Card }) {
                 className="w-24"
               />
               <p className="text-xs text-muted-foreground">
-                Último dia que ainda entra nesta fatura — compra a partir do dia seguinte vai para a
-                próxima. Se o seu banco já conta o dia do fechamento na fatura nova (o Nubank conta),
-                informe o dia anterior.
+                Compra após o fechamento entra na fatura seguinte. Serve para lançamento avulso: na
+                importação do arquivo do banco, quem manda é o próprio arquivo.
               </p>
             </div>
             <div className="flex flex-col gap-1.5">
