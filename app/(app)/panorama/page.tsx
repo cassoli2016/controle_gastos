@@ -19,11 +19,6 @@ import {
   type MatrixRow,
 } from "@/lib/matrix";
 import { parseHidePaid } from "@/lib/month-filter";
-import {
-  cardEstimateLines,
-  CARD_ESTIMATE_CATEGORY,
-  CARD_ESTIMATE_ENTRY_PREFIX,
-} from "@/lib/card-estimate";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
@@ -69,12 +64,11 @@ export default async function PanoramaPage({
     return qs ? `/panorama?${qs}` : "/panorama";
   };
 
-  const [rows, budget, activeCards] = await Promise.all([
+  const [rows, budget] = await Promise.all([
     prisma.monthlyEntry.findMany({
       include: { item: { include: { category: true } }, category: true, card: true },
     }),
     getDailyBudget(),
-    prisma.creditCard.findMany({ where: { active: true }, select: { id: true, name: true, monthlyEstimate: true } }),
   ]);
 
   const entries: MatrixEntry[] = rows.map((r) => {
@@ -108,37 +102,6 @@ export default async function PanoramaPage({
         cents: l.cents,
         paid: false,
         entryId: `${DAILY_BUDGET_ENTRY_ID}-${monthISO}`,
-        kind: "budget",
-      });
-    }
-  }
-
-  // Provisão de compras no cartão, pelos mesmos números do Dashboard: sem ela
-  // as competências distantes só teriam as parcelas já lançadas e o Panorama
-  // discordaria do gráfico de saldo mensal.
-  const bookedByMonthCard = new Map<string, Record<string, number>>();
-  for (const r of rows) {
-    if (r.cardId === null || r.purchaseDate !== null) continue;
-    const key = monthStringFromDate(r.month);
-    const bucket = bookedByMonthCard.get(key) ?? {};
-    bucket[r.cardId] = (bucket[r.cardId] ?? 0) + decimalToCents(String(r.plannedAmount));
-    bookedByMonthCard.set(key, bucket);
-  }
-  const estimateCards = activeCards.map((c) => ({
-    id: c.id,
-    name: c.name,
-    estimateCents: c.monthlyEstimate === null ? null : decimalToCents(String(c.monthlyEstimate)),
-  }));
-  for (const monthISO of new Set(entries.map((e) => e.monthISO))) {
-    for (const l of cardEstimateLines(estimateCards, monthISO, currentMonth, bookedByMonthCard.get(monthISO) ?? {})) {
-      entries.push({
-        line: l.line,
-        categoryName: CARD_ESTIMATE_CATEGORY,
-        categoryType: "EXPENSE",
-        monthISO,
-        cents: l.cents,
-        paid: false,
-        entryId: `${CARD_ESTIMATE_ENTRY_PREFIX}${l.cardId}-${monthISO}`,
         kind: "budget",
       });
     }

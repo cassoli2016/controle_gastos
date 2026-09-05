@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.1",
+    date: "2026-09-04",
+    title: "As compras estimadas saíram da previsão",
+    items: [
+      "A linha de compras estimadas que a v1.24.0 acrescentava aos meses futuros foi removida. Ela deixava todos os meses no vermelho porque contava duas vezes o mesmo gasto: a reserva do dia a dia (R$ 135 por dia, R$ 4.185 no mês) já cobre mercado, restaurante e combustível — que somaram R$ 6.591,48 na fatura de setembro e também entravam na estimativa do cartão.",
+      "O gráfico de saldo mensal voltou ao que mostrava antes: setembro e outubro no vermelho, os demais no azul.",
+      "O teto por cartão continua, e agora serve só para o que você pediu — o card \"Fatura em formação\" no Dashboard, que compara a próxima fatura com o teto enquanto ainda dá para mudar o rumo.",
+      "Fica valendo o que a conta mostrou: com R$ 30.833 de receita e R$ 20.056,59 de contas fixas, sobram R$ 10.776,41 para o cartão, e a média das faturas é R$ 21.776,49.",
+    ],
+  },
+  {
     version: "1.25.0",
     date: "2026-09-04",
     title: "Teto do cartão e a fatura que está se formando",
