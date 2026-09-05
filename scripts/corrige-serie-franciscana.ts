@@ -29,13 +29,25 @@ const TOTAL = 8;
 const VALOR_CENTS = 3100;
 /** Competência da parcela 1/8, comprovada pelo CSV da fatura de 12/10. */
 const PRIMEIRO_MES = "2026-10";
-/** Data que as parcelas já gravadas usam (a compra foi em 04/09/2026). */
-const DATA_COMPRA = "2026-09-04";
+/** Dia que a série usa nas datas das parcelas (a compra foi em 04/09/2026). */
+const DIA = "04";
 
 /** Competência da parcela `seq`: uma por mês a partir do primeiro. */
 function mesDaParcela(seq: number): string {
   const [y, m] = PRIMEIRO_MES.split("-").map(Number);
   return monthStringFromDate(new Date(Date.UTC(y, m - 1 + (seq - 1), 1)));
+}
+
+/**
+ * Data da parcela: o mês ANTERIOR ao da competência, mesmo dia. É o padrão que
+ * as séries do cartão seguem — a 4/6 do Mabu Hotel cai na competência de
+ * outubro com data 05/09 — e o que as parcelas originais desta série já usam.
+ * Gravar a data da compra em todas faz a linha ser mal casada numa importação
+ * futura.
+ */
+function dataDaParcela(seq: number): string {
+  const [y, m] = mesDaParcela(seq).split("-").map(Number);
+  return `${monthStringFromDate(new Date(Date.UTC(y, m - 2, 1)))}-${DIA}`;
 }
 
 async function main() {
@@ -93,7 +105,7 @@ async function main() {
           month: monthToDate(p.mes),
           description: desc,
           amount: centsToNumber(VALOR_CENTS),
-          purchaseDate: new Date(DATA_COMPRA + "T00:00:00Z"),
+          purchaseDate: new Date(dataDaParcela(p.seq) + "T00:00:00Z"),
         },
       });
     }
