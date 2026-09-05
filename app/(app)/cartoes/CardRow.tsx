@@ -217,9 +217,8 @@ export function CardRow({ card }: { card: Card }) {
                 defaultCents={card.monthlyEstimateCents ?? 0}
               />
               <p className="text-xs text-muted-foreground">
-                Quanto você planeja gastar por mês neste cartão. Serve para duas coisas: acompanhar a
-                fatura em formação no Dashboard e completar a previsão dos meses futuros, que só têm as
-                parcelas já lançadas e por isso pareciam sobrar dinheiro.
+                Quanto você planeja gastar por mês neste cartão. O Dashboard compara a fatura que está
+                se formando com esse teto, para você ver o estouro enquanto ainda dá para mudar.
               </p>
             </div>
             <div className="flex items-center gap-2">

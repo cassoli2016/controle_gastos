@@ -9,7 +9,7 @@ import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView, dailyBudgetEntryView, cardEstimateEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
@@ -17,7 +17,7 @@ import { budgetLines } from "@/lib/budget";
 import { patrimonyProjection } from "@/lib/patrimony";
 import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
-import { cardEstimateLines, cardCycleStatus } from "@/lib/card-estimate";
+import { cardCycleStatus } from "@/lib/card-estimate";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -146,17 +146,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   const monthlyViews = chartMonths.map((m) => {
     const base = viewsByMonth.get(m) ?? [];
-    const estimadas = cardEstimateLines(estimateCards, m, month, bookedByMonthCard.get(m) ?? {}).map(
-      cardEstimateEntryView,
-    );
     return {
       month: formatCompetencia(monthToDate(m)),
       views:
         base.length === 0
           ? base
           : budget
-            ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents)), ...estimadas]
-            : [...base, ...estimadas],
+            ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))]
+            : base,
     };
   });
   const balanceData: MonthlyBalancePoint[] = monthlyViews.map(({ month: m, views: v }) => ({
