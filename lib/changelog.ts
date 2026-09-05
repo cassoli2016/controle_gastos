@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.20.0",
+    date: "2026-09-04",
+    title: "A tela do Mês ficou compacta e alinhada",
+    items: [
+      "No celular, cada lançamento ocupava quatro linhas e 270 pixels, com \"Previsto\" e \"Pago\" repetidos em toda linha. Agora são duas linhas e 77 pixels: nome e valor em cima; dia, baixa e ações embaixo. A tela do mês inteiro caiu de 8.340 para 4.323 pixels — cabem 9 lançamentos onde cabiam 3.",
+      "O cabeçalho Item / Dia / Previsto / Situação / Ações aparece uma vez só, no topo da lista, e fica fixo enquanto você rola. Antes ele se repetia dentro de cada categoria.",
+      "As categorias viraram faixas dentro de uma lista única, no lugar de um cartão por categoria. As colunas agora se alinham de ponta a ponta, de Recebimentos até Lazer.",
+      "\"Ocultar pagas\" agora esconde também a categoria inteira quando não sobrou nada nela. Em setembro, 12 grupos viram 8: saem Retirada da reserva, Reserva, Impostos e Audrey, que estavam quitados e só ocupavam espaço com o cabeçalho.",
+      "No celular, Transferir, Guardar a sobra e as duas cópias ficam atrás de \"Mais ações\" — eram quatro botões empilhados antes de qualquer número aparecer. No computador continuam todos à vista.",
+      "A barra de baixo do celular tinha oito ícones e cortava \"Categorias\" na borda. Agora são cinco (Dashboard, Mês, Panorama, Cartões, Reservas) e um \"Mais\" com o resto.",
+      "Nos cards de resumo, o celular mostra a versão curta (\"R$ 29.242,11 falta\"); no computador continua o texto completo com o quanto já foi pago.",
+    ],
+  },
+  {
     version: "1.19.0",
     date: "2026-09-04",
     title: "Extrato da caixinha: dá para conferir com o banco",

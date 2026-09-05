@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Undo2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertDialog,
@@ -40,6 +41,7 @@ export function PayCell({
   income = false,
   reserves = [],
   paidFromReserve = null,
+  compact = false,
 }: {
   entryId: string;
   plannedCents: number;
@@ -52,6 +54,8 @@ export function PayCell({
   reserves?: { id: string; name: string }[];
   /** Presente quando ESTA conta foi paga por uma caixinha: desmarcar devolve. */
   paidFromReserve?: { boxName: string; amountCents: number } | null;
+  /** Celular: some com o que a linha já diz, para caber em uma linha só. */
+  compact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(markPaid, {});
   useActionToast(state, { success: income ? "Recebimento atualizado." : "Pagamento atualizado." });
@@ -66,9 +70,15 @@ export function PayCell({
   }
 
   if (paid) {
+    // No celular o valor pago só aparece quando DIFERE do previsto, que a
+    // linha já mostra ao lado — repetir o mesmo número duas vezes era o que
+    // fazia a linha quebrar em três.
+    const valorDivergente = paidCents !== null && paidCents !== plannedCents;
     const resumo = (
       <>
-        <span className="font-medium tabular-nums">{paidCents !== null ? formatCents(paidCents) : "—"}</span>
+        {(!compact || valorDivergente) && (
+          <span className="font-medium tabular-nums">{paidCents !== null ? formatCents(paidCents) : "—"}</span>
+        )}
         <span className="text-xs text-muted-foreground">
           {paidDate ? formatDateBR(toDateInputValue(paidDate)) : ""}
         </span>
@@ -85,8 +95,14 @@ export function PayCell({
           {resumo}
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" disabled={pending}>
-                Desmarcar
+              <Button
+                type="button"
+                variant="ghost"
+                size={compact ? "icon-sm" : "sm"}
+                disabled={pending}
+                aria-label={compact ? "Desmarcar" : undefined}
+              >
+                {compact ? <Undo2 className="size-4" /> : "Desmarcar"}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
@@ -119,8 +135,14 @@ export function PayCell({
         <input type="hidden" name="entryId" value={entryId} />
         <input type="hidden" name="paid" value="false" />
         {resumo}
-        <Button type="submit" variant="ghost" size="sm" disabled={pending}>
-          Desmarcar
+        <Button
+          type="submit"
+          variant="ghost"
+          size={compact ? "icon-sm" : "sm"}
+          disabled={pending}
+          aria-label={compact ? "Desmarcar" : undefined}
+        >
+          {compact ? <Undo2 className="size-4" /> : "Desmarcar"}
         </Button>
       </form>
     );

@@ -31,6 +31,7 @@ export function StatCard({
   tone = "default",
   icon: Icon,
   detail,
+  detailShort,
   progress,
 }: {
   label: string;
@@ -39,13 +40,19 @@ export function StatCard({
   icon?: LucideIcon;
   /** Sub-linha explicativa abaixo do valor (ex.: "R$ 660,00 pago · R$ 490,00 falta"). */
   detail?: string;
+  /**
+   * Versão curta do detalhe, só no celular. Num card de meia largura o texto
+   * completo virava três linhas e o bloco de quatro cards passava de 600px de
+   * altura — antes de qualquer lançamento aparecer na tela.
+   */
+  detailShort?: string;
   /** 0–100: barra fina de progresso na cor do tom. Ausente = sem barra. */
   progress?: number;
 }) {
   const t = TONES[tone];
   return (
     <Card>
-      <CardContent className="flex items-center gap-2.5 p-3 md:gap-3 md:p-4">
+      <CardContent className="flex items-center gap-2.5 p-2.5 md:gap-3 md:p-4">
         {Icon && (
           <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg md:size-9", t.chip)}>
             <Icon className="size-4 md:size-4.5" />
@@ -59,9 +66,12 @@ export function StatCard({
           {/* text-base no mobile: "R$ 25.000,00" cabe inteiro num card de meia largura */}
           <div className={cn("truncate text-base font-bold tabular-nums md:text-xl", t.value)}>{value}</div>
           {detail && (
-            // Sem truncate: num card de meia largura no mobile o corte comia
-            // justamente o "R$ 490,00 falta" — quebrar linha preserva a informação.
-            <div className="text-[11px] leading-tight text-muted-foreground md:text-xs">{detail}</div>
+            // Sem truncate: cortar comia justamente o "R$ 490,00 falta". No
+            // celular entra a versão curta, quando houver.
+            <div className="text-[11px] leading-tight text-muted-foreground md:text-xs">
+              <span className={detailShort ? "hidden md:inline" : undefined}>{detail}</span>
+              {detailShort && <span className="md:hidden">{detailShort}</span>}
+            </div>
           )}
           {progress !== undefined && (
             <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">

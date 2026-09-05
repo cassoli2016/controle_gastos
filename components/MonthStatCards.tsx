@@ -57,6 +57,7 @@ export function MonthStatCards({
             ? `${formatCents(receivedInc)} recebido · ${formatCents(incomeTotal - receivedInc)} a receber`
             : "nenhuma receita lançada"
         }
+        detailShort={incomeTotal > 0 ? `${formatCents(incomeTotal - receivedInc)} a receber` : undefined}
         progress={incomeTotal > 0 ? progressPct(receivedInc, incomeTotal) : undefined}
       />
       <StatCard
@@ -65,6 +66,7 @@ export function MonthStatCards({
         tone="expense"
         icon={TrendingDown}
         detail={`${formatCents(paidExp)} pago · ${formatCents(remaining)} falta`}
+        detailShort={`${formatCents(remaining)} falta`}
         progress={progressPct(paidExp, expenseTotal)}
       />
       {incomeTotal === 0 ? (

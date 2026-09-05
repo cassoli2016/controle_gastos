@@ -4,11 +4,11 @@ import Link from "next/link";
 import { Search, X, ChevronDown, Eye, EyeOff } from "lucide-react";
 import { groupByCategory } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
-import { filterViews, visibleRows } from "@/lib/month-filter";
+import { filterViews, visibleRows, visibleGroups } from "@/lib/month-filter";
 import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY } from "@/lib/reserve-flow";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { Input } from "@/components/ui/input";
@@ -95,6 +95,7 @@ function EntryRow({
       paidDate={row.paidDate}
       income={income}
       reserves={reserves}
+      compact={variant === "mobile"}
     />
   );
   // Badge do cartão (se a compra foi lançada num cartão) + "X/N" quando
@@ -155,30 +156,120 @@ function EntryRow({
     );
   }
 
+  // Mobile em DOIS níveis: nome e valor em cima, o resto embaixo. Os rótulos
+  // "Previsto"/"Pago" saíram — repetidos em toda linha, só empurravam a lista
+  // para baixo (cada lançamento ocupava quatro linhas e ~270px).
   return (
-    <div className={cn("flex flex-col gap-2 p-3", row.paid && "opacity-60")}>
+    <div className={cn("flex flex-col gap-1 px-3 py-2", row.paid && "opacity-60")}>
       <div className="flex items-baseline justify-between gap-2">
-        <span className="flex items-center gap-1.5 flex-wrap">
-          <span className="font-medium">{row.itemName}</span>
+        <span className="flex min-w-0 items-center gap-1.5 flex-wrap">
+          <span className="truncate font-medium">{row.itemName}</span>
           {badges}
         </span>
-        <span className={cn("text-xs tabular-nums shrink-0", dayClass)}>
+        <span className="shrink-0 tabular-nums">{planned}</span>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className={cn("shrink-0 text-xs tabular-nums", dayClass)}>
           {row.dueDay ? `Dia ${row.dueDay}` : dayLabel ?? "—"}
           {daySuffix}
         </span>
-      </div>
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-muted-foreground">Previsto</span>
-          {planned}
-        </div>
-        <div className="flex flex-col items-end gap-0.5">
-          <span className="text-xs text-muted-foreground">{income ? "Recebido" : "Pago"}</span>
+        <div className="flex min-w-0 items-center justify-end gap-1">
           {pay}
+          {actions}
         </div>
       </div>
-      <div className="flex justify-end">{actions}</div>
     </div>
+  );
+}
+
+
+type GroupState = {
+  expanded: boolean;
+  shown: DisplayRow[];
+  payable: DisplayRow[];
+  paidCount: number;
+  doneLabel: string;
+  collapsible: boolean;
+};
+
+/**
+ * Esconder pagas é só EXIBIÇÃO: contador e subtotal seguem vindo do conjunto
+ * inteiro, senão o mês pareceria mais barato do que é.
+ */
+function groupState(
+  g: { categoryName: string; categoryType: "INCOME" | "EXPENSE"; rows: DisplayRow[] },
+  hidePaid: boolean,
+  searching: boolean,
+  manuallyOpen: Record<string, boolean>,
+): GroupState {
+  const collapsible = RESERVE_GROUPS.has(g.categoryName);
+  // Busca ativa abre o grupo para mostrar os matches; o estado manual fica
+  // guardado e volta a valer quando a busca é limpa.
+  const expanded = !collapsible || searching || manuallyOpen[g.categoryName] === true;
+  // A reserva do dia a dia não é pagável, então fica fora do contador.
+  const payable = g.rows.filter((r) => !r.readOnlyHint);
+  const paidCount = payable.filter((r) => r.paid).length;
+  const doneLabel =
+    g.categoryType === "INCOME"
+      ? payable.length === 1
+        ? "recebido"
+        : "recebidos"
+      : payable.length === 1
+        ? "pago"
+        : "pagos";
+  return { expanded, shown: visibleRows(g.rows, hidePaid), payable, paidCount, doneLabel, collapsible };
+}
+
+/** Faixa do grupo: nome à esquerda, progresso e subtotal à direita. */
+function GroupHeader({
+  group,
+  state,
+  onToggle,
+  toggleDisabled,
+}: {
+  group: { categoryName: string; categoryType: "INCOME" | "EXPENSE"; subtotalCents: number };
+  state: GroupState;
+  onToggle: () => void;
+  toggleDisabled: boolean;
+}) {
+  const conteudo = (
+    <>
+      <span className="truncate text-sm font-medium">{group.categoryName}</span>
+      <span className="flex shrink-0 items-center gap-2">
+        {state.payable.length > 0 && (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {state.paidCount}/{state.payable.length} {state.doneLabel}
+          </span>
+        )}
+        {/* O badge Receita/Despesa some no celular: a cor do valor e o "pagos"
+            já dizem, e ele espremia o nome da categoria até truncar. */}
+        <span className="hidden sm:inline">
+          <CategoryTypeBadge type={group.categoryType} />
+        </span>
+        <span className="text-sm font-semibold tabular-nums">{formatCents(group.subtotalCents)}</span>
+        {state.collapsible && (
+          <ChevronDown
+            className={cn("size-4 text-muted-foreground transition-transform", state.expanded && "rotate-180")}
+          />
+        )}
+      </span>
+    </>
+  );
+  if (!state.collapsible) return <div className="flex items-center justify-between gap-2">{conteudo}</div>;
+  return (
+    <button
+      type="button"
+      aria-expanded={state.expanded}
+      // Durante a busca `expanded` já é forçado a true; gravar o estado manual
+      // aqui apagaria em silêncio a expansão que valeria ao limpar a busca.
+      onClick={() => {
+        if (toggleDisabled) return;
+        onToggle();
+      }}
+      className="flex w-full items-center justify-between gap-2 text-left"
+    >
+      {conteudo}
+    </button>
   );
 }
 
@@ -200,12 +291,18 @@ export function MonthEntryList({
   // Cards de reserva que o usuário abriu manualmente, por nome de categoria.
   const [manuallyOpen, setManuallyOpen] = useState<Record<string, boolean>>({});
   const searching = query.trim() !== "";
-  const groups = useMemo(() => groupByCategory(filterViews(views, query)), [views, query]);
+  // `visibleGroups` depois do agrupamento: com "Ocultar pagas", o grupo que não
+  // tem mais nenhuma linha para mostrar sai junto — antes ficava só o cabeçalho
+  // ocupando espaço ("Retirada da reserva 2/2 recebidos" com nada embaixo).
+  const groups = useMemo(
+    () => visibleGroups(groupByCategory(filterViews(views, query)), hidePaid),
+    [views, query, hidePaid],
+  );
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-56 flex-1 sm:max-w-80">
+        <div className="relative min-w-0 flex-1 sm:min-w-56 sm:max-w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             type="search"
@@ -239,117 +336,105 @@ export function MonthEntryList({
       {groups.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma conta encontrada para &ldquo;{query.trim()}&rdquo;.
+            {searching
+              ? `Nenhuma conta encontrada para \u201C${query.trim()}\u201D.`
+              : "Nada em aberto neste mês — tudo pago."}
           </CardContent>
         </Card>
       ) : (
-        groups.map((g) => {
-          const isReserve = RESERVE_GROUPS.has(g.categoryName);
-          // Busca ativa expande o card para mostrar os matches; o estado manual
-          // fica guardado e volta a valer quando a busca é limpa.
-          const expanded = !isReserve || searching || manuallyOpen[g.categoryName] === true;
-          // Contador "pagos": só linhas reais — a reserva derivada não é pagável.
-          // Esconder pagas é só EXIBIÇÃO: `payable`, o contador e o subtotal
-          // seguem vindo de g.rows, senão o mês pareceria mais barato.
-          const shown = visibleRows(g.rows, hidePaid);
-          const payable = g.rows.filter((r) => !r.readOnlyHint);
-          const paidCount = payable.filter((r) => r.paid).length;
-          const doneLabel =
-            g.categoryType === "INCOME"
-              ? payable.length === 1 ? "recebido" : "recebidos"
-              : payable.length === 1 ? "pago" : "pagos";
-          const headerRight = (
-            <div className="flex items-center gap-2">
-              {payable.length > 0 && (
-                <span className="text-xs text-muted-foreground tabular-nums">
-                  {paidCount}/{payable.length} {doneLabel}
-                </span>
-              )}
-              <CategoryTypeBadge type={g.categoryType} />
-              <span className="font-semibold tabular-nums">{formatCents(g.subtotalCents)}</span>
-              {isReserve && (
-                <ChevronDown
-                  className={cn("size-4 text-muted-foreground transition-transform", expanded && "rotate-180")}
-                />
-              )}
-            </div>
-          );
-          return (
-            <Card key={`${g.categoryType}:${g.categoryName}`}>
-              <CardHeader className={cn(expanded && "border-b")}>
-                {isReserve ? (
-                  <button
-                    type="button"
-                    aria-expanded={expanded}
-                    // Durante a busca `expanded` já é forçado a true; deixar o clique
-                    // gravar o estado manual apagaria silenciosamente a expansão que
-                    // valeria ao limpar a busca.
-                    onClick={() => {
-                      if (searching) return;
-                      setManuallyOpen((s) => ({ ...s, [g.categoryName]: !expanded }));
-                    }}
-                    className="flex w-full items-center justify-between gap-2 text-left"
-                  >
-                    <span className="font-medium">{g.categoryName}</span>
-                    {headerRight}
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="font-medium">{g.categoryName}</div>
-                    {headerRight}
-                  </div>
-                )}
-              </CardHeader>
-              {expanded && shown.length === 0 && hidePaid && (
-                <CardContent className="py-3 text-center text-xs text-muted-foreground">
-                  Tudo {doneLabel} nesta categoria.
-                </CardContent>
-              )}
-              {expanded && shown.length > 0 && (
-                <CardContent className="px-0">
-                  {/* Desktop: tabela */}
-                  <div className="hidden md:block overflow-x-auto">
-                    {/* table-fixed + colgroup: as MESMAS larguras em todos os
-                        cards de categoria — colunas alinhadas verticalmente
-                        na página inteira. */}
-                    <table className="w-full table-fixed text-sm">
-                      <colgroup>
-                        <col className="w-[34%]" />
-                        <col className="w-[10%]" />
-                        <col className="w-[16%]" />
-                        <col className="w-[26%]" />
-                        <col className="w-[14%]" />
-                      </colgroup>
-                      <thead>
-                        <tr className="text-left border-b">
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Item</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">Dia</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Previsto</th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground">
-                            {g.categoryType === "INCOME" ? "Recebido" : "Pago"}
-                          </th>
-                          <th className="px-3 py-1.5 font-medium text-muted-foreground text-right">Ações</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {shown.map((row) => (
-                          <EntryRow key={row.entryId} row={row} month={month} variant="desktop" income={g.categoryType === "INCOME"} categories={categories} reserves={reserves} />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+        <Card className="gap-0 overflow-hidden py-0">
+          {/* UMA tabela para o mês inteiro, com cada grupo num <tbody>. É o que
+              alinha as colunas de ponta a ponta: em cards separados, cada
+              tabela media a própria largura e o cabeçalho se repetia em todo
+              grupo. */}
+          <div className="hidden md:block">
+            <table className="w-full table-fixed text-sm">
+              <colgroup>
+                <col className="w-[34%]" />
+                <col className="w-[9%]" />
+                <col className="w-[15%]" />
+                <col className="w-[28%]" />
+                <col className="w-[14%]" />
+              </colgroup>
+              <thead className="sticky top-0 z-20 bg-card">
+                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <th className="px-3 py-2 font-medium">Item</th>
+                  <th className="px-3 py-2 font-medium">Dia</th>
+                  <th className="px-3 py-2 text-right font-medium">Previsto</th>
+                  {/* Neutro de propósito: numa tabela só, o mesmo cabeçalho
+                      serve para grupo de receita e de despesa. */}
+                  <th className="px-3 py-2 font-medium">Situação</th>
+                  <th className="px-3 py-2 text-right font-medium">Ações</th>
+                </tr>
+              </thead>
+              {groups.map((g) => {
+                const s = groupState(g, hidePaid, searching, manuallyOpen);
+                return (
+                  <tbody key={`${g.categoryType}:${g.categoryName}`} className="border-b last:border-b-0">
+                    <tr className="bg-muted/40">
+                      <th colSpan={5} className="px-3 py-1.5 text-left font-normal">
+                        <GroupHeader
+                          group={g}
+                          state={s}
+                          onToggle={() =>
+                            setManuallyOpen((prev) => ({ ...prev, [g.categoryName]: !s.expanded }))
+                          }
+                          toggleDisabled={searching}
+                        />
+                      </th>
+                    </tr>
+                    {s.expanded &&
+                      s.shown.map((row) => (
+                        <EntryRow
+                          key={row.entryId}
+                          row={row}
+                          month={month}
+                          variant="desktop"
+                          income={g.categoryType === "INCOME"}
+                          categories={categories}
+                          reserves={reserves}
+                        />
+                      ))}
+                  </tbody>
+                );
+              })}
+            </table>
+          </div>
 
-                  {/* Mobile: mini-cards empilhados */}
-                  <div className="md:hidden divide-y">
-                    {shown.map((row) => (
-                      <EntryRow key={row.entryId} row={row} month={month} variant="mobile" income={g.categoryType === "INCOME"} categories={categories} reserves={reserves} />
-                    ))}
+          {/* Celular: mesma estrutura, sem tabela. */}
+          <div className="md:hidden">
+            {groups.map((g) => {
+              const s = groupState(g, hidePaid, searching, manuallyOpen);
+              return (
+                <section key={`${g.categoryType}:${g.categoryName}`} className="border-b last:border-b-0">
+                  <div className="bg-muted/40 px-3 py-2">
+                    <GroupHeader
+                      group={g}
+                      state={s}
+                      onToggle={() => setManuallyOpen((prev) => ({ ...prev, [g.categoryName]: !s.expanded }))}
+                      toggleDisabled={searching}
+                    />
                   </div>
-                </CardContent>
-              )}
-            </Card>
-          );
-        })
+                  {s.expanded && (
+                    <div className="divide-y">
+                      {s.shown.map((row) => (
+                        <EntryRow
+                          key={row.entryId}
+                          row={row}
+                          month={month}
+                          variant="mobile"
+                          income={g.categoryType === "INCOME"}
+                          categories={categories}
+                          reserves={reserves}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
+        </Card>
       )}
     </div>
   );

@@ -28,3 +28,18 @@ export function visibleRows<T extends { paid: boolean; readOnlyHint?: unknown }>
   if (!hidePaid) return rows;
   return rows.filter((r) => !r.paid || Boolean(r.readOnlyHint));
 }
+
+/**
+ * Grupos que sobram quando as pagas estão escondidas: some o grupo que não
+ * tem mais nenhuma linha para mostrar.
+ *
+ * Sem isso o cabeçalho ficava sozinho ocupando espaço — "Retirada da reserva
+ * 2/2 recebidos" com nada embaixo. Usa `visibleRows` para o critério ser um
+ * só: se a linha sobrevive ao filtro, o grupo dela também.
+ */
+export function visibleGroups<T extends { paid: boolean; readOnlyHint?: unknown }, G extends { rows: T[] }>(
+  groups: G[],
+  hidePaid: boolean,
+): G[] {
+  return groups.filter((g) => visibleRows(g.rows, hidePaid).length > 0);
+}

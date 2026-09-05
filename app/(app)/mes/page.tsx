@@ -20,6 +20,7 @@ import { PurchaseDialog } from "./PurchaseDialog";
 import { IncomeDialog } from "./IncomeDialog";
 import { TransferDialog } from "./TransferDialog";
 import { SaveLeftoverDialog } from "./SaveLeftoverDialog";
+import { MoreActions } from "./MoreActions";
 import { lastUsedReserveId, DEPOSIT_PREFIX } from "@/lib/reserve-flow";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
 import { parseHidePaid } from "@/lib/month-filter";
@@ -156,19 +157,19 @@ export default async function MesPage({
             />
             <IncomeDialog />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <TransferDialog
-              entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
-            />
+          <MoreActions>
             <SaveLeftoverDialog
               reserves={reserveOptions}
               defaultReserveId={lastUsedReserveId(depositDescriptions, reserveOptions)}
               leftoverCents={realizedCashBalance(realViews)}
               monthLeftoverCents={realizedBalance(realViews)}
             />
+            <TransferDialog
+              entries={realViews.map((v) => ({ id: v.entryId, label: v.itemName, plannedCents: v.plannedCents }))}
+            />
             <CopyPreviousMonthButton month={month} />
             <CopyYearAgoButton month={month} />
-          </div>
+          </MoreActions>
         </div>
       </div>
 
