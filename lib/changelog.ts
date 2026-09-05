@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.7",
+    date: "2026-09-05",
+    title: "Todas as 25 faturas conferidas",
+    items: [
+      "Passei fatura por fatura dos dois cartões — 12 do Bradesco e 13 do Nubank, de agosto/2026 a agosto/2027. Em todas, o valor que o app mostra bate com a soma dos lançamentos, e 557 parcelas foram casadas uma a uma com a do mês anterior. Nenhum problema.",
+      "As quatro parcelas da Amazon Retail voltaram a ser reconhecidas como parcelamento: quando renomeamos o apelido, elas perderam o \"(11/12)\" que ficava no nome, e o app deixou de saber que eram parcelas. Agora essa informação está gravada em campo próprio, então o nome fica limpo e a parcela continua identificada.",
+    ],
+  },
+  {
     version: "1.25.6",
     date: "2026-09-05",
     title: "Datas das parcelas que criei ontem estavam erradas",
