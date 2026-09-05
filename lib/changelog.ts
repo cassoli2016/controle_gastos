@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.21.0",
+    date: "2026-09-04",
+    title: "Dashboard: o que vence, quanto rende e quanto custa cada categoria",
+    items: [
+      "Card \"Vence em breve\" no topo: as contas em aberto dos próximos 7 dias e as atrasadas em primeiro lugar, com o total e um atalho para pagar no Mês. Hoje ele mostra Psico (em 2 dias) e Celular Audrey (em 6 dias), R$ 369,00. Faltava a resposta para \"o que eu preciso pagar agora\" — ela só existia misturada à lista do mês.",
+      "O gráfico do patrimônio desenhava quase uma reta: o eixo começava no zero e ia até 319 mil, então a subida de R$ 28.841,26 ficava espremida em 10% da altura. Agora o eixo enquadra a faixa real (283 a 319 mil) e a curva mostra o formato do crescimento. O título passou a escrever o número: \"+R$ 28.841,26 (+10%)\".",
+      "A pizza de despesas mostrava só as cores: para saber quanto era cada fatia, era preciso passar o mouse — e no celular não existe mouse. Agora cada categoria vem com valor e percentual ao lado (Cartão/Compras R$ 24.545,04 · 55,2%, Educação R$ 6.310,86 · 14,2%…).",
+      "Cards sem conteúdo pararam de esticar. \"Renovações\", sem nenhuma renovação à vista, ocupava 190 pixels para uma frase só porque acompanhava a altura do card ao lado.",
+    ],
+  },
+  {
     version: "1.20.0",
     date: "2026-09-04",
     title: "A tela do Mês ficou compacta e alinhada",

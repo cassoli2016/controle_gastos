@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCents } from "@/lib/money";
+import { seriesDomain } from "@/lib/chart-scale";
 
 export type PatrimonyPoint = {
   /** Rótulo do mês (ex.: "ago. de 2026"). */
@@ -55,6 +56,10 @@ export function PatrimonyChart({ data }: { data: PatrimonyPoint[] }) {
           <CartesianGrid strokeDasharray="3 3" stroke="currentColor" strokeOpacity={0.15} />
           <XAxis dataKey="month" tick={{ fontSize: 11, fill: "currentColor" }} tickLine={false} axisLine={false} />
           <YAxis
+            // Enquadra a faixa dos dados em vez de ancorar no zero: a subida
+            // do patrimônio ocupava 20% da altura e o gráfico desenhava uma
+            // reta. Ver lib/chart-scale.ts.
+            domain={seriesDomain(data.map((d) => d.totalCents))}
             tickFormatter={compactBRL}
             tick={{ fontSize: 11, fill: "currentColor" }}
             tickLine={false}
