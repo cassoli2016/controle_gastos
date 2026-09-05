@@ -165,6 +165,17 @@ export function hiddenMonthsSummary(hidden: string[]): string {
   return `Ocultando ${hidden.length} ${noun}: ${labels}${rest > 0 ? ` +${rest}` : ""}`;
 }
 
+/**
+ * O que o Panorama está escondendo, em uma frase: meses fechados e contas sem
+ * nada a acontecer. Um botão só revela os dois, então a legenda também é uma.
+ */
+export function hiddenSummary(hiddenMonths: string[], hiddenRows: number): string {
+  const partes: string[] = [];
+  if (hiddenMonths.length > 0) partes.push(hiddenMonthsSummary(hiddenMonths).replace(/^Ocultando /, ""));
+  if (hiddenRows > 0) partes.push(`${hiddenRows} ${hiddenRows === 1 ? "conta quitada" : "contas quitadas"}`);
+  return partes.length === 0 ? "" : `Ocultando ${partes.join(" · ")}`;
+}
+
 /** Coluna da matriz: mês real, fechamento de ano ou total geral. */
 export type MatrixColumn =
   | { kind: "month"; monthISO: string }
@@ -220,6 +231,25 @@ export function rowRemainingTotal(row: Pick<MatrixRow, "cells">, months: string[
  *   sem valor nenhum até o mês atual         → some (só existe no futuro; na
  *                                              visão do mês é uma linha de traços)
  */
+/**
+ * Linha sem NADA a pagar ou receber do mês corrente em diante — a regra de
+ * quem aparece no Panorama por padrão.
+ *
+ * O Panorama é a visão do que ainda vai acontecer, e duas famílias de linha
+ * não têm nada a acompanhar:
+ *
+ *   conta encerrada (sem lançamento à frente) → some; virava linha de traços
+ *   tudo já baixado no mês, sem futuro         → some (depósito/retirada feitos)
+ *   pago no mês, mas provisionado à frente     → fica; o futuro é o assunto
+ *   qualquer valor em aberto à frente          → fica
+ *
+ * Pendência velha não segura a linha: para olhar para trás existe o "Mostrar
+ * quitados", que revela tanto os meses fechados quanto estas linhas.
+ */
+export function rowSettledFromMonth(row: MatrixRow, months: string[], currentMonth: string): boolean {
+  return rowRemainingTotal(row, months.filter((m) => m >= currentMonth)) === 0;
+}
+
 export function rowSettledThroughMonth(row: MatrixRow, months: string[], currentMonth: string): boolean {
   for (const m of months) {
     if (m > currentMonth) continue;

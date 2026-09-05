@@ -314,7 +314,7 @@ describe("sumMonthsOrNull", () => {
   });
 });
 
-import { rowSettledThroughMonth, type MatrixRow } from "@/lib/matrix";
+import { rowSettledThroughMonth, rowSettledFromMonth, hiddenSummary, type MatrixRow } from "@/lib/matrix";
 
 describe("rowSettledThroughMonth — visualização do mês", () => {
   const cell = (allPaid: boolean, remainingCents: number): MatrixRow["cells"][string] => ({
@@ -372,4 +372,75 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
     const row: MatrixRow = { line: "Reserva do dia a dia", cells: { "2026-08": cell(false, 3100) }, totalCents: 3100 };
     expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
+});
+
+describe("rowSettledFromMonth — o que ainda tem a acontecer", () => {
+  const cell = (allPaid: boolean, remainingCents: number): MatrixRow["cells"][string] => ({
+    cents: 100,
+    remainingCents,
+    allPaid,
+    paidCount: allPaid ? 1 : 0,
+    count: 1,
+    entries: [],
+    kind: "item",
+  });
+  const MONTHS = ["2026-06", "2026-07", "2026-08", "2026-09", "2026-12"];
+  const NOW = "2026-09";
+
+  it("conta encerrada some: nenhum lançamento do mês corrente em diante", () => {
+    // ERS Transportes, ICP Gobrax, Closet e Estacionamento — no Panorama viram
+    // uma linha de traços que só ocupa largura.
+    const row: MatrixRow = {
+      line: "Closet",
+      cells: { "2026-06": cell(true, 0), "2026-07": cell(true, 0) },
+      totalCents: 200,
+    };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(true);
+  });
+
+  it("conta com lançamento no mês, mas já baixado, também some", () => {
+    // Depósito e Retirada de caixinha: aconteceram, não têm o que acompanhar.
+    const row: MatrixRow = { line: "Depósito · X", cells: { "2026-09": cell(true, 0) }, totalCents: 100 };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(true);
+  });
+
+  it("conta com valor em aberto no mês FICA", () => {
+    const row: MatrixRow = { line: "Água", cells: { "2026-09": cell(false, 80) }, totalCents: 80 };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(false);
+  });
+
+  it("conta paga no mês mas provisionada à frente FICA — é o futuro que interessa", () => {
+    const row: MatrixRow = {
+      line: "Luz",
+      cells: { "2026-09": cell(true, 0), "2026-12": cell(false, 100) },
+      totalCents: 200,
+    };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(false);
+  });
+
+  it("atrasada no passado não basta para ficar — o Panorama olha para frente", () => {
+    // Quem quer ver pendência velha usa "Mostrar quitados"; o padrão aqui é o
+    // que ainda vai acontecer.
+    const row: MatrixRow = { line: "IPVA", cells: { "2026-07": cell(false, 500) }, totalCents: 500 };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(true);
+  });
+
+  it("baixa parcial no mês FICA: sobra parte a pagar", () => {
+    const row: MatrixRow = { line: "Diarista", cells: { "2026-09": cell(false, 220) }, totalCents: 880 };
+    expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(false);
+  });
+});
+
+describe("hiddenSummary — o que o Panorama está escondendo", () => {
+  it("só meses: mantém o texto de antes", () =>
+    expect(hiddenSummary(["2026-06", "2026-07"], 0)).toBe("Ocultando 2 meses quitados: jun/26, jul/26"));
+
+  it("só contas", () => expect(hiddenSummary([], 6)).toBe("Ocultando 6 contas quitadas"));
+
+  it("uma conta, no singular", () => expect(hiddenSummary([], 1)).toBe("Ocultando 1 conta quitada"));
+
+  it("meses e contas na mesma frase", () =>
+    expect(hiddenSummary(["2026-06"], 4)).toBe("Ocultando 1 mês quitado: jun/26 · 4 contas quitadas"));
+
+  it("nada escondido, nada a dizer", () => expect(hiddenSummary([], 0)).toBe(""));
 });
