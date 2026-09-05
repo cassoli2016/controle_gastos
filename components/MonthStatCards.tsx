@@ -5,6 +5,8 @@ import {
   plannedExpense,
   plannedBalance,
   savedInMonth,
+  balanceToCome,
+  remainingToReceive,
   remainingToPay,
   paidExpense,
   receivedIncome,
@@ -44,6 +46,20 @@ export function MonthStatCards({
   const unpaidCount = realViews.filter((v) => v.categoryType === "EXPENSE" && !v.paid).length;
   const contasLabel = `${unpaidCount} ${unpaidCount === 1 ? "conta" : "contas"}`;
   const faltaDetail = budgetLine && budgetLine.cents > 0 ? `${contasLabel} + reserva` : contasLabel;
+
+  // "Falta pagar" sozinho não diz se dá para pagar: o card Saldo soma o mês
+  // inteiro e conta receita que já entrou E já foi gasta. Este é o confronto
+  // com o que AINDA entra — a mesma métrica do rodapé do Panorama.
+  const toCome = balanceToCome(views);
+  const toReceive = remainingToReceive(views);
+  const toComeDetail =
+    remaining === 0
+      ? undefined
+      : toCome < 0
+        ? `${formatCents(toReceive)} a receber · faltam ${formatCents(-toCome)}`
+        : `${formatCents(toReceive)} a receber · sobram ${formatCents(toCome)}`;
+  const toComeShort =
+    remaining === 0 ? undefined : toCome < 0 ? `faltam ${formatCents(-toCome)}` : `sobram ${formatCents(toCome)}`;
 
   return (
     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -87,7 +103,8 @@ export function MonthStatCards({
         value={formatCents(remaining)}
         tone="warn"
         icon={Clock}
-        detail={faltaDetail}
+        detail={toComeDetail ?? faltaDetail}
+        detailShort={toComeShort}
       />
     </div>
   );

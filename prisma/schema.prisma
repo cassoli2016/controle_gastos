@@ -78,6 +78,11 @@ model CreditCard {
   // Limite de compras (para a barra de uso na tela Cartões). Auto-atualizado
   // pela importação da fatura; editável no formulário do cartão.
   limitAmount Decimal? @db.Decimal(12, 2)
+  // Gasto mensal esperado no cartão. Alimenta a provisão de compras futuras:
+  // a fatura de um mês distante só tem as parcelas já lançadas e derrete,
+  // fazendo o saldo daquele mês parecer positivo por falta de despesa.
+  // null = sem estimativa; ver lib/card-estimate.ts.
+  monthlyEstimate Decimal? @db.Decimal(12, 2)
   // Cartão padrão do bot: comandos sem nome de cartão (estorno, antecipei)
   // caem aqui. No máximo um true — as actions zeram os demais ao marcar.
   isDefault  Boolean        @default(false)
