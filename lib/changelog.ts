@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.2",
+    date: "2026-09-05",
+    title: "Importação de fatura parou de comer compras repetidas",
+    items: [
+      "Ao importar o CSV de um ciclo que não é o principal do arquivo, o app perguntava \"já existe uma linha assim?\" e pulava se existisse. Isso evitava duplicar numa reimportação, mas comia compra legítima repetida: dois cafés de R$ 12 no mesmo lugar e no mesmo dia viravam um, e a diferença sumia sem aviso.",
+      "Agora a comparação é por quantidade — se o arquivo traz duas compras iguais e o app tem uma, a segunda entra. Reimportar o mesmo arquivo continua não duplicando nada.",
+      "A mensagem do bot passou a dizer quantos dos lançamentos do arquivo entraram e quantos já estavam lá, em vez de só contar os novos.",
+    ],
+  },
+  {
     version: "1.25.1",
     date: "2026-09-04",
     title: "As compras estimadas saíram da previsão",
