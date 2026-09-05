@@ -2,7 +2,7 @@ import Link from "next/link";
 import { upcomingRenewals, renewalLabel, MONTH_NAMES } from "@/lib/renewals";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
-import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target } from "lucide-react";
+import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target, AlarmClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -15,6 +15,8 @@ import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
 import { budgetLines } from "@/lib/budget";
 import { patrimonyProjection } from "@/lib/patrimony";
+import { seriesGrowth } from "@/lib/chart-scale";
+import { dueSoon } from "@/lib/due-soon";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -37,6 +39,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     include: { item: { include: { category: true } }, category: true },
   });
   const realViews = rows.map((r) => toEntryView(r as never));
+  // O que ainda falta pagar e está perto (ou passou) do vencimento. Usa o mês
+  // EXIBIDO: em mês futuro a lista sai vazia por construção, e em mês passado
+  // sobram os atrasos — que é o que interessa olhar lá atrás.
+  const vencendo = dueSoon(
+    rows.map((r) => ({
+      entryId: r.id,
+      itemName: r.item?.name ?? r.description ?? "—",
+      categoryType: (r.item?.category ?? r.category)?.type ?? "EXPENSE",
+      plannedCents: decimalToCents(String(r.plannedAmount)),
+      paid: r.paid,
+      dueDay: r.item?.dueDay ?? null,
+      readOnlyHint: null,
+    })),
+    month,
+    todayISOInSaoPaulo(),
+    7,
+  );
 
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
   // categories não depende de budget (só pieData depende) — entra no mesmo
@@ -126,6 +145,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // O ponto de partida já contém o dinheiro das caixinhas; usar o saldo do mês
   // contaria um depósito duas vezes. Estimativa — investimentos flutuam.
   const patrimonyData = patrimonyProjection(reservesTotalCents + portfolio.valueCents, monthlyViews);
+  const patrimonyGrowth = seriesGrowth(patrimonyData.map((p) => p.totalCents));
 
   // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
   // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
@@ -159,7 +179,60 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {vencendo.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2">
+                <AlarmClock className="size-4 text-amber-600 dark:text-amber-400" />
+                Vence em breve
+              </span>
+              <span className="text-sm font-semibold tabular-nums">
+                {formatCents(vencendo.reduce((a, r) => a + r.cents, 0))}
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-0 pb-0">
+            <ul className="divide-y border-t">
+              {vencendo.slice(0, 6).map((r) => (
+                <li key={r.entryId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm md:px-6">
+                  <span className="min-w-0 truncate">{r.itemName}</span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span
+                      className={cn(
+                        "text-xs tabular-nums",
+                        r.overdue ? "font-medium text-rose-600 dark:text-rose-400" : "text-muted-foreground",
+                      )}
+                    >
+                      {r.overdue
+                        ? "atrasada"
+                        : r.daysLeft === 0
+                          ? "vence hoje"
+                          : r.daysLeft === 1
+                            ? "amanhã"
+                            : `em ${r.daysLeft} dias`}
+                    </span>
+                    <span className="tabular-nums">{formatCents(r.cents)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <div className="flex items-center justify-between gap-2 border-t px-4 py-2 md:px-6">
+              <span className="text-xs text-muted-foreground">
+                {vencendo.length > 6 ? `e mais ${vencendo.length - 6} nos próximos dias` : "\u00A0"}
+              </span>
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/mes?month=${month}`}>Pagar no Mês</Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* items-start: cada card fica com a altura do próprio conteúdo. Sem
+          isso, "Renovações" sem renovação nenhuma esticava para acompanhar o
+          card ao lado — 190px para uma frase. */}
+      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex items-center justify-between gap-2">
             <CardTitle>Meses no vermelho</CardTitle>
@@ -374,9 +447,25 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            Patrimônio projetado (12 meses)
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
+          <CardTitle className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span>Patrimônio projetado (12 meses)</span>
+            {/* O número que o gráfico existe para dar, escrito: a curva mostra
+                a forma, o título mostra o tamanho. */}
+            {patrimonyGrowth && (
+              <span
+                className={cn(
+                  "text-sm font-semibold tabular-nums",
+                  patrimonyGrowth.deltaCents < 0
+                    ? "text-rose-600 dark:text-rose-400"
+                    : "text-emerald-600 dark:text-emerald-400",
+                )}
+              >
+                {patrimonyGrowth.deltaCents < 0 ? "−" : "+"}
+                {formatCents(Math.abs(patrimonyGrowth.deltaCents))}
+                {patrimonyGrowth.pct !== null && ` (${patrimonyGrowth.pct > 0 ? "+" : ""}${patrimonyGrowth.pct}%)`}
+              </span>
+            )}
+            <span className="text-xs font-normal text-muted-foreground">
               reservas + investimentos + saldos previstos · estimado
             </span>
           </CardTitle>
