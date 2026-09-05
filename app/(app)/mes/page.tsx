@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate, sanitizeMonth, formatCompetencia } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView, cardEstimateEntryView } from "@/lib/entries";
 import { getDailyBudget, getReserves } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
@@ -22,6 +22,7 @@ import { TransferDialog } from "./TransferDialog";
 import { SaveLeftoverDialog } from "./SaveLeftoverDialog";
 import { MoreActions } from "./MoreActions";
 import { CloseMonthDialog } from "./CloseMonthDialog";
+import { cardEstimateLines, CARD_ESTIMATE_ENTRY_PREFIX } from "@/lib/card-estimate";
 import { monthCloseState } from "@/lib/month-close";
 import { lastUsedReserveId, DEPOSIT_PREFIX } from "@/lib/reserve-flow";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
@@ -105,7 +106,45 @@ export default async function MesPage({
   // A reserva do dia a dia é despesa derivada do calendário. Ela entra em
   // `views` ANTES dos cálculos, para a lista e os totais saírem do mesmo array
   // e não poderem divergir.
+  // Provisão de compras no cartão: só em mês POSTERIOR ao corrente, então na
+  // tela do mês em curso não aparece nada — a fatura dele já está formada.
+  const bookedByCard: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.cardId === null || r.purchaseDate !== null) continue;
+    bookedByCard[r.cardId] = (bookedByCard[r.cardId] ?? 0) + decimalToCents(String(r.plannedAmount));
+  }
+  const estimateLines = isEmpty
+    ? []
+    : cardEstimateLines(
+        activeCards.map((c) => ({
+          id: c.id,
+          name: c.name,
+          estimateCents: c.monthlyEstimate === null ? null : decimalToCents(String(c.monthlyEstimate)),
+        })),
+        month,
+        today.slice(0, 7),
+        bookedByCard,
+      );
+
   const budgetLine = budget && !isEmpty ? dailyBudgetLine(month, today, budget.perDayCents) : null;
+  const estimateRows: DisplayRow[] = estimateLines.map((l) => ({
+    ...cardEstimateEntryView(l),
+    entryId: `${CARD_ESTIMATE_ENTRY_PREFIX}${l.cardId}`,
+    itemId: null,
+    dueDay: null,
+    renewsThisMonth: false,
+    purchaseDate: null,
+    paidDate: null,
+    cardId: l.cardId,
+    cardName: null,
+    installmentId: null,
+    installmentSeq: null,
+    installmentCount: null,
+    readOnlyHint: "estimativa de compras",
+    overdue: false,
+    paidFromReserve: null,
+  }));
+
   const views: DisplayRow[] = budgetLine
     ? [
         ...realViews,
@@ -126,8 +165,9 @@ export default async function MesPage({
           overdue: false,
           paidFromReserve: null,
         },
+        ...estimateRows,
       ]
-    : realViews;
+    : [...realViews, ...estimateRows];
 
   const closeState = monthCloseState(
     realViews,

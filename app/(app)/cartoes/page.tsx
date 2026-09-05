@@ -255,6 +255,8 @@ export default async function CartoesPage({
                       closingDay: c.closingDay,
                       dueDay: c.dueDay,
                       limitCents: c.limitAmount === null ? null : decimalToCents(String(c.limitAmount)),
+                      monthlyEstimateCents:
+                        c.monthlyEstimate === null ? null : decimalToCents(String(c.monthlyEstimate)),
                       active: c.active,
                     }}
                   />

@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.24.0",
+    date: "2026-09-04",
+    title: "O saldo dos meses futuros parou de mentir",
+    items: [
+      "A fatura de um mês distante só continha as parcelas que você já lançou, então ela derretia: as faturas conhecidas somam em média R$ 21.776,49, e o app previa R$ 670,93 para junho de 2027. O saldo daqueles meses aparecia positivo por falta de despesa, não por sobra de dinheiro.",
+      "Cada cartão ganhou um \"gasto mensal estimado\" (em Cartões → Editar). Com ele, os meses futuros recebem uma linha de compras estimadas que completa a diferença até o valor esperado — e ela some sozinha quando a fatura real chega e passa da estimativa. Nada é provisionado no mês corrente, cuja fatura já está formada.",
+      "O card \"Falta pagar\" agora diz se o que ainda entra cobre o que falta. Em setembro ele mostra \"R$ 15.833,00 a receber · faltam R$ 13.409,11\": faltam R$ 29.242,11 a pagar e só R$ 15.833,00 a receber.",
+      "Era isso que confundia: o card \"Saldo\" soma o mês inteiro, então ele conta os R$ 25.000 que entraram no dia 4 — e que já foram para as contas e para a caixinha. O número não estava errado, mas respondia outra pergunta.",
+      "Panorama, tela do Mês e gráfico do Dashboard usam a mesma provisão, então os três contam a mesma história.",
+    ],
+  },
+  {
     version: "1.23.0",
     date: "2026-09-04",
     title: "Panorama mostra só o que ainda tem a acontecer",

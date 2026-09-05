@@ -31,6 +31,7 @@ export const createCard = guardAction(async function createCard(_prevState: Acti
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
     limitAmount: formData.get("limitAmount"),
+    monthlyEstimate: formData.get("monthlyEstimate"),
     isDefault: formData.get("isDefault"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
@@ -52,6 +53,7 @@ export const updateCard = guardAction(async function updateCard(_prevState: Acti
     closingDay: formData.get("closingDay"),
     dueDay: formData.get("dueDay"),
     limitAmount: formData.get("limitAmount"),
+    monthlyEstimate: formData.get("monthlyEstimate"),
     isDefault: formData.get("isDefault"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };

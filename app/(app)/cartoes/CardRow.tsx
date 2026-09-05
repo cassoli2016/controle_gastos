@@ -37,6 +37,7 @@ type Card = {
   dueDay: number | null;
   isDefault: boolean;
   limitCents: number | null;
+  monthlyEstimateCents: number | null;
   active: boolean;
 };
 
@@ -206,6 +207,19 @@ export function CardRow({ card }: { card: Card }) {
               <CurrencyInput id={`edit-card-limit-${card.id}`} name="limitAmount" defaultCents={card.limitCents ?? 0} />
               <p className="text-xs text-muted-foreground">
                 Mostra a barra de uso na tela Cartões. A importação da fatura atualiza sozinha.
+              </p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={`edit-card-estimate-${card.id}`}>Gasto mensal estimado (opcional)</Label>
+              <CurrencyInput
+                id={`edit-card-estimate-${card.id}`}
+                name="monthlyEstimate"
+                defaultCents={card.monthlyEstimateCents ?? 0}
+              />
+              <p className="text-xs text-muted-foreground">
+                Quanto você costuma gastar por mês neste cartão. A fatura de um mês distante só tem as
+                parcelas já lançadas, e sem isso o saldo daqueles meses parece sobrar. O app completa a
+                diferença até esta estimativa e ela some quando a fatura real chega.
               </p>
             </div>
             <div className="flex items-center gap-2">

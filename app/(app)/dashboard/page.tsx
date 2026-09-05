@@ -9,7 +9,7 @@ import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
-import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
+import { toEntryView, dailyBudgetEntryView, cardEstimateEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
@@ -17,6 +17,7 @@ import { budgetLines } from "@/lib/budget";
 import { patrimonyProjection } from "@/lib/patrimony";
 import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
+import { cardEstimateLines } from "@/lib/card-estimate";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -60,13 +61,14 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
   // categories não depende de budget (só pieData depende) — entra no mesmo
   // Promise.all para não rodar em série à toa.
-  const [negativeMonths, reserves, investAssets, renewalItems, budget, categories] = await Promise.all([
+  const [negativeMonths, reserves, investAssets, renewalItems, budget, categories, activeCards] = await Promise.all([
     getNegativeMonths(),
     getReserves(),
     prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
     prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
     getDailyBudget(),
     prisma.category.findMany(),
+    prisma.creditCard.findMany({ where: { active: true }, select: { id: true, name: true, monthlyEstimate: true } }),
   ]);
   const renewals = upcomingRenewals(
     renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
@@ -121,16 +123,35 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // no corrente, zero atrás. Mesma regra da tela Mês: mês sem nenhum
   // lançamento real fica de fora — senão o gráfico desenharia saldo
   // negativo fabricado para meses futuros sem lançamento nenhum.
+  // Consolidado de cartão já lançado, por mês e cartão: base da provisão de
+  // compras futuras (a fatura de um mês distante só tem as parcelas conhecidas).
+  const bookedByMonthCard = new Map<string, Record<string, number>>();
+  for (const r of rangeRows) {
+    if (r.cardId === null || r.purchaseDate !== null) continue;
+    const key = monthStringFromDate(r.month);
+    const bucket = bookedByMonthCard.get(key) ?? {};
+    bucket[r.cardId] = (bucket[r.cardId] ?? 0) + decimalToCents(String(r.plannedAmount));
+    bookedByMonthCard.set(key, bucket);
+  }
+  const estimateCards = activeCards.map((c) => ({
+    id: c.id,
+    name: c.name,
+    estimateCents: c.monthlyEstimate === null ? null : decimalToCents(String(c.monthlyEstimate)),
+  }));
+
   const monthlyViews = chartMonths.map((m) => {
     const base = viewsByMonth.get(m) ?? [];
+    const estimadas = cardEstimateLines(estimateCards, m, month, bookedByMonthCard.get(m) ?? {}).map(
+      cardEstimateEntryView,
+    );
     return {
       month: formatCompetencia(monthToDate(m)),
       views:
         base.length === 0
           ? base
           : budget
-            ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents))]
-            : base,
+            ? [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, budget.perDayCents)), ...estimadas]
+            : [...base, ...estimadas],
     };
   });
   const balanceData: MonthlyBalancePoint[] = monthlyViews.map(({ month: m, views: v }) => ({

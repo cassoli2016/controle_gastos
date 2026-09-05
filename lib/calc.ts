@@ -61,6 +61,26 @@ export function plannedBalance(e: EntryView[]): number {
 export function remainingToPay(e: EntryView[]): number {
   return sumCents(expense(e).filter((x) => !x.paid).map((x) => x.plannedCents));
 }
+/** Soma dos previstos de receitas ainda não recebidas. */
+export function remainingToReceive(e: EntryView[]): number {
+  return sumCents(income(e).filter((x) => !x.paid).map((x) => x.plannedCents));
+}
+
+/**
+ * Saldo A REALIZAR: o que ainda entra menos o que ainda sai.
+ *
+ * Responde "tenho como pagar o que falta?", que o `plannedBalance` não
+ * responde: ele soma o mês inteiro e por isso conta receita que já entrou e já
+ * foi gasta. Em set/2026 o saldo do mês dizia -R$ 3.646,78 enquanto faltavam
+ * R$ 29.242,11 a pagar contra R$ 15.833,00 a receber — um buraco de
+ * R$ 13.409,11 que o card não mostrava.
+ *
+ * É a mesma métrica do rodapé do Panorama (docs/saldo-a-realizar.md).
+ */
+export function balanceToCome(e: EntryView[]): number {
+  return remainingToReceive(e) - remainingToPay(e);
+}
+
 /** Soma dos previstos de despesas já pagas (complemento de remainingToPay). */
 export function paidExpense(e: EntryView[]): number {
   return sumCents(expense(e).filter((x) => x.paid).map((x) => x.plannedCents));

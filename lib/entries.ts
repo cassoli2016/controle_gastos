@@ -1,6 +1,11 @@
 import { decimalToCents } from "@/lib/money";
 import type { EntryView } from "@/lib/calc";
 import { DAILY_BUDGET_ENTRY_ID, type DailyBudgetLine } from "@/lib/daily-budget";
+import {
+  CARD_ESTIMATE_CATEGORY,
+  CARD_ESTIMATE_ENTRY_PREFIX,
+  type CardEstimateLine,
+} from "@/lib/card-estimate";
 
 type PrismaCategory = {
   id: string;
@@ -51,6 +56,26 @@ export function dailyBudgetEntryView(line: DailyBudgetLine): EntryView {
     paid: false,
     paidCents: null,
     // Sai da conta e some no dia a dia — não vira saldo em caixinha nenhuma.
+    isTransfer: false,
+  };
+}
+
+/**
+ * Linha derivada da provisão de compras no cartão, na forma que `lib/calc.ts`
+ * consome. Nunca paga: é estimativa do que ainda vai ser comprado, e some
+ * sozinha quando a fatura real chega (ver lib/card-estimate.ts).
+ */
+export function cardEstimateEntryView(line: CardEstimateLine): EntryView {
+  return {
+    itemName: line.line,
+    // Id sintético por cartão: não há Category no banco por trás da provisão,
+    // e cartões diferentes não podem cair na mesma fatia da pizza.
+    categoryId: `${CARD_ESTIMATE_ENTRY_PREFIX}${line.cardId}`,
+    categoryName: CARD_ESTIMATE_CATEGORY,
+    categoryType: "EXPENSE",
+    plannedCents: line.cents,
+    paid: false,
+    paidCents: null,
     isTransfer: false,
   };
 }

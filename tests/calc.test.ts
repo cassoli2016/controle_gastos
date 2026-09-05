@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   plannedIncome, plannedExpense, plannedBalance, remainingToPay,
   paidExpense, receivedIncome, progressPct, isOverdue,
-  expenseRanking, expenseByCategory, realizedBalance, realizedCashBalance, savedInMonth, cashBalance, type EntryView,
+  expenseRanking, expenseByCategory, realizedBalance, realizedCashBalance, savedInMonth, cashBalance,
+  remainingToReceive, balanceToCome, type EntryView,
 } from "@/lib/calc";
 import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -240,6 +241,29 @@ describe("transferências (movimentos de caixinha)", () => {
     const depositoPlanejado = [t("INCOME", 2500000, false), t("EXPENSE", 1000000, true, false)];
     expect(realizedCashBalance(depositoPlanejado)).toBe(2500000);
   });
+
+  it("saldo a realizar: o que ainda entra menos o que ainda sai", () => {
+    // Setembro/2026: faltam R$ 29.242,11 a pagar e só R$ 15.833,00 a receber.
+    // O card "Saldo" dizia -R$ 3.646,78 porque soma o mês inteiro, incluindo
+    // os R$ 25.000 que já entraram E já saíram.
+    const mesReal = [
+      t("INCOME", 2500000, false, true), // salário, já recebido
+      t("INCOME", 1583300, false, false), // ainda a receber
+      t("EXPENSE", 1523767, false, true), // contas já pagas
+      t("EXPENSE", 2924211, false, false), // ainda a pagar
+    ];
+    expect(remainingToReceive(mesReal)).toBe(1583300);
+    expect(remainingToPay(mesReal)).toBe(2924211);
+    expect(balanceToCome(mesReal)).toBe(-1340911);
+  });
+
+  it("balanceToCome ignora transferência: depósito por fazer não é conta a pagar", () => {
+    const comDeposito = [t("INCOME", 100000, false, false), t("EXPENSE", 40000, true, false)];
+    expect(balanceToCome(comDeposito)).toBe(100000);
+  });
+
+  it("mês todo baixado não tem nada a realizar", () =>
+    expect(balanceToCome([t("INCOME", 100000, false, true), t("EXPENSE", 40000, false, true)])).toBe(0));
 
   it("mês sem transferência nenhuma: cashBalance e plannedBalance coincidem", () => {
     expect(cashBalance(E)).toBe(plannedBalance(E));
