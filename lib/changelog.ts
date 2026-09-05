@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.25.6",
+    date: "2026-09-05",
+    title: "Datas das parcelas que criei ontem estavam erradas",
+    items: [
+      "As quatro parcelas da Associação Franciscana que o app criou na versão anterior ficaram todas com a data da compra (04/09), quando o certo é a data em que cada parcela cai — o mês anterior ao da fatura. É assim que todas as outras séries do cartão funcionam, e é o que faz a linha ser reconhecida quando a fatura de verdade chega.",
+      "Corrigido: a parcela que cai na fatura de novembro tem data 04/10, a de janeiro tem 04/12, e assim por diante.",
+      "Sem efeito em valor nenhum: as faturas continuam iguais.",
+    ],
+  },
+  {
     version: "1.25.5",
     date: "2026-09-05",
     title: "A compra parcelada da Associação Franciscana estava pela metade",
