@@ -3,7 +3,7 @@ import {
   plannedIncome, plannedExpense, plannedBalance, remainingToPay,
   paidExpense, receivedIncome, progressPct, isOverdue,
   expenseRanking, expenseByCategory, realizedBalance, realizedCashBalance, savedInMonth, cashBalance,
-  remainingToReceive, balanceToCome, type EntryView,
+  remainingToReceive, balanceToCome, monthSplit, type EntryView,
 } from "@/lib/calc";
 import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -264,6 +264,38 @@ describe("transferências (movimentos de caixinha)", () => {
 
   it("mês todo baixado não tem nada a realizar", () =>
     expect(balanceToCome([t("INCOME", 100000, false, true), t("EXPENSE", 40000, false, true)])).toBe(0));
+
+  it("monthSplit separa o que já aconteceu do que falta acontecer", () => {
+    // Setembro/2026, o caso que confundiu: recebido R$ 25.000 contra pago
+    // R$ 37.810,95 deixam o passado em -R$ 12.810,95; o futuro traz
+    // +R$ 10.442,34; o mês fecha em -R$ 2.368,61.
+    const mes = [
+      t("INCOME", 2500000, false, true),
+      t("INCOME", 1583300, false, false),
+      t("EXPENSE", 3781095, false, true),
+      t("EXPENSE", 539066, false, false),
+    ];
+    expect(monthSplit(mes)).toEqual({ pastCents: -1281095, toComeCents: 1044234 });
+  });
+
+  it("as duas metades somam o saldo do mês — é o que faz a explicação fechar", () => {
+    const mes = [
+      t("INCOME", 2500000, false, true),
+      t("INCOME", 1583300, false, false),
+      t("EXPENSE", 3781095, false, true),
+      t("EXPENSE", 539066, false, false),
+    ];
+    const s = monthSplit(mes);
+    expect(s.pastCents + s.toComeCents).toBe(plannedBalance(mes));
+  });
+
+  it("transferência fica de fora das duas metades", () => {
+    const comDeposito = [t("INCOME", 100000, false, true), t("EXPENSE", 40000, true, true)];
+    expect(monthSplit(comDeposito)).toEqual({ pastCents: 100000, toComeCents: 0 });
+  });
+
+  it("mês inteiro em aberto tem passado zero", () =>
+    expect(monthSplit([t("INCOME", 100000, false, false)])).toEqual({ pastCents: 0, toComeCents: 100000 }));
 
   it("mês sem transferência nenhuma: cashBalance e plannedBalance coincidem", () => {
     expect(cashBalance(E)).toBe(plannedBalance(E));
