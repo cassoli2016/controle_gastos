@@ -7,6 +7,7 @@ import {
   savedInMonth,
   balanceToCome,
   remainingToReceive,
+  monthSplit,
   remainingToPay,
   paidExpense,
   receivedIncome,
@@ -41,7 +42,31 @@ export function MonthStatCards({
   // Guardar não entra no saldo (não é gasto), mas some da tela se não for dito
   // em algum lugar: o mês em que a sobra foi para a caixinha parece igual ao
   // mês em que ela ficou parada na conta.
-  const savedDetail = savedInMonthLabel(balance, savedInMonth(views)) ?? undefined;
+  const savedLabel = savedInMonthLabel(balance, savedInMonth(views));
+
+  // O card "Saldo" é o mês INTEIRO, e ao lado dele o "Falta pagar" mostra só o
+  // que ainda vai acontecer. Ver os dois sem saber de que período cada um fala
+  // parece contradição — "tenho R$ 15.833 a receber e R$ 5.390 a pagar, por
+  // que o saldo está negativo?". As duas metades explicam, e somam o saldo.
+  const split = monthSplit(views);
+  const sinal = (cents: number) => `${cents < 0 ? "−" : "+"}${formatCents(Math.abs(cents))}`;
+  // Cada metade na sua linha: em coluna estreita, "já aconteceu X · falta Y"
+  // quebrava no meio e o rótulo ficava separado do número que ele nomeia.
+  const saldoDetail = (
+    <>
+      <span className="flex justify-between gap-2 tabular-nums">
+        {/* Rótulo curto: o card divide a largura com outro e não cabe
+            "já aconteceu" ao lado de um valor de cinco dígitos. */}
+        <span>já foi</span>
+        <span>{sinal(split.pastCents)}</span>
+      </span>
+      <span className="flex justify-between gap-2 tabular-nums">
+        <span>falta</span>
+        <span>{sinal(split.toComeCents)}</span>
+      </span>
+      {savedLabel && <span className="block pt-0.5">{savedLabel}</span>}
+    </>
+  );
 
   const unpaidCount = realViews.filter((v) => v.categoryType === "EXPENSE" && !v.paid).length;
   const contasLabel = `${unpaidCount} ${unpaidCount === 1 ? "conta" : "contas"}`;
@@ -95,7 +120,7 @@ export function MonthStatCards({
           value={formatCents(balance)}
           tone={balance < 0 ? "expense" : "default"}
           icon={Wallet}
-          detail={savedDetail}
+          detail={saldoDetail}
         />
       )}
       <StatCard

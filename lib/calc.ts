@@ -81,6 +81,25 @@ export function balanceToCome(e: EntryView[]): number {
   return remainingToReceive(e) - remainingToPay(e);
 }
 
+/**
+ * As duas metades do mês: o que já aconteceu e o que ainda vai acontecer.
+ *
+ * Existe porque a tela mostrava lado a lado dois números de períodos
+ * diferentes — o card "Saldo" é o mês INTEIRO e o "sobram" do Falta pagar é só
+ * o futuro — e a diferença parecia contradição. Em set/2026: R$ 15.833,00 a
+ * receber contra R$ 5.390,66 a pagar sobram R$ 10.442,34, mas o mês fecha em
+ * -R$ 2.368,61, porque o passado já está em -R$ 12.810,95.
+ *
+ * `pastCents + toComeCents === plannedBalance(e)` por construção: as duas
+ * metades particionam as mesmas linhas pela baixa.
+ */
+export function monthSplit(e: EntryView[]): { pastCents: number; toComeCents: number } {
+  return {
+    pastCents: receivedIncome(e) - paidExpense(e),
+    toComeCents: balanceToCome(e),
+  };
+}
+
 /** Soma dos previstos de despesas já pagas (complemento de remainingToPay). */
 export function paidExpense(e: EntryView[]): number {
   return sumCents(expense(e).filter((x) => x.paid).map((x) => x.plannedCents));

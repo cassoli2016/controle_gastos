@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -39,7 +40,7 @@ export function StatCard({
   tone?: keyof typeof TONES;
   icon?: LucideIcon;
   /** Sub-linha explicativa abaixo do valor (ex.: "R$ 660,00 pago · R$ 490,00 falta"). */
-  detail?: string;
+  detail?: ReactNode;
   /**
    * Versão curta do detalhe, só no celular. Num card de meia largura o texto
    * completo virava três linhas e o bloco de quatro cards passava de 600px de

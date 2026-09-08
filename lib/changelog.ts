@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.26.0",
+    date: "2026-09-08",
+    title: "O card Saldo explica de onde vem o número",
+    items: [
+      "Dava para olhar a tela do Mês e não entender: \"tenho R$ 15.833,00 a receber e só R$ 5.390,66 a pagar, por que o saldo está negativo?\". A resposta é que os dois cards falavam de períodos diferentes — o Saldo é o mês inteiro, e o \"sobram\" do Falta pagar é só o que ainda vai acontecer.",
+      "Agora o card Saldo mostra as duas metades, que somadas dão o número dele: em setembro, já foi −R$ 12.810,95 (você pagou R$ 37.810,95 tendo recebido R$ 25.000) e falta +R$ 10.442,34. O que ainda entra não cobre o que já saiu, e sobra −R$ 2.368,61.",
+      "A linha da caixinha continua embaixo, porque é ela que explica como a parte já paga foi coberta: R$ 8.123,55 vieram de lá.",
+      "Vale no Mês e no Dashboard, que usam os mesmos cards.",
+    ],
+  },
+  {
     version: "1.25.7",
     date: "2026-09-05",
     title: "Todas as 25 faturas conferidas",
