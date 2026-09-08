@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.27.0",
+    date: "2026-09-08",
+    title: "O saldo do mês virou um quadro só",
+    items: [
+      "As duas metades do saldo não cabiam no card estreito — o rótulo saía cortado e a frase quebrava no meio no celular. Agora elas têm um quadro próprio, de largura inteira, com as quatro pontas que formam o número: recebido e pago de um lado, a receber e a pagar do outro.",
+      "Em setembro: já aconteceu −R$ 12.810,95 (pagou R$ 37.810,95 tendo recebido R$ 25.000,00) e falta acontecer +R$ 10.097,34 (entram R$ 15.833,00, saem R$ 5.735,66). Somando, o saldo do mês é −R$ 2.713,61.",
+      "Em cima ficaram três cards — Receitas, Despesas e Falta pagar —, mais largos e mais folgados que os quatro de antes.",
+      "No gráfico Saldo mensal do Dashboard, a barra do mês corrente também misturava as duas coisas. O detalhe da barra agora mostra a divisão, então dá para ver por que ela está vermelha mesmo com dinheiro por entrar.",
+    ],
+  },
+  {
     version: "1.26.0",
     date: "2026-09-08",
     title: "O card Saldo explica de onde vem o número",

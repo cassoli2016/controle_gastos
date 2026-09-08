@@ -11,6 +11,7 @@ import { isOverdue, realizedBalance, realizedCashBalance } from "@/lib/calc";
 import { dailyCashflow } from "@/lib/cashflow";
 import { MonthNav } from "@/components/MonthNav";
 import { MonthStatCards } from "@/components/MonthStatCards";
+import { MonthBalanceCard } from "@/components/MonthBalanceCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyPreviousMonthButton } from "./CopyPreviousMonthButton";
 import { CopyYearAgoButton } from "./CopyYearAgoButton";
@@ -205,6 +206,8 @@ export default async function MesPage({
       ) : (
         <>
           <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
+
+        <MonthBalanceCard views={views} />
 
           {/* A key com o mês recolhe o card ao trocar de mês: sem ela o estado
               do useState sobrevive à soft navigation (mesmo motivo do
