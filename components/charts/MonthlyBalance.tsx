@@ -18,6 +18,14 @@ export type MonthlyBalancePoint = {
   incomeCents: number;
   expenseCents: number;
   balanceCents: number;
+  /**
+   * As duas metades do saldo (lib/calc.ts `monthSplit`). No mês corrente a
+   * barra soma o que já aconteceu com o que falta, e sem essa quebra ela
+   * parece contradizer o "falta pagar" — mês futuro tem `pastCents` zero e o
+   * tooltip não mostra a divisão.
+   */
+  pastCents?: number;
+  toComeCents?: number;
 };
 
 const POSITIVE = "#10b981"; // emerald-500 (tom de receita do app)
@@ -48,6 +56,18 @@ function BalanceTooltip({
           <span>Saldo</span>
           <span style={{ color: p.balanceCents < 0 ? NEGATIVE : POSITIVE }}>{formatCents(p.balanceCents)}</span>
         </div>
+        {p.pastCents !== undefined && p.pastCents !== 0 && (
+          <div className="mt-1 space-y-0.5 border-t pt-1">
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">já aconteceu</span>
+              <span>{formatCents(p.pastCents)}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">falta acontecer</span>
+              <span>{formatCents(p.toComeCents ?? 0)}</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

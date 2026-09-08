@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
-import { plannedIncome, plannedExpense, plannedBalance, expenseByCategory, expenseRanking } from "@/lib/calc";
+import { plannedIncome, plannedExpense, plannedBalance, monthSplit, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
 import { budgetLines } from "@/lib/budget";
@@ -21,6 +21,7 @@ import { cardCycleStatus } from "@/lib/card-estimate";
 import { usageTone } from "@/lib/card-usage";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
+import { MonthBalanceCard } from "@/components/MonthBalanceCard";
 import { MonthNav } from "@/components/MonthNav";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
@@ -161,6 +162,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     incomeCents: plannedIncome(v),
     expenseCents: plannedExpense(v),
     balanceCents: plannedBalance(v),
+    // Só o mês corrente (e os passados) têm parte realizada; nos futuros as
+    // duas metades seriam "zero" e "tudo", que não explica nada.
+    ...monthSplit(v),
   }));
 
   // Patrimônio projetado: caixinhas + carteira hoje, somando o saldo de CAIXA
@@ -201,6 +205,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       </div>
 
       <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
+
+      <MonthBalanceCard views={views} />
 
       {vencendo.length > 0 && (
         <Card>
