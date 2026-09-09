@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.28.0",
+    date: "2026-09-08",
+    title: "O gráfico Saldo mensal mostra o tamanho do mês",
+    items: [
+      "Antes o gráfico desenhava só uma barra por mês, o saldo. O problema é que o saldo some: um mês que recebe R$ 30.833 e gasta R$ 31.528 fecha em −R$ 695 e virava um tracinho perto do zero, como se nada tivesse acontecido.",
+      "Agora cada mês é uma coluna espelhada — receitas para cima em verde, despesas para baixo em vermelho — e o saldo é a linha roxa passando entre as duas. Dá para ver de relance que setembro é o mês grande (R$ 40.833 entrando, R$ 43.546 saindo) e que os meses seguintes movimentam sempre a mesma coisa.",
+      "Os nomes dos meses no eixo ficaram curtos (\"set/26\" no lugar de \"set. de 2026\"), o que também deu ar ao gráfico de Patrimônio, que usa os mesmos meses.",
+      "O detalhe da barra continua abrindo receitas, despesas, saldo e — no mês corrente — a divisão entre o que já aconteceu e o que falta acontecer.",
+    ],
+  },
+  {
     version: "1.27.0",
     date: "2026-09-08",
     title: "O saldo do mês virou um quadro só",
