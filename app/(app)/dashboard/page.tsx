@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
-import { monthToDate, formatCompetencia, sanitizeMonth } from "@/lib/dates";
+import { monthToDate, formatCompetencia, shortCompetencia, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, monthSplit, expenseByCategory, expenseRanking } from "@/lib/calc";
@@ -148,7 +148,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const monthlyViews = chartMonths.map((m) => {
     const base = viewsByMonth.get(m) ?? [];
     return {
-      month: formatCompetencia(monthToDate(m)),
+      month: shortCompetencia(monthToDate(m)),
       views:
         base.length === 0
           ? base

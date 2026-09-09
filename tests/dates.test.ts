@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { monthToDate, monthStringFromDate, formatCompetencia, monthRange, sanitizeMonth } from "@/lib/dates";
+import { monthToDate, monthStringFromDate, formatCompetencia, shortCompetencia, monthRange, sanitizeMonth } from "@/lib/dates";
 
 describe("dates", () => {
   it("monthToDate cria dia 1 UTC", () => {
@@ -38,4 +38,15 @@ describe("sanitizeMonth", () => {
     expect(sanitizeMonth("2026-08-01")).toBeNull();
   });
   it("undefined → null", () => expect(sanitizeMonth(undefined)).toBeNull());
+});
+
+describe("shortCompetencia", () => {
+  // "set. de 2026" × 12 não cabe no eixo do gráfico em 390px.
+  it("encurta a competência para mês/ano de dois dígitos", () => {
+    expect(shortCompetencia(monthToDate("2026-09"))).toBe("set/26");
+    expect(shortCompetencia(monthToDate("2027-01"))).toBe("jan/27");
+  });
+
+  it("tira o ponto que o pt-BR põe na abreviação", () =>
+    expect(shortCompetencia(monthToDate("2026-12"))).not.toContain("."));
 });
