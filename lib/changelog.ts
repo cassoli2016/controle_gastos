@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.29.0",
+    date: "2026-09-08",
+    title: "Calculadora: à vista ou parcelado",
+    items: [
+      "Tela nova (menu → Calculadora). Você põe o preço cheio, o desconto que a loja dá à vista e em até quantas vezes ela parcela; ela responde qual das duas sai mais barato.",
+      "A conta não é pelo total. R$ 5.000 em 10x de R$ 500 custam menos que R$ 5.000 hoje, porque as nove primeiras parcelas ficam rendendo na reserva até vencerem. Cada parcela é trazida a valor de hoje pelo rendimento, e é esse valor que entra na comparação.",
+      "No exemplo de R$ 5.000 com 5% de desconto: à vista sai por R$ 4.750,00, e só em 10x o parcelamento ganha — por R$ 14,35. Em 9x o desconto ainda é melhor, por R$ 8,94. A tabela mostra todos os prazos, então dá para ver onde vira.",
+      "Ela também traduz o desconto em juros: 5% à vista equivale a pagar 0,94% ao mês em 10x. Como a reserva rende 1,00%, parcelar compensa — é a mesma conclusão pelo outro lado.",
+      "Se o parcelamento tiver juros, preencha o \"Total parcelado\" com o valor cheio da soma das parcelas e a comparação continua valendo.",
+    ],
+  },
+  {
     version: "1.28.0",
     date: "2026-09-08",
     title: "O gráfico Saldo mensal mostra o tamanho do mês",
