@@ -14,6 +14,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.30.0",
+    date: "2026-09-13",
+    title: "Fatura parcial do Bradesco pelo Telegram",
+    items: [
+      "O app do Bradesco deixa você baixar o extrato da fatura ANTES dela fechar. Agora dá para mandar esse PDF no Telegram: o bot diz o que já foi comprado e ainda não está lançado aqui — sem esperar o fechamento.",
+      "Ele não fica reclamando de total que não bate, porque esse extrato vem incompleto de propósito: no de 13/09 vieram 26 compras, e o app já tinha 50 na mesma fatura. Então o bot só aponta o que FALTA, e avisa quantas linhas o extrato deixou de mostrar.",
+      "Cada compra que falta vem com o tamanho do estrago: no exemplo real, 3 compras de R$ 77,43 no mês viram R$ 683,16 quando você conta todas as parcelas que ainda vão cair.",
+      "O extrato não traz o limite. Escreva \"usado 12.325,63\" na legenda do PDF (o número que aparece na tela do banco) e o bot compara com a dívida que o app projeta — foi assim que apareceu uma diferença de R$ 503,87.",
+      "Quando o valor da parcela difere por centavos, ele não trata como erro: o banco redistribui o arredondamento entre as parcelas, e o bot só conta quantas linhas estão nessa situação.",
+      "A importação pela tela de Cartões recusa esse PDF de propósito, com o motivo escrito. Fatura em aberto ainda muda até fechar, e gravar valor provisório bagunçaria os meses seguintes.",
+    ],
+  },
+  {
     version: "1.29.0",
     date: "2026-09-08",
     title: "Calculadora: à vista ou parcelado",

@@ -4,6 +4,7 @@
  * falam só com este módulo.
  */
 import { parseBradescoFatura } from "@/lib/bradesco-fatura";
+import { isBradescoExtrato, parseBradescoExtrato, type ParsedExtrato } from "@/lib/bradesco-extrato";
 import { parseNubankFatura } from "@/lib/nubank-fatura";
 import { buildInstallmentSchedule, type FaturaBank, type ParsedFatura } from "@/lib/fatura-core";
 import { formatCents } from "@/lib/money";
@@ -17,12 +18,22 @@ const SCHEDULE_TOLERANCE_CENTS = 500;
  * enquanto o contrário não acontece.
  */
 export function detectFaturaBank(text: string): FaturaBank | null {
+  if (isBradescoExtrato(text)) return null;
   if (/^Total a pagar R\$ [\d.,]+$/m.test(text) && /Nu Pagamentos|nubank/i.test(text)) return "nubank";
   if (/Total da fatura\s*R\$/.test(text) && /Bradesc/i.test(text)) return "bradesco";
   return null;
 }
 
 export function parseFatura(text: string): ParsedFatura | { error: string } {
+  // Extrato em aberto tem outro contrato (lista parcial, sem vencimento) e só
+  // serve para CONFERIR — nunca para importar. A recusa é explícita porque este
+  // é o caminho da tela de Cartões, que grava.
+  if (isBradescoExtrato(text)) {
+    return {
+      error:
+        "Isto é o extrato EM ABERTO do Bradesco, não a fatura fechada: a lista ainda muda até o fechamento e vem incompleta. Mande pelo Telegram para conferir o que falta lançar.",
+    };
+  }
   const bank = detectFaturaBank(text);
   if (bank === "nubank") return parseNubankFatura(text);
   if (bank === "bradesco") return parseBradescoFatura(text);
@@ -61,4 +72,16 @@ export function scheduleWarnings(fatura: ParsedFatura): string[] {
     out.push("Divergência acima de R$ 5,00 — confira as linhas antes de importar.");
   }
   return out;
+}
+
+/**
+ * Porta do extrato EM ABERTO (fatura parcial). Separada de `parseFatura` de
+ * propósito: o resultado não é importável, só conferível — ver
+ * `lib/extrato-confere.ts`.
+ */
+export function parseExtrato(text: string): ParsedExtrato | { error: string } {
+  if (!isBradescoExtrato(text)) {
+    return { error: "Não reconheci este extrato. Hoje entendo o extrato em aberto do app do Bradesco." };
+  }
+  return parseBradescoExtrato(text);
 }

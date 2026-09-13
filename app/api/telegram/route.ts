@@ -15,7 +15,10 @@ import { resolveCategoryId } from "@/lib/purchases";
 import { realizedCashBalance } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
 import { normalizeDescription } from "@/lib/description-match";
-import { parseFatura, scheduleWarnings } from "@/lib/fatura-parse";
+import { parseFatura, parseExtrato, scheduleWarnings } from "@/lib/fatura-parse";
+import { isBradescoExtrato } from "@/lib/bradesco-extrato";
+import { confereExtrato, conciliaLimite, parseExtratoCaption } from "@/lib/extrato-confere";
+import { toAppRow } from "@/lib/fatura-match";
 import { createPurchaseCore, createPurchasesBatch, resolveIncomeCategoryId } from "@/lib/purchases";
 import {
   addPurchaseToCard,
@@ -27,7 +30,7 @@ import {
   type CardMonthRow,
 } from "@/lib/card-entry";
 import { pickFaturaMonth } from "@/lib/csv-fatura-target";
-import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { todayISOInSaoPaulo, faturaMonth } from "@/lib/fatura";
 import { createRecurrence } from "@/lib/recurrence";
 import { createCardSubscription } from "@/lib/card-subscription";
 import { createWeekdayRecurrence, findActiveItemByName } from "@/lib/recurrence";
@@ -67,6 +70,8 @@ const HELP =
   "\n<b>💳 Cartões</b>\n" +
   "• Compra com cartão vira fatura consolidada; após o fechamento cai no mês seguinte\n" +
   "• Fatura fechada: envie o PDF do Nubank ou do Bradesco — eu confiro o total (gravar é pelo app)\n" +
+  "• Fatura parcial (extrato em aberto do app do Bradesco): envie o PDF — eu digo o que falta lançar\n" +
+  "   legenda <code>usado 12.325,63</code> para eu conferir também o limite comprometido\n" +
   "• Fatura em aberto: envie o .csv do banco (cartão pelo nome do arquivo)\n" +
   "• Antecipação: <code>antecipei 500</code> · Estorno: <code>estorno 56,71 shopee</code> / <code>estorno iof 0,55</code>\n" +
   "• Sem nome de cartão, vale o padrão (estrela em Cartões)\n" +
@@ -366,6 +371,13 @@ async function handleFaturaPdfDocument(
     return;
   }
 
+  // Extrato EM ABERTO é outro documento e outro fluxo: lista parcial, sem
+  // vencimento, e serve só para conferir o que falta lançar.
+  if (isBradescoExtrato(text)) {
+    await handleExtratoEmAberto(chatId, text, caption);
+    return;
+  }
+
   const fatura = parseFatura(text);
   if ("error" in fatura) {
     await reply(chatId, `❌ ${fatura.error}`);
@@ -405,6 +417,109 @@ async function handleFaturaPdfDocument(
     );
   }
   for (const w of [...fatura.warnings, ...scheduleWarnings(fatura)]) parts.push(`⚠️ ${w}`);
+
+  await reply(chatId, parts.join("\n"));
+}
+
+/** Quantas compras faltando listar antes de resumir (limite de 4096 do Telegram). */
+const MAX_FALTANDO_LISTADAS = 15;
+
+/**
+ * Extrato EM ABERTO do Bradesco: conferência ADITIVA, sem gravar nada.
+ *
+ * A lista do extrato é um subconjunto do ciclo, então o sinal útil é o que o
+ * BANCO tem e o app não — compra que falta lançar. O caminho inverso vira
+ * rodapé informativo. Ver `lib/extrato-confere.ts`.
+ */
+async function handleExtratoEmAberto(chatId: number, text: string, caption: string | undefined) {
+  const extrato = parseExtrato(text);
+  if ("error" in extrato) {
+    await reply(chatId, `❌ ${extrato.error}`);
+    return;
+  }
+
+  const { usadoCents, cardHint } = parseExtratoCaption(caption);
+  const hint = cardHint ?? extrato.bank;
+  const card = await prisma.creditCard.findFirst({
+    where: { active: true, name: { contains: hint, mode: "insensitive" } },
+  });
+  if (!card) {
+    await reply(chatId, CARD_NOT_FOUND(hint));
+    return;
+  }
+
+  // Sem vencimento no PDF, a competência sai da data de GERAÇÃO + ciclo do cartão.
+  if (card.closingDay == null) {
+    await reply(chatId, `Cadastre o dia de fechamento de ${card.name} — sem ele não sei de qual fatura é este extrato.`);
+    return;
+  }
+  const month = faturaMonth(extrato.generatedISO, card.closingDay, card.dueDay);
+  if (!month) {
+    await reply(chatId, "Não entendi a data de geração do extrato.");
+    return;
+  }
+
+  const [doMes, daCompetenciaEmDiante] = await Promise.all([
+    prisma.cardTransaction.findMany({ where: { cardId: card.id, month: monthToDate(month) } }),
+    prisma.cardTransaction.findMany({
+      where: { cardId: card.id, month: { gte: monthToDate(month) } },
+      select: { amount: true },
+    }),
+  ]);
+
+  const diff = confereExtrato(doMes.map(toAppRow), extrato.lines);
+  const limite = conciliaLimite({
+    dividaAppCents: daCompetenciaEmDiante.reduce((a, t) => a + decimalToCents(String(t.amount)), 0),
+    usadoBancoCents: usadoCents,
+    limiteCents: card.limitAmount ? decimalToCents(String(card.limitAmount)) : null,
+  });
+
+  const compras = extrato.lines.filter((l) => l.kind !== "payment").length;
+  const parts = [
+    `📄 Extrato em aberto · ${card.name} — ${fmtMonth(month)}`,
+    `${compras} lançamentos · ${formatCents(extrato.statementTotalCents)} · gerado em ${extrato.generatedISO.slice(8, 10)}/${extrato.generatedISO.slice(5, 7)}`,
+    "",
+  ];
+
+  if (diff.faltando.length === 0) {
+    parts.push("✅ Tudo que o extrato mostra já está lançado no app.");
+  } else {
+    parts.push(
+      `⚠️ ${diff.faltando.length} ${diff.faltando.length === 1 ? "compra que o app não tem" : "compras que o app não tem"} (${formatCents(diff.faltandoMesCents)} no mês, ${formatCents(diff.faltandoTotalCents)} com a cauda):`,
+    );
+    for (const { line } of diff.faltando.slice(0, MAX_FALTANDO_LISTADAS)) {
+      const parcela = line.installment ? ` ${line.installment.seq}/${line.installment.count}` : "";
+      parts.push(
+        `   ${line.dateISO.slice(8, 10)}/${line.dateISO.slice(5, 7)}  ${formatCents(line.cents)}${parcela}  ${line.description}`,
+      );
+    }
+    if (diff.faltando.length > MAX_FALTANDO_LISTADAS) {
+      parts.push(`   …e mais ${diff.faltando.length - MAX_FALTANDO_LISTADAS}.`);
+    }
+  }
+
+  parts.push("", `💳 Limite: o app projeta ${formatCents(limite.dividaAppCents)} de dívida`);
+  if (limite.usadoBancoCents !== null) {
+    parts.push(
+      `   banco usou ${formatCents(limite.usadoBancoCents)} — diferença ${formatCents(limite.diferencaCents!)}`,
+    );
+  } else if (limite.disponivelAppCents !== null) {
+    parts.push(
+      `   de ${formatCents(limite.limiteCents!)} → sobra ${formatCents(limite.disponivelAppCents)}`,
+      "   (mande \"usado 12.325,63\" na legenda para eu comparar com o banco)",
+    );
+  }
+
+  if (diff.centavos.length > 0) {
+    parts.push("", `🔎 ${diff.centavos.length} com centavos diferentes — o banco redistribui o arredondamento entre as parcelas.`);
+  }
+  if (diff.naoMostradas.length > 0) {
+    parts.push(
+      "",
+      `ℹ️ Extrato parcial: ${diff.naoMostradas.length} linhas do app (${formatCents(diff.naoMostradasCents)}) não aparecem nele. Esperado antes do fechamento.`,
+    );
+  }
+  for (const w of extrato.warnings) parts.push(`⚠️ ${w}`);
 
   await reply(chatId, parts.join("\n"));
 }
