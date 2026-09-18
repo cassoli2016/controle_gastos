@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.30.1",
+    date: "2026-09-18",
+    title: "Panorama: cabeçalho dos meses fica parado",
+    items: [
+      "A linha dos meses agora fica congelada no topo, do mesmo jeito que a coluna das contas já ficava parada na esquerda. Rolando a lista, você continua sabendo se aquele valor é de set/26 ou de mar/27.",
+      "A tabela passou a rolar dentro do próprio quadro, em vez de arrastar a página inteira — os botões de exportar ficam sempre à vista, no rodapé.",
+    ],
+  },
+  {
     version: "1.30.0",
     date: "2026-09-13",
     title: "Fatura parcial do Bradesco pelo Telegram",
