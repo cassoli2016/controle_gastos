@@ -61,3 +61,17 @@ describe("scheduleWarnings", () => {
     expect(scheduleWarnings(f)).toEqual([]);
   });
 });
+
+describe("extrato em aberto do Bradesco", () => {
+  const extrato = readFileSync("tests/fixtures/bradesco-extrato.txt", "utf8");
+
+  it("não é confundido com a fatura fechada do Bradesco", () => {
+    expect(detectFaturaBank(extrato)).toBeNull();
+  });
+
+  it("parseFatura recusa com erro que diz o que o documento é", () => {
+    const f = parseFatura(extrato);
+    expect(f).toHaveProperty("error");
+    expect((f as { error: string }).error).toMatch(/em aberto/i);
+  });
+});

@@ -41,6 +41,20 @@ function colBg(col: MatrixColumn, currentMonth: string): string {
   return col.monthISO === currentMonth ? "bg-primary/5" : "";
 }
 
+/**
+ * Mesmo destaque do corpo, porém OPACO. O cabeçalho é congelado: célula
+ * translúcida deixaria as linhas aparecerem por baixo dela enquanto a matriz
+ * rola. Pintar o fundo no <thead> não resolve — com border-collapse o navegador
+ * pinta o grupo na posição antiga e sobra uma faixa transparente no topo.
+ */
+function colBgHead(col: MatrixColumn, currentMonth: string): string {
+  if (col.kind === "year") return "bg-[color-mix(in_oklab,var(--muted)_40%,var(--card))] font-medium";
+  if (col.kind === "total") return "bg-[color-mix(in_oklab,var(--muted)_60%,var(--card))] font-semibold";
+  return col.monthISO === currentMonth
+    ? "bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))]"
+    : "bg-card";
+}
+
 /** Chave estável de React por coluna. */
 function colKey(col: MatrixColumn): string {
   return col.kind === "month" ? col.monthISO : col.kind === "year" ? `year-${col.year}` : "total";
@@ -139,7 +153,9 @@ export default async function PanoramaPage({
     <th
       key={m}
       className={`whitespace-nowrap px-3 py-2 text-right font-medium ${
-        m === currentMonth ? "bg-primary/10 text-primary" : "text-muted-foreground"
+        m === currentMonth
+          ? "bg-[color-mix(in_oklab,var(--primary)_10%,var(--card))] text-primary"
+          : "bg-card text-muted-foreground"
       }`}
     >
       <Link href={`/mes?month=${m}`} className="hover:underline">
@@ -197,9 +213,18 @@ export default async function PanoramaPage({
                 )}
               </span>
             </div>
-            <div className="overflow-x-auto">
+            {/* Janela de planilha: a matriz rola DENTRO do card, nos dois eixos.
+                É o que permite congelar o cabeçalho junto da coluna Conta — sem
+                altura máxima aqui, o sticky do thead se ancoraria neste
+                container (que nunca rolaria) e a linha dos meses passaria direto.
+                A conta do mobile tem a barra de navegação de baixo somada. */}
+            <div className="max-h-[max(20rem,calc(100dvh-20rem))] overflow-auto md:max-h-[max(20rem,calc(100dvh-16rem))]">
               <table className="w-full text-sm">
-                <thead>
+                {/* Cada th leva o próprio fundo (colBgHead) e a própria borda de
+                    baixo: com border-collapse quem desenha a borda é a tabela, e
+                    ela fica para trás quando o cabeçalho descola — por isso a
+                    sombra inset no lugar de border-b. */}
+                <thead className="sticky top-0 z-20 [&>tr>th]:shadow-[inset_0_-1px_0_var(--border)]">
                   <tr className="border-b">
                     <th className="sticky left-0 z-10 bg-card px-4 py-2 text-left font-medium text-muted-foreground min-w-44">
                       Conta
@@ -210,7 +235,7 @@ export default async function PanoramaPage({
                       ) : (
                         <th
                           key={colKey(col)}
-                          className={`whitespace-nowrap px-3 py-2 text-right font-medium ${colBg(col, currentMonth)}`}
+                          className={`whitespace-nowrap px-3 py-2 text-right font-medium ${colBgHead(col, currentMonth)}`}
                         >
                           {col.kind === "year" ? col.year : "TOTAL"}
                         </th>
