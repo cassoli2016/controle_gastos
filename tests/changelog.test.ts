@@ -28,4 +28,22 @@ describe("CHANGELOG", () => {
       for (const item of e.items) expect(item.length).toBeGreaterThan(0);
     }
   });
+
+  const TERMOS_PESSOAIS = [
+    "cassoli", "heitor", "audrey", "hana", "gobrax", "marcos nunes",
+    "nucel", "ultravioleta", "franciscana", "psico",
+  ];
+
+  it("nenhuma entrada expõe valor em reais", () => {
+    for (const e of CHANGELOG)
+      for (const item of [e.title, ...e.items])
+        expect(item, `${e.version}: "${item.slice(0, 60)}…"`).not.toMatch(/R\$\s*\d/);
+  });
+
+  it("nenhuma entrada cita nome próprio de pessoa, conta ou empresa", () => {
+    for (const e of CHANGELOG)
+      for (const item of [e.title, ...e.items])
+        for (const termo of TERMOS_PESSOAIS)
+          expect(item.toLowerCase(), `${e.version} cita "${termo}"`).not.toContain(termo);
+  });
 });
