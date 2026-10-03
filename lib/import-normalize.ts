@@ -25,11 +25,11 @@ export function normalizeDueDay(value: unknown): number | null {
   return n;
 }
 
-const KEYWORD_MAP: { pattern: RegExp; category: string }[] = [
+export const KEYWORD_MAP: { pattern: RegExp; category: string }[] = [
   { pattern: /sal[aá]rio|renda/i, category: "Renda" },
   { pattern: /seguro/i, category: "Seguros" },
   { pattern: /youtube|ps ?plus|investidor|spotify|netflix|prime|assinatura/i, category: "Assinaturas" },
-  { pattern: /hana|audrey|vitamin|tire[oó]ide|sa[uú]de|farm[aá]cia|rem[eé]dio|dentista/i, category: "Saúde" },
+  { pattern: /vitamin|tire[oó]ide|sa[uú]de|farm[aá]cia|rem[eé]dio|dentista|drogaria/i, category: "Saúde" },
   { pattern: /estacionamento|combust[ií]vel|uber|transporte|ped[aá]gio|gasolina/i, category: "Transporte" },
   { pattern: /aluguel|condom[ií]nio|luz|[aá]gua|energia|internet|iptu|moradia|g[aá]s/i, category: "Moradia" },
 ];

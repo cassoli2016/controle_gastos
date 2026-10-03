@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeAmount, normalizeDueDay, keywordCategory } from "@/lib/import-normalize";
+import { normalizeAmount, normalizeDueDay, keywordCategory, KEYWORD_MAP } from "@/lib/import-normalize";
 
 describe("import-normalize", () => {
   it("normalizeAmount trata número, string, NBSP e vazio", () => {
@@ -23,5 +23,16 @@ describe("import-normalize", () => {
     expect(keywordCategory("HANA TIREÓIDE")).toBe("Saúde");
     expect(keywordCategory("ESTACIONAMENTO")).toBe("Transporte");
     expect(keywordCategory("ALGO ALEATÓRIO")).toBe("Outros");
+  });
+  it("as regras de categoria não dependem de nome de pessoa", () => {
+    for (const termo of ["hana", "audrey", "heitor"])
+      expect(KEYWORD_MAP.some((r) => r.pattern.source.toLowerCase().includes(termo))).toBe(false);
+  });
+  it("a remoção dos nomes próprios não quebrou os termos que já existiam", () => {
+    expect(keywordCategory("FARMACIA CENTRAL")).toBe("Saúde");
+    expect(keywordCategory("DENTISTA DR SILVA")).toBe("Saúde");
+  });
+  it("drogaria passou a ser reconhecida como Saúde", () => {
+    expect(keywordCategory("DROGARIA SAO PAULO")).toBe("Saúde");
   });
 });
