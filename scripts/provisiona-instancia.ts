@@ -48,6 +48,20 @@ import "dotenv/config";
  * transação: se falhar no meio, dá ROLLBACK só dela; as migrations
  * anteriores já commitadas permanecem aplicadas, e o script para e diz
  * exatamente em qual migration parou.
+ *
+ * `applyPending` (exportada) é o miolo desse mecanismo — ler o que já está
+ * aplicado, calcular o que falta (`pendingMigrations`) e aplicar cada
+ * pendência na transação acima — isolado do `CREATE SCHEMA`/criação da
+ * tabela de controle (que só faz sentido para uma instância nova). Existe
+ * para ser reusada por `scripts/atualiza-instancias.ts` (Task 6), que roda
+ * contra instâncias JÁ provisionadas e nunca cria schema. `applyPending`
+ * abre e fecha sua PRÓPRIA conexão (não reaproveita a do `main` deste
+ * arquivo) porque seu contrato não inclui um `Client` como parâmetro — isso
+ * deixa cada chamada (cada schema, no caso de `atualiza-instancias.ts`)
+ * isolada: a conexão de um schema não interfere na de outro. Dentro dela,
+ * revalida `assertSchemaName` de novo antes de interpolar, mesmo que todo
+ * chamador interno já valide — rede de segurança para qualquer chamador
+ * futuro que esqueça.
  */
 
 import { randomBytes, randomUUID, createHash } from "node:crypto";
@@ -57,7 +71,7 @@ import { assertSchemaName, pendingMigrations, envBlock } from "@/lib/instance-sc
 
 const MIGRATIONS_DIR = "prisma/migrations";
 
-function listAllMigrations(): string[] {
+export function listAllMigrations(): string[] {
   return readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
@@ -85,10 +99,99 @@ async function readAppliedMigrations(client: Client, schema: string): Promise<st
   }
 }
 
+function requireConnectionString(): string {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL ausente no .env — este script conecta só pelo pooler, nunca pela DIRECT_URL.",
+    );
+  }
+  return connectionString;
+}
+
 function argValue(flag: string): string | undefined {
   const prefix = `--${flag}=`;
   const hit = process.argv.find((a) => a.startsWith(prefix));
   return hit?.slice(prefix.length);
+}
+
+/**
+ * Aplica, num `schema` já existente, as migrations de `nomes` que ainda não
+ * estão em `<schema>._prisma_migrations`. NÃO cria schema nem a tabela de
+ * controle — isso é responsabilidade de quem provisiona uma instância nova
+ * (`main` deste arquivo, antes de chamar esta função). `dryRun` só lê e
+ * relata; devolve sempre a contagem de migrations pendentes/aplicadas.
+ *
+ * Abre e fecha sua própria conexão (um `Client` por chamada) — ver nota no
+ * cabeçalho do arquivo sobre por quê.
+ */
+export async function applyPending(schema: string, nomes: string[], dryRun: boolean): Promise<number> {
+  // Revalida mesmo que todo chamador atual já tenha validado antes de montar
+  // `schema` — ver REGRA NÃO-NEGOCIÁVEL no cabeçalho do arquivo. `assertSchemaName`
+  // é pura e devolve o mesmo valor para um nome já válido, então isto não muda
+  // nada para quem já valida; só fecha a porta para quem esquecer.
+  const validSchema = assertSchemaName(schema);
+
+  const connectionString = requireConnectionString();
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const applied = await readAppliedMigrations(client, validSchema);
+    const pending = pendingMigrations(nomes, applied);
+
+    if (dryRun) {
+      console.log(
+        `[dry-run] schema "${validSchema}": ${applied.length} migration(s) já registrada(s), ` +
+          `${pending.length} pendente(s) de ${nomes.length} no total:`,
+      );
+      for (const name of pending) console.log(`  - ${name}`);
+      console.log("\n[dry-run] nada foi executado (nenhum CREATE SCHEMA, nenhuma migration aplicada).");
+      return pending.length;
+    }
+
+    if (pending.length === 0) {
+      console.log("0 migrations pendentes — nada a aplicar.");
+      return 0;
+    }
+
+    console.log(`aplicando ${pending.length} migration(s) pendente(s):`);
+    for (const name of pending) {
+      const file = `${MIGRATIONS_DIR}/${name}/migration.sql`;
+      if (!existsSync(file)) {
+        throw new Error(`não encontrei ${file}`);
+      }
+      const raw = readFileSync(file);
+      const checksum = createHash("sha256").update(raw).digest("hex");
+      const statements = splitStatements(raw.toString("utf8"));
+
+      await client.query("BEGIN");
+      try {
+        // search_path só vale dentro desta transação — ver nota de cabeçalho
+        // sobre o pgbouncer em modo transação.
+        await client.query(`SET LOCAL search_path TO "${validSchema}"`);
+        for (const sql of statements) {
+          await client.query(sql);
+        }
+        await client.query(
+          `INSERT INTO "${validSchema}"."_prisma_migrations"
+             (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+           VALUES ($1, $2, now(), $3, NULL, NULL, now(), $4)`,
+          [randomUUID(), checksum, name, statements.length],
+        );
+        await client.query("COMMIT");
+        console.log(`  ${name}: aplicada e registrada (${statements.length} comando(s))`);
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => {});
+        console.error(
+          `\nFalhou em "${name}" — ROLLBACK só dela. Migrations anteriores continuam aplicadas.`,
+        );
+        throw err;
+      }
+    }
+    return pending.length;
+  } finally {
+    await client.end();
+  }
 }
 
 async function main() {
@@ -109,31 +212,19 @@ async function main() {
   // `schemaArg` de novo.
   const schema = assertSchemaName(schemaArg);
 
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "DATABASE_URL ausente no .env — este script conecta só pelo pooler, nunca pela DIRECT_URL.",
-    );
-  }
-
   const allMigrations = listAllMigrations();
 
+  if (dryRun) {
+    // Dry-run não cria nada — nem schema, nem tabela de controle — então não
+    // há preparo a fazer aqui: `applyPending` sozinha já só lê e relata.
+    await applyPending(schema, allMigrations, true);
+    return;
+  }
+
+  const connectionString = requireConnectionString();
   const client = new Client({ connectionString });
   await client.connect();
   try {
-    const applied = await readAppliedMigrations(client, schema);
-    const pending = pendingMigrations(allMigrations, applied);
-
-    if (dryRun) {
-      console.log(
-        `[dry-run] schema "${schema}": ${applied.length} migration(s) já registrada(s), ` +
-          `${pending.length} pendente(s) de ${allMigrations.length} no total:`,
-      );
-      for (const name of pending) console.log(`  - ${name}`);
-      console.log("\n[dry-run] nada foi executado (nenhum CREATE SCHEMA, nenhuma migration aplicada).");
-      return;
-    }
-
     await client.query(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     // Schema novo não tem a tabela de controle do Prisma — ninguém além do
     // próprio `migrate` a cria normalmente, e aqui não tem `migrate` rodando.
@@ -152,64 +243,37 @@ async function main() {
       )
     `);
     console.log(`schema "${schema}": ok (criado agora ou já existia)`);
-
-    if (pending.length === 0) {
-      console.log("0 migrations pendentes — nada a aplicar.");
-    } else {
-      console.log(`aplicando ${pending.length} migration(s) pendente(s):`);
-      for (const name of pending) {
-        const file = `${MIGRATIONS_DIR}/${name}/migration.sql`;
-        if (!existsSync(file)) {
-          throw new Error(`não encontrei ${file}`);
-        }
-        const raw = readFileSync(file);
-        const checksum = createHash("sha256").update(raw).digest("hex");
-        const statements = splitStatements(raw.toString("utf8"));
-
-        await client.query("BEGIN");
-        try {
-          // search_path só vale dentro desta transação — ver nota de cabeçalho
-          // sobre o pgbouncer em modo transação.
-          await client.query(`SET LOCAL search_path TO "${schema}"`);
-          for (const sql of statements) {
-            await client.query(sql);
-          }
-          await client.query(
-            `INSERT INTO "${schema}"."_prisma_migrations"
-               (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
-             VALUES ($1, $2, now(), $3, NULL, NULL, now(), $4)`,
-            [randomUUID(), checksum, name, statements.length],
-          );
-          await client.query("COMMIT");
-          console.log(`  ${name}: aplicada e registrada (${statements.length} comando(s))`);
-        } catch (err) {
-          await client.query("ROLLBACK").catch(() => {});
-          console.error(
-            `\nFalhou em "${name}" — ROLLBACK só dela. Migrations anteriores continuam aplicadas.`,
-          );
-          throw err;
-        }
-      }
-    }
-
-    const password = randomBytes(32).toString("base64url");
-    const authSecret = randomBytes(32).toString("base64url");
-    const appName = argValue("app-name") ?? `<definir APP_NAME para "${schema}">`;
-    const appUrl = argValue("app-url") ?? "<definir APP_URL (domínio da Vercel)>";
-
-    console.log("\nVariáveis para colar na Vercel:\n");
-    console.log(envBlock({ schema, appName, appUrl, password, authSecret }));
   } finally {
     await client.end();
   }
+
+  await applyPending(schema, allMigrations, false);
+
+  const password = randomBytes(32).toString("base64url");
+  const authSecret = randomBytes(32).toString("base64url");
+  const appName = argValue("app-name") ?? `<definir APP_NAME para "${schema}">`;
+  const appUrl = argValue("app-url") ?? "<definir APP_URL (domínio da Vercel)>";
+
+  console.log("\nVariáveis para colar na Vercel:\n");
+  console.log(envBlock({ schema, appName, appUrl, password, authSecret }));
 }
 
-main()
-  // `process.exit(0)` ignoraria um `process.exitCode` setado antes de um
-  // `return` cedo (ex.: uso sem argumento) — por isso preserva o que já
-  // estiver setado em vez de forçar 0.
-  .then(() => process.exit(process.exitCode ?? 0))
-  .catch((e) => {
-    console.error("provisiona-instancia falhou:", (e as Error).message);
-    process.exit(1);
-  });
+// `scripts/atualiza-instancias.ts` importa `applyPending`/`listAllMigrations`
+// deste arquivo. Sem este guard, qualquer `import` deste módulo re-executaria
+// `main()` com o `process.argv` de QUEM importou (foi exatamente o bug visto
+// na verificação: `atualiza-instancias.ts` rodando sem schema na posição
+// esperada por este `main`, caindo no "uso: ..." e saindo com código 1) —
+// `require.main === module` só é verdadeiro quando este arquivo é o ponto de
+// entrada (`npx tsx scripts/provisiona-instancia.ts ...`), nunca quando é
+// importado por outro módulo.
+if (require.main === module) {
+  main()
+    // `process.exit(0)` ignoraria um `process.exitCode` setado antes de um
+    // `return` cedo (ex.: uso sem argumento) — por isso preserva o que já
+    // estiver setado em vez de forçar 0.
+    .then(() => process.exit(process.exitCode ?? 0))
+    .catch((e) => {
+      console.error("provisiona-instancia falhou:", (e as Error).message);
+      process.exit(1);
+    });
+}
