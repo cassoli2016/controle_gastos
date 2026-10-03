@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FinanceIllustration } from "./FinanceIllustration";
-import { displayDomain } from "@/lib/branding";
+import { appName, displayDomain } from "@/lib/branding";
 
 export default async function LoginPage({
   searchParams,
@@ -15,6 +15,7 @@ export default async function LoginPage({
 }) {
   const { error } = await searchParams;
   const domain = displayDomain();
+  const nome = appName();
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
@@ -28,7 +29,7 @@ export default async function LoginPage({
           <span className="flex size-11 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 text-white shadow-lg shadow-blue-500/30">
             <Wallet className="size-6" />
           </span>
-          <span className="text-2xl font-extrabold tracking-tight">Grana</span>
+          <span className="text-2xl font-extrabold tracking-tight">{nome}</span>
         </div>
 
         <div className="relative mx-auto w-full max-w-lg text-slate-300">
@@ -67,7 +68,7 @@ export default async function LoginPage({
             </span>
             <div className="space-y-1">
               <h1 className="bg-gradient-to-r from-primary via-violet-500 to-cyan-500 bg-clip-text text-4xl font-extrabold tracking-tight text-transparent">
-                Grana
+                {nome}
               </h1>
               <p className="text-sm text-muted-foreground">Seu dinheiro, no controle.</p>
             </div>

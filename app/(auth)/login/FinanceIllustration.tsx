@@ -3,6 +3,8 @@
  * crescimento + cartão de crédito + moedas, na paleta azul→violeta→ciano da
  * marca. Usada na tela de login (painel desktop e hero mobile).
  */
+import { appName } from "@/lib/branding";
+
 /**
  * idPrefix precisa ser ÚNICO por instância na página: url(#id) resolve no
  * documento inteiro, e uma instância dentro de um painel hidden "rouba" a
@@ -94,7 +96,7 @@ export function FinanceIllustration({ className, idPrefix = "gi" }: { className?
           <circle cx="156" cy="228" r="3" fillOpacity="0.6" />
         </g>
         <text x="72" y="262" fill="white" fillOpacity="0.95" fontSize="15" fontWeight="700" fontFamily="ui-sans-serif, system-ui" letterSpacing="2">
-          GRANA
+          {appName().toUpperCase()}
         </text>
       </g>
 

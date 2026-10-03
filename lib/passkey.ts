@@ -13,13 +13,18 @@ import type {
 
 import { prisma } from "@/lib/prisma";
 import { rpIdFromHost, originFromHost, UNLOCK_COOKIE, UNLOCK_MAX_AGE_SECONDS } from "@/lib/passkey-lock";
+import { appName } from "@/lib/branding";
 
 /**
  * Passkeys para DESTRAVAR o app (não para logar). Ver `lib/passkey-lock.ts`
  * para as regras puras e o porquê da separação.
+ *
+ * `rpName`/`userName`/`userDisplayName` vêm de `appName()` — é só o texto do
+ * diálogo biométrico do sistema. A credencial fica amarrada ao RP **ID**
+ * (`rpIdFromHost`, o domínio), não ao nome, então trocar o nome não invalida
+ * passkey já registrada.
  */
 
-const RP_NAME = "Grana";
 /** Desafio da cerimônia em curso; some assim que ela termina. */
 const CHALLENGE_COOKIE = "grana_webauthn_challenge";
 
@@ -82,12 +87,12 @@ export async function buildRegistrationOptions() {
   const existing = await prisma.passkey.findMany({ select: { credentialId: true, transports: true } });
 
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
+    rpName: appName(),
     rpID,
     // Dono único: o "usuário" é fixo. O nome aparece no diálogo do sistema.
     userID: new TextEncoder().encode("owner"),
-    userName: "Grana",
-    userDisplayName: "Grana",
+    userName: appName(),
+    userDisplayName: appName(),
     attestationType: "none",
     // Impede registrar duas vezes o mesmo aparelho.
     excludeCredentials: existing.map((c) => ({

@@ -42,6 +42,7 @@ import { matchCardsByFileName } from "@/lib/card-match";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { monthToDate, formatCompetencia } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
+import { appName } from "@/lib/branding";
 
 export const dynamic = "force-dynamic";
 // Importações de CSV podem baixar arquivo + criar dezenas de lançamentos.
@@ -1078,7 +1079,7 @@ export async function POST(req: Request) {
   if (allowed.length === 0) {
     await reply(
       chatId,
-      `Bot do Grana conectado! 🎉\nID deste chat: ${chatId}\nAdicione esse número em TELEGRAM_ALLOWED_CHAT_IDS (Vercel) para autorizar lançamentos.`,
+      `Bot do ${appName()} conectado! 🎉\nID deste chat: ${chatId}\nAdicione esse número em TELEGRAM_ALLOWED_CHAT_IDS (Vercel) para autorizar lançamentos.`,
     );
     return NextResponse.json({ ok: true });
   }
