@@ -28,6 +28,38 @@ export const itemSchema = z.object({
   notes: z.string().trim().optional(),
 });
 
+/**
+ * Conta nova criada pelo Panorama: o essencial para nascer provisionada nos
+ * próximos meses (o cadastro completo — reajuste, renovação, frequência —
+ * continua em /itens).
+ */
+export const accountCreateSchema = z.object({
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  categoryId: z.string().min(1, "Categoria obrigatória"),
+  amount: z.coerce.number().positive("Valor deve ser maior que zero"),
+  startMonth: z.string().regex(/^\d{4}-\d{2}$/, "Competência no formato YYYY-MM"),
+  // Campo ausente/vazio → 12 meses, o horizonte padrão da recorrência.
+  months: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? 12 : v),
+    z.coerce.number().int().min(1, "Duração entre 1 e 60 meses").max(60, "Duração entre 1 e 60 meses"),
+  ),
+  dueDay: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : v),
+    z.coerce.number().int().min(1).max(31).nullable(),
+  ),
+});
+
+/**
+ * Edição da conta PELA LINHA: só nome e categoria. Deliberadamente estreito —
+ * o `updateItem` de /itens lê o formulário inteiro, então um form enxuto
+ * apagaria dia de vencimento, dia útil, frequência e regras de reajuste.
+ */
+export const accountUpdateSchema = z.object({
+  itemId: z.string().min(1, "Conta inválida"),
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  categoryId: z.string().min(1, "Categoria obrigatória"),
+});
+
 export const entryUpsertSchema = z.object({
   itemId: z.string().min(1),
   month: z.string().regex(/^\d{4}-\d{2}$/, "Competência no formato YYYY-MM"),
