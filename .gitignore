@@ -53,3 +53,6 @@ next-env.d.ts
 
 # backups de scripts de limpeza (dados reais — nunca commitar)
 /backups/
+
+# Scratch do subagent-driven-development (ledger, briefs, relatórios)
+.superpowers/
