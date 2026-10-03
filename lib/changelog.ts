@@ -346,7 +346,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       "A renovação parcelada de um item (seguro em 4x, por exemplo) agora provisiona TODAS as renovações até o último mês que você já tem lançado — quem planeja 2028 vê o seguro de 2028 hoje, sem depender do botão de copiar.",
       "O \"Copiar mês anterior\" parou de arrastar parcelas de renovação para o mês seguinte — as linhas dessas contas nascem da provisão, no mês certo de cada ano.",
-      "Seguro C3 e Seguro Duster foram convertidos para esse formato: os lançamentos de 2027 continuam onde estão e as parcelas de 2028 entram automaticamente.",
+      "Duas assinaturas de seguro foram convertidas para esse formato: os lançamentos de 2027 continuam onde estão e as parcelas de 2028 entram automaticamente.",
     ],
   },
   {
@@ -409,7 +409,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-08-07",
     title: "Estorno pelo bot e cartão padrão",
     items: [
-      "Estorno de compra pelo Telegram: \"estorno 56,71 shopee\". Estorno de IOF: \"estorno iof 0,55\". O valor abate a fatura em aberto na hora.",
+      "Estorno de compra pelo Telegram: \"estorno <valor> <loja>\". Estorno de IOF: \"estorno iof <valor>\". O valor abate a fatura em aberto na hora.",
       "Cartão padrão (estrela no cadastro, em Cartões): comandos sem nome de cartão — estorno e antecipação — caem nele. O Nubank já está marcado.",
       "Quando a fatura fechada chegar, o estorno lançado à mão casa pelo valor com o crédito do banco — não duplica nem muda de mês.",
     ],
