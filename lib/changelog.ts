@@ -14,6 +14,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.31.0",
+    date: "2026-10-03",
+    title: "Panorama: criar, renomear e excluir contas sem sair da tela",
+    items: [
+      "Botão \"Nova conta\" no topo do Panorama: nome, categoria, valor por mês, quando começa e por quantos meses. A conta já nasce lançada em todos esses meses, então a linha aparece preenchida na matriz na hora.",
+      "Clicando no NOME da conta (coluna da esquerda) dá para renomear e mudar de categoria ali mesmo — a linha pula para a seção nova. Antes isso só existia na tela de Itens.",
+      "No mesmo lugar tem \"Excluir conta\": apaga o que está em aberto em TODOS os meses de uma vez, em vez de mês a mês. Os meses já pagos ficam, porque são história — a conta sai de circulação e para de ser provisionada.",
+      "Conta que nunca foi paga some de vez da matriz; conta com histórico continua aparecendo só com o passado.",
+      "Conta que é a provisão de uma assinatura do cartão (YouTube, iCloud e companhia) não deixa excluir por aqui: ela avisa em qual cartão a assinatura está, para você encerrar no lugar certo em vez de a linha sumir sozinha do mês.",
+      "Linha de cartão, de reserva do dia a dia e lançamento avulso continuam como estavam: o nome não vira botão, porque elas não são uma conta cadastrada.",
+    ],
+  },
+  {
     version: "1.30.1",
     date: "2026-09-18",
     title: "Panorama: cabeçalho dos meses fica parado",

@@ -16,6 +16,8 @@ export type MatrixEntry = {
   paid: boolean;
   /** Para as ações na célula (editar/dar baixa). */
   entryId: string;
+  /** Item dono do lançamento (null em cartão, avulso e reserva do dia a dia). */
+  itemId?: string | null;
   /**
    * "card" = consolidado de cartão (valor vem do extrato, não se edita aqui);
    * "budget" = reserva do dia a dia (derivada do calendário, não se paga nem
@@ -43,6 +45,13 @@ export type MatrixCell = {
 
 export type MatrixRow = {
   line: string;
+  /**
+   * Conta (Item) dona da linha INTEIRA — habilita renomear/excluir a conta
+   * pelo Panorama. null quando as ocorrências não têm um único dono: cartão,
+   * avulso, reserva do dia a dia, ou dois itens homônimos na mesma categoria
+   * que colapsaram numa linha só (renomear ali mexeria num deles às cegas).
+   */
+  itemId: string | null;
   cells: Record<string, MatrixCell>;
   /** Soma dos PREVISTOS da linha em todos os meses — não é o restante. */
   totalCents: number;
@@ -85,7 +94,11 @@ export function buildMatrix(entries: MatrixEntry[]): Matrix {
       rows: new Map<string, MatrixRow>(),
       totalsByMonth: {},
     };
-    const row = sec.rows.get(e.line) ?? { line: e.line, cells: {}, totalCents: 0 };
+    const known = sec.rows.get(e.line);
+    const row = known ?? { line: e.line, itemId: e.itemId ?? null, cells: {}, totalCents: 0 };
+    // Dono só sobrevive enquanto TODAS as ocorrências apontam para o mesmo
+    // item; divergiu uma vez, a linha fica sem dono para sempre.
+    if (known && known.itemId !== (e.itemId ?? null)) row.itemId = null;
     const cell =
       row.cells[e.monthISO] ??
       { cents: 0, remainingCents: 0, allPaid: true, paidCount: 0, count: 0, entries: [], kind: e.kind };

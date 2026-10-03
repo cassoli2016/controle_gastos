@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { CellAction } from "./CellAction";
+import { RowAction } from "./RowAction";
+import { NewAccountDialog } from "./NewAccountDialog";
 
 export const dynamic = "force-dynamic";
 
@@ -78,11 +80,12 @@ export default async function PanoramaPage({
     return qs ? `/panorama?${qs}` : "/panorama";
   };
 
-  const [rows, budget] = await Promise.all([
+  const [rows, budget, categories] = await Promise.all([
     prisma.monthlyEntry.findMany({
       include: { item: { include: { category: true } }, category: true, card: true },
     }),
     getDailyBudget(),
+    prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
   const entries: MatrixEntry[] = rows.map((r) => {
@@ -95,9 +98,13 @@ export default async function PanoramaPage({
       cents: decimalToCents(String(r.plannedAmount)),
       paid: r.paid,
       entryId: r.id,
+      itemId: r.itemId,
       kind: r.cardId ? ("card" as const) : r.itemId ? ("item" as const) : ("loose" as const),
     };
   });
+
+  const categoryIdByItem = new Map<string, string>();
+  for (const r of rows) if (r.item) categoryIdByItem.set(r.item.id, r.item.categoryId);
 
   const today = todayISOInSaoPaulo();
   const currentMonth = today.slice(0, 7);
@@ -168,11 +175,12 @@ export default async function PanoramaPage({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight">Panorama</h1>
-        <p className="text-sm text-muted-foreground">
-          Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
-          clique no valor para editar ou dar baixa
-        </p>
+        <NewAccountDialog categories={categories} currentMonth={currentMonth} />
       </div>
+      <p className="text-sm text-muted-foreground">
+        Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
+        clique no valor para editar ou dar baixa, no nome da conta para renomear ou excluir
+      </p>
 
       {matrix.months.length === 0 ? (
         <Card>
@@ -245,7 +253,14 @@ export default async function PanoramaPage({
                 </thead>
                 <tbody>
                   {visibleSections.map((section) => (
-                    <SectionRows key={section.categoryName} section={section} columns={columns} currentMonth={currentMonth} />
+                    <SectionRows
+                      key={section.categoryName}
+                      section={section}
+                      columns={columns}
+                      currentMonth={currentMonth}
+                      categories={categories}
+                      categoryIdByItem={categoryIdByItem}
+                    />
                   ))}
                   {hidePaid && visibleSections.length === 0 && (
                     <tr>
@@ -344,10 +359,14 @@ function SectionRows({
   section,
   columns,
   currentMonth,
+  categories,
+  categoryIdByItem,
 }: {
   section: ReturnType<typeof buildMatrix>["sections"][number];
   columns: MatrixColumn[];
   currentMonth: string;
+  categories: { id: string; name: string }[];
+  categoryIdByItem: Map<string, string>;
 }) {
   return (
     <>
@@ -379,7 +398,18 @@ function SectionRows({
       </tr>
       {section.rows.map((row) => (
         <tr key={row.line} className="border-b last:border-b-0">
-          <td className="sticky left-0 z-10 bg-card px-4 py-1.5 whitespace-nowrap max-w-56 truncate">{row.line}</td>
+          <td className="sticky left-0 z-10 bg-card px-4 py-1.5 whitespace-nowrap max-w-56 truncate">
+            {row.itemId ? (
+              <RowAction
+                itemId={row.itemId}
+                line={row.line}
+                categoryId={categoryIdByItem.get(row.itemId) ?? ""}
+                categories={categories}
+              />
+            ) : (
+              row.line
+            )}
+          </td>
           {columns.map((col) => {
             if (col.kind !== "month") {
               const has = col.months.some((m) => m in row.cells);
