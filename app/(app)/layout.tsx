@@ -6,6 +6,7 @@ import { MobileNav } from "@/components/app-shell/MobileNav";
 import { hasPasskeys } from "@/lib/passkey";
 import { isUnlocked } from "@/lib/passkey-session";
 import { LockScreen } from "./LockScreen";
+import { appName } from "@/lib/branding";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -16,7 +17,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // a sessão continua válida por trás, e a saída pela senha fica na própria
   // tela de trava.
   if ((await hasPasskeys()) && !(await isUnlocked())) {
-    return <LockScreen />;
+    return <LockScreen appName={appName()} />;
   }
 
   async function doSignOut() {

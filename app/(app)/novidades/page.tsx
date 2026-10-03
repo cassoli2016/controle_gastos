@@ -1,6 +1,7 @@
 import { CHANGELOG } from "@/lib/changelog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { appName } from "@/lib/branding";
 
 /** "2026-08-04" → "4 de agosto de 2026". */
 function formatDateLong(iso: string): string {
@@ -17,7 +18,7 @@ export default function NovidadesPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Novidades</h1>
-        <p className="text-sm text-muted-foreground">O que mudou no Grana a cada atualização.</p>
+        <p className="text-sm text-muted-foreground">O que mudou no {appName()} a cada atualização.</p>
       </div>
       <div className="space-y-4">
         {CHANGELOG.map((e) => (

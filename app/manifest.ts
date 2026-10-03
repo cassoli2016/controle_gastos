@@ -1,9 +1,11 @@
 import type { MetadataRoute } from "next";
+import { appName } from "@/lib/branding";
 
 export default function manifest(): MetadataRoute.Manifest {
+  const nome = appName();
   return {
-    name: "Grana — Controle Financeiro",
-    short_name: "Grana",
+    name: `${nome} — Controle Financeiro`,
+    short_name: nome,
     description: "Controle financeiro pessoal — contas, cartões e parcelamentos.",
     start_url: "/",
     display: "standalone",

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { FinanceIllustration } from "./FinanceIllustration";
+import { displayDomain } from "@/lib/branding";
 
 export default async function LoginPage({
   searchParams,
@@ -13,6 +14,7 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const domain = displayDomain();
 
   return (
     <main className="grid min-h-screen lg:grid-cols-2">
@@ -50,7 +52,7 @@ export default async function LoginPage({
           </ul>
         </div>
 
-        <p className="relative text-xs text-slate-500">grana.cassolitech.com.br</p>
+        {domain && <p className="relative text-xs text-slate-500">{domain}</p>}
       </section>
 
       {/* Formulário */}
@@ -134,7 +136,9 @@ export default async function LoginPage({
             </CardContent>
           </Card>
 
-          <p className="text-center text-xs text-muted-foreground lg:hidden">grana.cassolitech.com.br</p>
+          {domain && (
+            <p className="text-center text-xs text-muted-foreground lg:hidden">{domain}</p>
+          )}
         </div>
       </section>
     </main>
