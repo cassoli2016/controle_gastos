@@ -30,23 +30,26 @@ import "dotenv/config";
  *
  * Este script NUNCA cria schema (quem provisiona uma instância nova é
  * `scripts/provisiona-instancia.ts`) e NUNCA derruba schema — nem com flag.
- * Um schema que não existe simplesmente aparece com todas as migrations
- * como pendentes (mesmo comportamento de "instância nova" que
- * `readAppliedMigrations` já tem) — mas sem `--dry-run` isso falharia ao
- * tentar aplicar a primeira migration contra um schema inexistente, e o
- * erro apareceria no relatório como falha DAQUELE schema, sem afetar os
- * outros.
+ * Um schema listado que nunca foi provisionado (não tem a tabela de controle
+ * `_prisma_migrations`) é verificado ANTES de tentar aplicar qualquer coisa,
+ * via `schemaIsProvisioned` (só leitura, não cria a tabela — criar aqui
+ * transformaria este script num provisionador pela porta dos fundos) e
+ * reportado como categoria própria ("schema não provisionado"), não
+ * misturado com "migration falhou" — senão quem lê o relatório sai caçando
+ * problema na migration quando a causa real é que a cópia nunca existiu.
+ * Conta como falha para o código de saída, mas aparece separado no relatório.
  *
  * Conexão só pela DATABASE_URL (pooler), nunca pela DIRECT_URL — mesma
  * regra do provisionador.
  *
- * Falha num schema não interrompe os outros: cada schema roda dentro do seu
- * próprio try/catch, o relatório final lista quem falhou e por quê, e o
- * código de saída é diferente de zero se algum falhou.
+ * Falha (ou "não provisionado") num schema não interrompe os outros: cada
+ * schema roda dentro do seu próprio try/catch, o relatório final lista quem
+ * falhou/não foi provisionado e por quê, e o código de saída é diferente de
+ * zero se algum dos dois aconteceu.
  */
 
 import { assertSchemaName, parseInstanceSchemas } from "@/lib/instance-schema";
-import { applyPending, listAllMigrations } from "@/scripts/provisiona-instancia";
+import { applyPending, listAllMigrations, schemaIsProvisioned } from "@/scripts/provisiona-instancia";
 
 function argValue(flag: string): string | undefined {
   const idx = process.argv.indexOf(`--${flag}`);
@@ -54,8 +57,14 @@ function argValue(flag: string): string | undefined {
 }
 
 type Resultado =
-  | { schema: string; ok: true; n: number }
-  | { schema: string; ok: false; erro: string };
+  | { schema: string; estado: "ok"; n: number }
+  | { schema: string; estado: "nao-provisionado" }
+  | { schema: string; estado: "falhou"; erro: string };
+
+function resumoOk(n: number, dryRun: boolean): string {
+  if (n === 0) return "em dia";
+  return dryRun ? `${n} pendente(s)` : `${n} aplicada(s)`;
+}
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
@@ -78,35 +87,50 @@ async function main() {
       // REGRA NÃO-NEGOCIÁVEL: valida ANTES de qualquer uso — nome vindo de
       // INSTANCE_SCHEMAS ou --schema não é confiável por si só.
       const schema = assertSchemaName(bruto);
+
+      // Checagem só de leitura, ANTES de tentar aplicar qualquer migration —
+      // ver nota de cabeçalho sobre por que isso não pode virar "migration
+      // falhou" nem criar a tabela por conta própria.
+      if (!(await schemaIsProvisioned(schema))) {
+        resultados.push({ schema, estado: "nao-provisionado" });
+        console.log(
+          `[${schema}] schema não provisionado — rode \`npm run instancia:nova ${schema}\` primeiro`,
+        );
+        continue;
+      }
+
       const n = await applyPending(schema, allMigrations, dryRun);
-      resultados.push({ schema, ok: true, n });
-      const resumo = n === 0 ? "em dia" : dryRun ? `${n} pendente(s)` : `${n} aplicada(s)`;
-      console.log(`[${schema}] ${resumo}`);
+      resultados.push({ schema, estado: "ok", n });
+      console.log(`[${schema}] ${resumoOk(n, dryRun)}`);
     } catch (err) {
       const erro = (err as Error).message;
-      resultados.push({ schema: bruto, ok: false, erro });
+      resultados.push({ schema: bruto, estado: "falhou", erro });
       console.error(`[${bruto}] FALHOU: ${erro}`);
     }
   }
 
-  const falhas = resultados.filter((r): r is Extract<Resultado, { ok: false }> => !r.ok);
-  const sucessos = resultados.filter((r): r is Extract<Resultado, { ok: true }> => r.ok);
+  const sucessos = resultados.filter((r) => r.estado === "ok") as Extract<Resultado, { estado: "ok" }>[];
+  const naoProvisionados = resultados.filter((r) => r.estado === "nao-provisionado");
+  const falhas = resultados.filter((r) => r.estado === "falhou") as Extract<Resultado, { estado: "falhou" }>[];
   const totalAplicadas = sucessos.reduce((soma, r) => soma + r.n, 0);
 
   console.log("\nRelatório final:");
   for (const r of resultados) {
-    console.log(
-      r.ok
-        ? `  OK      ${r.schema}: ${r.n === 0 ? "em dia" : dryRun ? `${r.n} pendente(s)` : `${r.n} aplicada(s)`}`
-        : `  FALHOU  ${r.schema}: ${r.erro}`,
-    );
+    if (r.estado === "ok") {
+      console.log(`  OK                ${r.schema}: ${resumoOk(r.n, dryRun)}`);
+    } else if (r.estado === "nao-provisionado") {
+      console.log(`  NAO PROVISIONADO  ${r.schema}: rode \`npm run instancia:nova ${r.schema}\` primeiro`);
+    } else {
+      console.log(`  FALHOU            ${r.schema}: ${r.erro}`);
+    }
   }
   console.log(
-    `\n${resultados.length} schema(s) processado(s), ${sucessos.length} ok, ${falhas.length} falha(s)` +
+    `\n${resultados.length} schema(s) processado(s), ${sucessos.length} ok, ` +
+      `${naoProvisionados.length} não provisionado(s), ${falhas.length} falha(s)` +
       (dryRun ? `, ${totalAplicadas} migration(s) pendente(s) no total.` : `, ${totalAplicadas} migration(s) aplicada(s) no total.`),
   );
 
-  if (falhas.length > 0) {
+  if (naoProvisionados.length > 0 || falhas.length > 0) {
     process.exitCode = 1;
   }
 }

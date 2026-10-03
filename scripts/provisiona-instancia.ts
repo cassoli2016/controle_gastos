@@ -62,6 +62,12 @@ import "dotenv/config";
  * revalida `assertSchemaName` de novo antes de interpolar, mesmo que todo
  * chamador interno já valide — rede de segurança para qualquer chamador
  * futuro que esqueça.
+ *
+ * `schemaIsProvisioned` (exportada, fix round 1 da Task 6) é uma checagem só
+ * de leitura separada de `applyPending`: diz se o schema já tem a tabela
+ * `_prisma_migrations`, sem tentar aplicar nada. `atualiza-instancias.ts` usa
+ * isso para reportar "schema não provisionado" como categoria própria, em vez
+ * de deixar a primeira migration falhar e parecer um problema NA migration.
  */
 
 import { randomBytes, randomUUID, createHash } from "node:crypto";
@@ -93,9 +99,20 @@ async function readAppliedMigrations(client: Client, schema: string): Promise<st
       `SELECT migration_name FROM "${schema}"."_prisma_migrations"`,
     );
     return rows.map((r) => r.migration_name);
-  } catch {
-    // Schema ou tabela ainda não existe — instância nova, nada aplicado.
-    return [];
+  } catch (err) {
+    // "42P01" é o código SQLSTATE do Postgres para undefined_table: schema ou
+    // tabela realmente não existem — instância nova, nada aplicado ainda.
+    // Qualquer OUTRO erro (conexão caiu, permissão negada, etc.) NÃO pode
+    // virar silenciosamente "nada aplicado" — isso mascararia um problema
+    // real atrás de um resultado que parece normal (achado do revisor da
+    // Task 5; passou a importar de verdade na Task 6, fix round 1: o estado
+    // "schema não provisionado" de atualiza-instancias.ts precisa distinguir
+    // as duas situações sem ambiguidade — ver `schemaIsProvisioned` abaixo,
+    // que por isso NÃO reusa esta função).
+    if ((err as { code?: string }).code === "42P01") {
+      return [];
+    }
+    throw err;
   }
 }
 
@@ -113,6 +130,44 @@ function argValue(flag: string): string | undefined {
   const prefix = `--${flag}=`;
   const hit = process.argv.find((a) => a.startsWith(prefix));
   return hit?.slice(prefix.length);
+}
+
+/**
+ * Só leitura: diz se `schema` já foi provisionado (tem a tabela de controle
+ * `_prisma_migrations`), SEM criar nada. Existe para `atualiza-instancias.ts`
+ * reportar "schema não provisionado" como categoria própria, em vez de deixar
+ * a primeira migration falhar com um erro de SQL que pareceria problema na
+ * migration. Consulta `information_schema.tables` (não dá `SELECT` na tabela
+ * em si) — cobre tanto "a tabela não existe" quanto "o schema inteiro não
+ * existe" com a mesma query, sem precisar de tratamento especial para cada
+ * caso: as duas situações têm zero linhas na mesma consulta.
+ *
+ * Deliberadamente NÃO reusa `readAppliedMigrations`: aquela função decide
+ * "nada aplicado" só a partir de capturar um erro de SQL, e mesmo filtrando
+ * pelo código `42P01` ela ainda é uma inferência indireta. Esta função
+ * pergunta ao catálogo diretamente, então uma queda de conexão ou erro de
+ * permissão aqui propaga como exceção de verdade — nunca vira "não
+ * provisionado" por engano.
+ */
+export async function schemaIsProvisioned(schema: string): Promise<boolean> {
+  // Mesma rede de segurança de `applyPending`: revalida mesmo que o chamador
+  // já tenha validado.
+  const validSchema = assertSchemaName(schema);
+  const connectionString = requireConnectionString();
+  const client = new Client({ connectionString });
+  await client.connect();
+  try {
+    const { rows } = await client.query<{ existe: boolean }>(
+      `SELECT EXISTS (
+         SELECT 1 FROM information_schema.tables
+         WHERE table_schema = $1 AND table_name = '_prisma_migrations'
+       ) AS existe`,
+      [validSchema],
+    );
+    return rows[0]?.existe ?? false;
+  } finally {
+    await client.end();
+  }
 }
 
 /**
