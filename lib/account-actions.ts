@@ -1,3 +1,5 @@
+import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
+
 /**
  * Regras das ações de CONTA (a linha inteira do Panorama), separadas do
  * acesso ao banco para poderem ser testadas sozinhas.
@@ -32,4 +34,22 @@ export function planAccountDeletion(
   if (opts.hasSubscription) return { mode: "blocked" };
   const openIds = entries.filter((e) => !e.paid).map((e) => e.id);
   return { mode: entries.some((e) => e.paid) ? "archive" : "drop", openIds };
+}
+
+/**
+ * Linha avulsa que o Panorama NÃO pode renomear nem excluir pelo nome:
+ * depósito e retirada de caixinha são reconhecidos pelo PREFIXO da descrição
+ * em `lib/planning.ts` e no `lastUsedReserveId` de `lib/reserve-flow.ts`.
+ * Renomear apagaria o movimento do extrato da caixinha. O `reserveBoxId` é o
+ * sinal confiável; o prefixo cobre as linhas antigas, criadas antes dele.
+ */
+export function looseRowBlocked(
+  entries: { reserveBoxId: string | null; description: string | null }[],
+): boolean {
+  return entries.some(
+    (e) =>
+      e.reserveBoxId !== null ||
+      (e.description?.startsWith(DEPOSIT_PREFIX) ?? false) ||
+      (e.description?.startsWith(WITHDRAWAL_PREFIX) ?? false),
+  );
 }

@@ -2,9 +2,9 @@
 import { guardAction } from "@/lib/action-guard";
 import { prisma } from "@/lib/prisma";
 import { revalidateFinance } from "@/lib/revalidate";
-import { accountCreateSchema, accountUpdateSchema } from "@/lib/validators";
+import { accountCreateSchema, accountUpdateSchema, looseRenameSchema, looseRowSchema } from "@/lib/validators";
 import { createRecurrence, findActiveItemByName } from "@/lib/recurrence";
-import { planAccountDeletion } from "@/lib/account-actions";
+import { planAccountDeletion, looseRowBlocked } from "@/lib/account-actions";
 
 /** Estado retornado pelas Server Actions do Panorama (useActionState). */
 export type ActionState = { error?: string; ok?: boolean; count?: number };
@@ -107,4 +107,73 @@ export const deleteAccount = guardAction(async function deleteAccount(
 
   revalidateFinance();
   return { ok: true, count: plan.openIds.length };
+});
+
+/**
+ * Lançamento avulso não tem cadastro: o nome e a categoria moram em cada
+ * ocorrência. A linha do Panorama é o par (descrição, categoria), então
+ * renomear é reescrever esse par em todas as ocorrências — inclusive as já
+ * pagas, porque aqui o nome é só o rótulo e deixar metade com o nome velho
+ * partiria a linha em duas na matriz. `installmentId` não é tocado: é ele que
+ * segura a identidade das parcelas.
+ */
+export const renameLooseRow = guardAction(async function renameLooseRow(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = looseRenameSchema.safeParse({
+    line: formData.get("line"),
+    categoryId: formData.get("categoryId"),
+    name: formData.get("name"),
+    newCategoryId: formData.get("newCategoryId"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { line, categoryId, name, newCategoryId } = parsed.data;
+
+  const where = { itemId: null, cardId: null, description: line, categoryId };
+  const entries = await prisma.monthlyEntry.findMany({
+    where,
+    select: { reserveBoxId: true, description: true },
+  });
+  if (entries.length === 0) return { error: "Nada a renomear nesta linha." };
+  if (looseRowBlocked(entries)) {
+    return { error: "Movimento de caixinha — renomeie a caixinha em Reservas." };
+  }
+
+  const { count } = await prisma.monthlyEntry.updateMany({
+    where,
+    data: { description: name, categoryId: newCategoryId },
+  });
+  revalidateFinance();
+  return { ok: true, count };
+});
+
+/**
+ * Exclui a linha avulsa inteira: apaga as ocorrências EM ABERTO de todos os
+ * meses. Não há cadastro para arquivar — o que sobrevive são os meses pagos,
+ * pela mesma régua das contas.
+ */
+export const deleteLooseRow = guardAction(async function deleteLooseRow(
+  _prevState: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const parsed = looseRowSchema.safeParse({
+    line: formData.get("line"),
+    categoryId: formData.get("categoryId"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const { line, categoryId } = parsed.data;
+
+  const where = { itemId: null, cardId: null, description: line, categoryId };
+  const entries = await prisma.monthlyEntry.findMany({
+    where,
+    select: { reserveBoxId: true, description: true },
+  });
+  if (looseRowBlocked(entries)) {
+    return { error: "Movimento de caixinha — desfaça pela tela de Reservas." };
+  }
+
+  const { count } = await prisma.monthlyEntry.deleteMany({ where: { ...where, paid: false } });
+  revalidateFinance();
+  return { ok: true, count };
 });

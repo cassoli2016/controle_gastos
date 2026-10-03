@@ -52,6 +52,11 @@ export type MatrixRow = {
    * que colapsaram numa linha só (renomear ali mexeria num deles às cegas).
    */
   itemId: string | null;
+  /**
+   * De que a linha é feita. "mixed" = ocorrências de tipos diferentes caíram
+   * na mesma linha; como no `itemId`, a linha perde as ações de linha.
+   */
+  kind: "item" | "card" | "loose" | "budget" | "mixed";
   cells: Record<string, MatrixCell>;
   /** Soma dos PREVISTOS da linha em todos os meses — não é o restante. */
   totalCents: number;
@@ -95,10 +100,11 @@ export function buildMatrix(entries: MatrixEntry[]): Matrix {
       totalsByMonth: {},
     };
     const known = sec.rows.get(e.line);
-    const row = known ?? { line: e.line, itemId: e.itemId ?? null, cells: {}, totalCents: 0 };
-    // Dono só sobrevive enquanto TODAS as ocorrências apontam para o mesmo
-    // item; divergiu uma vez, a linha fica sem dono para sempre.
+    const row = known ?? { line: e.line, itemId: e.itemId ?? null, kind: e.kind, cells: {}, totalCents: 0 };
+    // Dono e tipo só sobrevivem enquanto TODAS as ocorrências concordam;
+    // divergiu uma vez, a linha fica sem dono / "mixed" para sempre.
     if (known && known.itemId !== (e.itemId ?? null)) row.itemId = null;
+    if (known && known.kind !== e.kind) row.kind = "mixed";
     const cell =
       row.cells[e.monthISO] ??
       { cents: 0, remainingCents: 0, allPaid: true, paidCount: 0, count: 0, entries: [], kind: e.kind };
