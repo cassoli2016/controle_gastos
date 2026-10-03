@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.32.0",
+    date: "2026-10-03",
+    title: "Panorama: renomear também os lançamentos avulsos",
+    items: [
+      "A v1.31.0 deixou de fora justamente as linhas que mais precisavam: contas lançadas como compra parcelada (IPVA, seguro, qualquer coisa em N vezes) não têm cadastro, então o nome delas não virava botão. Eram 28 linhas na matriz. Agora viram.",
+      "Renomear uma dessas reescreve o nome em todos os meses de uma vez, inclusive nos já pagos — senão a linha se partiria em duas na matriz, metade com o nome velho. O parcelamento em si não é tocado: as parcelas continuam amarradas entre si.",
+      "\"Excluir conta\" também funciona nelas: apaga o que está em aberto em todos os meses de uma vez. Os meses pagos ficam, como nas contas cadastradas.",
+      "Depósito e retirada de caixinha continuam sem o botão, de propósito: o extrato da caixinha e o planejamento reconhecem esses lançamentos pelo nome, então renomear ali apagaria o movimento do extrato. Para mudar esse nome, renomeie a caixinha em Reservas.",
+    ],
+  },
+  {
     version: "1.31.0",
     date: "2026-10-03",
     title: "Panorama: criar, renomear e excluir contas sem sair da tela",

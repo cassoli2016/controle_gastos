@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { planAccountDeletion } from "@/lib/account-actions";
+import { planAccountDeletion, looseRowBlocked } from "@/lib/account-actions";
 import { accountCreateSchema, accountUpdateSchema } from "@/lib/validators";
 
 describe("planAccountDeletion — excluir a conta preservando história", () => {
@@ -93,5 +93,31 @@ describe("accountUpdateSchema — editar a conta sem tocar no resto do cadastro"
 
   it("item sem id é recusado", () => {
     expect(accountUpdateSchema.safeParse({ itemId: "", name: "X", categoryId: "c" }).success).toBe(false);
+  });
+});
+
+describe("looseRowBlocked — linha avulsa que não pode ser renomeada pelo nome", () => {
+  it("linha comum pode", () => {
+    expect(looseRowBlocked([{ reserveBoxId: null, description: "IPVA C3" }])).toBe(false);
+  });
+
+  it("movimento de caixinha não pode: o vínculo vem do reserveBoxId", () => {
+    expect(looseRowBlocked([{ reserveBoxId: "box-1", description: "Depósito · Viagem" }])).toBe(true);
+  });
+
+  it("movimento antigo, sem reserveBoxId, é reconhecido pelo prefixo da descrição", () => {
+    // lib/planning.ts e lib/reserve-flow.ts leem a caixinha pelo PREFIXO —
+    // renomear aqui apagaria o depósito do extrato.
+    expect(looseRowBlocked([{ reserveBoxId: null, description: "Depósito · Viagem" }])).toBe(true);
+    expect(looseRowBlocked([{ reserveBoxId: null, description: "Retirada · Viagem" }])).toBe(true);
+  });
+
+  it("basta UMA ocorrência ser movimento para travar a linha inteira", () => {
+    expect(
+      looseRowBlocked([
+        { reserveBoxId: null, description: "Almoço" },
+        { reserveBoxId: "box-1", description: "Almoço" },
+      ]),
+    ).toBe(true);
   });
 });

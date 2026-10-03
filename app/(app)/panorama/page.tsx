@@ -19,6 +19,7 @@ import {
   type MatrixRow,
 } from "@/lib/matrix";
 import { parseHidePaid } from "@/lib/month-filter";
+import { looseRowBlocked } from "@/lib/account-actions";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
@@ -88,11 +89,25 @@ export default async function PanoramaPage({
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
+  // Categoria e trava de cada LINHA da matriz, pela mesma chave que o
+  // buildMatrix usa (categoria + nome). A categoria vem do lançamento, não do
+  // nome da seção: duas categorias homônimas colapsam numa seção só.
+  const rowKey = (categoryName: string, line: string) => `${categoryName}||${line}`;
+  const categoryIdByRow = new Map<string, string>();
+  const lockedRows = new Set<string>();
+
   const entries: MatrixEntry[] = rows.map((r) => {
     const category = r.item?.category ?? r.category;
+    const line = r.item?.name ?? r.card?.name ?? r.description ?? "—";
+    const categoryName = category?.name ?? "Sem categoria";
+    const key = rowKey(categoryName, line);
+    if (category) categoryIdByRow.set(key, category.id);
+    // Movimento de caixinha é lido pelo prefixo da descrição em outras telas —
+    // a linha não ganha renomear/excluir (ver lib/account-actions.ts).
+    if (looseRowBlocked([{ reserveBoxId: r.reserveBoxId, description: r.description }])) lockedRows.add(key);
     return {
-      line: r.item?.name ?? r.card?.name ?? r.description ?? "—",
-      categoryName: category?.name ?? "Sem categoria",
+      line,
+      categoryName,
       categoryType: category?.type ?? "EXPENSE",
       monthISO: monthStringFromDate(r.month),
       cents: decimalToCents(String(r.plannedAmount)),
@@ -103,8 +118,6 @@ export default async function PanoramaPage({
     };
   });
 
-  const categoryIdByItem = new Map<string, string>();
-  for (const r of rows) if (r.item) categoryIdByItem.set(r.item.id, r.item.categoryId);
 
   const today = todayISOInSaoPaulo();
   const currentMonth = today.slice(0, 7);
@@ -259,7 +272,8 @@ export default async function PanoramaPage({
                       columns={columns}
                       currentMonth={currentMonth}
                       categories={categories}
-                      categoryIdByItem={categoryIdByItem}
+                      categoryIdByRow={categoryIdByRow}
+                      lockedRows={lockedRows}
                     />
                   ))}
                   {hidePaid && visibleSections.length === 0 && (
@@ -360,13 +374,15 @@ function SectionRows({
   columns,
   currentMonth,
   categories,
-  categoryIdByItem,
+  categoryIdByRow,
+  lockedRows,
 }: {
   section: ReturnType<typeof buildMatrix>["sections"][number];
   columns: MatrixColumn[];
   currentMonth: string;
   categories: { id: string; name: string }[];
-  categoryIdByItem: Map<string, string>;
+  categoryIdByRow: Map<string, string>;
+  lockedRows: Set<string>;
 }) {
   return (
     <>
@@ -399,16 +415,13 @@ function SectionRows({
       {section.rows.map((row) => (
         <tr key={row.line} className="border-b last:border-b-0">
           <td className="sticky left-0 z-10 bg-card px-4 py-1.5 whitespace-nowrap max-w-56 truncate">
-            {row.itemId ? (
-              <RowAction
-                itemId={row.itemId}
-                line={row.line}
-                categoryId={categoryIdByItem.get(row.itemId) ?? ""}
-                categories={categories}
-              />
-            ) : (
-              row.line
-            )}
+            <RowName
+              row={row}
+              categoryName={section.categoryName}
+              categories={categories}
+              categoryIdByRow={categoryIdByRow}
+              lockedRows={lockedRows}
+            />
           </td>
           {columns.map((col) => {
             if (col.kind !== "month") {
@@ -449,5 +462,33 @@ function SectionRows({
         </tr>
       ))}
     </>
+  );
+}
+
+/**
+ * Nome da linha: vira botão (editar/excluir) nas contas cadastradas e nas
+ * linhas avulsas. Cartão e reserva do dia a dia são derivados — não têm nome
+ * próprio para editar; "mixed" é linha sem dono claro; e movimento de caixinha
+ * é travado porque outras telas o reconhecem pelo prefixo da descrição.
+ */
+function RowName({
+  row,
+  categoryName,
+  categories,
+  categoryIdByRow,
+  lockedRows,
+}: {
+  row: MatrixRow;
+  categoryName: string;
+  categories: { id: string; name: string }[];
+  categoryIdByRow: Map<string, string>;
+  lockedRows: Set<string>;
+}) {
+  const key = `${categoryName}||${row.line}`;
+  const categoryId = categoryIdByRow.get(key);
+  const editable = (row.itemId !== null || row.kind === "loose") && !lockedRows.has(key) && !!categoryId;
+  if (!editable) return <>{row.line}</>;
+  return (
+    <RowAction itemId={row.itemId} line={row.line} categoryId={categoryId!} categories={categories} />
   );
 }

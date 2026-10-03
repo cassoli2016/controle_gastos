@@ -332,6 +332,7 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
   it("paga no mês atual SOME, mesmo provisionada até o fim do ano", () => {
     // O caso que motivou a regra: conta fixa quitada em agosto com futuro longo.
     const row: MatrixRow = {
+      kind: "item",
       itemId: null,
       line: "Luz",
       cells: { "2026-08": cell(true, 0), "2026-09": cell(false, 100), "2026-12": cell(false, 100) },
@@ -342,6 +343,7 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
 
   it("atrasada de mês passado FICA, mesmo paga em agosto", () => {
     const row: MatrixRow = {
+      kind: "item",
       itemId: null,
       line: "IPVA",
       cells: { "2026-07": cell(false, 500), "2026-08": cell(true, 0) },
@@ -351,18 +353,19 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
   });
 
   it("em aberto no mês atual FICA", () => {
-    const row: MatrixRow = { itemId: null, line: "Água", cells: { "2026-08": cell(false, 80) }, totalCents: 80 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Água", cells: { "2026-08": cell(false, 80) }, totalCents: 80 };
     expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 
   it("conta que SÓ começa no futuro também some — no mês ela é uma linha de traços", () => {
     // Pedido explícito do usuário (2026-08-08): sem valor até o mês atual = fora.
-    const row: MatrixRow = { itemId: null, line: "Parcela nova", cells: { "2026-09": cell(false, 100) }, totalCents: 100 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Parcela nova", cells: { "2026-09": cell(false, 100) }, totalCents: 100 };
     expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(true);
   });
 
   it("histórico todo pago até agora some", () => {
     const row: MatrixRow = {
+      kind: "item",
       itemId: null,
       line: "Escola",
       cells: { "2026-06": cell(true, 0), "2026-07": cell(true, 0), "2026-08": cell(true, 0) },
@@ -372,7 +375,7 @@ describe("rowSettledThroughMonth — visualização do mês", () => {
   });
 
   it("reserva do dia a dia nunca some: a célula derivada nunca é paga", () => {
-    const row: MatrixRow = { itemId: null, line: "Reserva do dia a dia", cells: { "2026-08": cell(false, 3100) }, totalCents: 3100 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Reserva do dia a dia", cells: { "2026-08": cell(false, 3100) }, totalCents: 3100 };
     expect(rowSettledThroughMonth(row, MONTHS, NOW)).toBe(false);
   });
 });
@@ -394,6 +397,7 @@ describe("rowSettledFromMonth — o que ainda tem a acontecer", () => {
     // ERS Transportes, ICP Gobrax, Closet e Estacionamento — no Panorama viram
     // uma linha de traços que só ocupa largura.
     const row: MatrixRow = {
+      kind: "item",
       itemId: null,
       line: "Closet",
       cells: { "2026-06": cell(true, 0), "2026-07": cell(true, 0) },
@@ -404,17 +408,18 @@ describe("rowSettledFromMonth — o que ainda tem a acontecer", () => {
 
   it("conta com lançamento no mês, mas já baixado, também some", () => {
     // Depósito e Retirada de caixinha: aconteceram, não têm o que acompanhar.
-    const row: MatrixRow = { itemId: null, line: "Depósito · X", cells: { "2026-09": cell(true, 0) }, totalCents: 100 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Depósito · X", cells: { "2026-09": cell(true, 0) }, totalCents: 100 };
     expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(true);
   });
 
   it("conta com valor em aberto no mês FICA", () => {
-    const row: MatrixRow = { itemId: null, line: "Água", cells: { "2026-09": cell(false, 80) }, totalCents: 80 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Água", cells: { "2026-09": cell(false, 80) }, totalCents: 80 };
     expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(false);
   });
 
   it("conta paga no mês mas provisionada à frente FICA — é o futuro que interessa", () => {
     const row: MatrixRow = {
+      kind: "item",
       itemId: null,
       line: "Luz",
       cells: { "2026-09": cell(true, 0), "2026-12": cell(false, 100) },
@@ -426,12 +431,12 @@ describe("rowSettledFromMonth — o que ainda tem a acontecer", () => {
   it("atrasada no passado não basta para ficar — o Panorama olha para frente", () => {
     // Quem quer ver pendência velha usa "Mostrar quitados"; o padrão aqui é o
     // que ainda vai acontecer.
-    const row: MatrixRow = { itemId: null, line: "IPVA", cells: { "2026-07": cell(false, 500) }, totalCents: 500 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "IPVA", cells: { "2026-07": cell(false, 500) }, totalCents: 500 };
     expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(true);
   });
 
   it("baixa parcial no mês FICA: sobra parte a pagar", () => {
-    const row: MatrixRow = { itemId: null, line: "Diarista", cells: { "2026-09": cell(false, 220) }, totalCents: 880 };
+    const row: MatrixRow = { itemId: null, kind: "item", line: "Diarista", cells: { "2026-09": cell(false, 220) }, totalCents: 880 };
     expect(rowSettledFromMonth(row, MONTHS, NOW)).toBe(false);
   });
 });
@@ -492,5 +497,45 @@ describe("itemId da linha — identidade da conta para as ações do Panorama", 
       { ...base, line: "Diarista", monthISO: "2026-08", entryId: "e2", kind: "loose" as const },
     ]);
     expect(rowOf(m, "Diarista").itemId).toBeNull();
+  });
+});
+
+describe("kind da linha — o que o Panorama pode editar pelo nome", () => {
+  const base = { categoryName: "Moradia", categoryType: "EXPENSE" as const, cents: 100, paid: false };
+  const rowOf = (m: ReturnType<typeof buildMatrix>, line: string) =>
+    m.sections.flatMap((s) => s.rows).find((r) => r.line === line)!;
+
+  it("linha toda de item é 'item'", () => {
+    const m = buildMatrix([
+      { ...base, line: "Aluguel", monthISO: "2026-08", entryId: "e1", itemId: "i1", kind: "item" },
+      { ...base, line: "Aluguel", monthISO: "2026-09", entryId: "e2", itemId: "i1", kind: "item" },
+    ]);
+    expect(rowOf(m, "Aluguel").kind).toBe("item");
+  });
+
+  it("linha toda avulsa é 'loose' — é ela que ganha renomear pelo nome", () => {
+    const m = buildMatrix([
+      { ...base, line: "IPVA C3", monthISO: "2027-01", entryId: "e1", kind: "loose" },
+      { ...base, line: "IPVA C3", monthISO: "2027-02", entryId: "e2", kind: "loose" },
+    ]);
+    expect(rowOf(m, "IPVA C3").kind).toBe("loose");
+  });
+
+  it("linha de cartão é 'card'", () => {
+    const m = buildMatrix([{ ...base, line: "Nubank", monthISO: "2026-08", entryId: "e1", kind: "card" }]);
+    expect(rowOf(m, "Nubank").kind).toBe("card");
+  });
+
+  it("linha de reserva do dia a dia é 'budget'", () => {
+    const m = buildMatrix([{ ...base, line: "Reserva", monthISO: "2026-08", entryId: "e1", kind: "budget" }]);
+    expect(rowOf(m, "Reserva").kind).toBe("budget");
+  });
+
+  it("ocorrências de tipos diferentes viram 'mixed' — sem ação de linha", () => {
+    const m = buildMatrix([
+      { ...base, line: "Diarista", monthISO: "2026-08", entryId: "e1", itemId: "i1", kind: "item" },
+      { ...base, line: "Diarista", monthISO: "2026-08", entryId: "e2", kind: "loose" },
+    ]);
+    expect(rowOf(m, "Diarista").kind).toBe("mixed");
   });
 });

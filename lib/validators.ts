@@ -50,6 +50,21 @@ export const accountCreateSchema = z.object({
 });
 
 /**
+ * Linha AVULSA do Panorama: ela não tem cadastro, o nome e a categoria vivem
+ * em cada lançamento. A linha é identificada pelo par (descrição, categoria)
+ * — que é exatamente como `buildMatrix` a monta.
+ */
+export const looseRowSchema = z.object({
+  line: z.string().min(1, "Linha inválida"),
+  categoryId: z.string().min(1, "Categoria obrigatória"),
+});
+
+export const looseRenameSchema = looseRowSchema.extend({
+  name: z.string().trim().min(1, "Nome obrigatório"),
+  newCategoryId: z.string().min(1, "Categoria obrigatória"),
+});
+
+/**
  * Edição da conta PELA LINHA: só nome e categoria. Deliberadamente estreito —
  * o `updateItem` de /itens lê o formulário inteiro, então um form enxuto
  * apagaria dia de vencimento, dia útil, frequência e regras de reajuste.
