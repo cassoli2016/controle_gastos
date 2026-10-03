@@ -42,8 +42,21 @@ alcança) precisa de um projeto Supabase próprio, não de um schema aqui.
    **mesma branch** (`main`) que o projeto do dono usa. Não é um fork nem uma
    cópia de código — é outro deploy do mesmo código.
 4. Cole o bloco de variáveis impresso no passo 2 nas Environment Variables
-   desse projeto Vercel. Complete os placeholders de `APP_NAME` e `APP_URL`
-   com o nome e o domínio dessa pessoa.
+   desse projeto Vercel — mas ele é **parcial**: `envBlock()` só sabe gerar
+   `DATABASE_SCHEMA`, `APP_NAME`, `APP_URL`, `APP_PASSWORD` e `AUTH_SECRET`,
+   nunca a connection string. Sem completar à mão o que falta, o projeto
+   sobe sem conseguir falar com o banco. Complete:
+   - `DATABASE_URL`: cole o **mesmo valor** do projeto do dono, sem alterar
+     nada. É contraintuitivo — mas é o mesmo projeto Supabase; o que separa
+     as cópias é o `DATABASE_SCHEMA` (esse sim no bloco impresso), não a
+     connection string.
+   - `DIRECT_URL`: pode ficar **de fora** da Vercel com segurança, mesmo
+     aparecendo como obrigatória no `.env.example`. Ela só serve ao
+     `migrate`/CLI local — o datasource que a usa em `prisma.config.ts` entra
+     condicionalmente, só quando a variável existe, e o `postinstall` do
+     deploy roda apenas `prisma generate`, que não precisa dela.
+   - Complete os placeholders de `APP_NAME` e `APP_URL` com o nome e o
+     domínio dessa pessoa.
 5. Aponte o domínio da cópia (próprio ou subdomínio) para esse projeto
    Vercel.
 6. Acrescente o nome do schema novo a `INSTANCE_SCHEMAS` no `.env` do dono.
@@ -86,13 +99,18 @@ recebe as migrations novas quando alguém manda.
    npm run instancia:atualiza
    ```
 
-O relatório final tem três estados possíveis por schema:
+O relatório final classifica cada schema em um de três estados:
 
-- **aplicou** (`N aplicada(s)`) — havia migration pendente e ela entrou.
-- **em dia** — nada pendente, nenhuma ação.
+- **ok** — migrations aplicadas (ou, em `--dry-run`, só contadas) sem erro.
+  Aparece como `N aplicada(s)` quando havia pendência, ou `em dia` quando não
+  havia nenhuma — são duas leituras do mesmo estado, não dois estados
+  diferentes.
 - **não provisionado** — o schema está listado em `INSTANCE_SCHEMAS` mas
   nunca passou por `npm run instancia:nova`. Não é tratado como erro de
   migration; o relatório diz isso explicitamente e indica o comando a rodar.
+- **falhou** — algum erro impediu aplicar as migrations daquele schema (ex.:
+  migration quebrada, conexão caiu). O relatório mostra a mensagem de erro
+  junto do nome do schema.
 
 Uma falha (ou um "não provisionado") num schema **não impede** os demais de
 serem processados — o relatório lista cada schema com seu próprio resultado,
@@ -115,18 +133,24 @@ Nessa ordem, sempre:
 2. Derrube o projeto na Vercel dessa pessoa.
 3. **Só então** derrube o schema no Postgres.
 
-Nenhum script deste projeto apaga schema — isso é manual, de propósito.
-`npm run instancia:nova` e `npm run instancia:atualiza` nunca fazem `DROP
-SCHEMA`, nem com flag, nem com confirmação. Remover uma instância é uma
-decisão irreversível demais para automatizar aqui.
+Nenhum script de provisionamento apaga schema de instância — isso é manual,
+de propósito. `npm run instancia:nova` e `npm run instancia:atualiza` nunca
+fazem `DROP SCHEMA`, nem com flag, nem com confirmação (o único `DROP SCHEMA`
+do repositório está em `scripts/e2e-reset-db.ts`, contra o schema `e2e` de
+teste — nunca contra o schema de uma pessoa real). Remover uma instância é
+uma decisão irreversível demais para automatizar aqui.
 
 ## 5. Ressalvas que não cabem em nenhum passo acima
 
 - **Trocar `APP_NAME` exige redeploy, não só salvar a variável na Vercel.**
-  O manifest do PWA e rotas estaticamente otimizadas (como `/novidades`)
-  congelam o valor no momento do build. Mudar `APP_NAME` nas Environment
-  Variables sem disparar um novo deploy deixa o nome antigo nesses lugares
-  até o próximo build acontecer por outro motivo.
+  O manifest do PWA (`/manifest.webmanifest`, gerado por `app/manifest.ts`) é
+  uma rota estaticamente otimizada — o build do Next marca essa rota `○` e
+  congela ali o valor de `appName()` lido no momento do build. Mudar
+  `APP_NAME` nas Environment Variables sem disparar um novo deploy deixa o
+  nome antigo nesse arquivo até o próximo build acontecer por outro motivo.
+  (As demais telas que mostram o nome, como `/novidades`, são dinâmicas —
+  `ƒ` no build — e leem a variável a cada request, então essas já refletem a
+  mudança sem precisar de redeploy.)
 - **`npm run smoke:vazio` não roda ao mesmo tempo que `npm run dev`.** Os
   dois escrevem no mesmo diretório `.next/`. O smoke confere as portas antes
   de subir qualquer coisa e explica o conflito se encontrar uma ocupada, mas

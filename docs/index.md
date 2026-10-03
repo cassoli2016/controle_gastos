@@ -40,3 +40,7 @@ expandido em um arquivo de conceito próprio via `/mega-brain:migrate` ou `/mega
 ## Services
 
 <!-- Serviços/módulos da aplicação, a definir após o design da stack. -->
+
+## Runbooks
+
+- [instancias](instancias.md) — criar, entregar, atualizar e remover uma cópia do app (deploy + schema Postgres por pessoa)
