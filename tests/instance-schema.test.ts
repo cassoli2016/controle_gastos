@@ -14,6 +14,10 @@ describe("assertSchemaName", () => {
     for (const n of ["com espaco", "Fulano", "", "  "]) expect(() => assertSchemaName(n)).toThrow();
   });
   it("recusa nome começando com dígito", () => expect(() => assertSchemaName("2ana")).toThrow());
+  it("recusa nome maior que o limite de identificador do Postgres", () => {
+    expect(() => assertSchemaName("a".repeat(63))).not.toThrow();
+    expect(() => assertSchemaName("a".repeat(64))).toThrow(/63/);
+  });
 });
 
 describe("pendingMigrations", () => {

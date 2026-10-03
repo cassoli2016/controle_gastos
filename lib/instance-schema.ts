@@ -12,8 +12,24 @@
  * aceitável aqui (não há escaping padrão e seguro para identificador de DDL em Postgres).
  * Por isso a regex abaixo é deliberadamente fechada: só minúsculas, dígitos e underscore,
  * começando por letra ou underscore. Não a afrouxe para aceitar mais caracteres.
+ *
+ * Também barramos nome com mais de 63 caracteres (limite de identificador do Postgres).
+ * O risco aqui NÃO é um erro de sintaxe — é pior: o Postgres trunca identificador longo
+ * demais em silêncio, sem avisar de um jeito que um script perceba. Dois nomes de instância
+ * que só diferem depois do caractere 63 truncariam para o MESMO nome de schema, ou seja,
+ * duas pessoas diferentes passariam a compartilhar um schema — dados financeiros de uma
+ * pessoa vazando para a tela da outra. Isso é exatamente o que "um schema por pessoa" existe
+ * para impedir, então o limite entra aqui, não só como corte de edge case. Como a regex acima
+ * só permite ASCII de `[a-z0-9_]`, `.length` já é contagem de bytes — não precisa medir UTF-8.
+ *
+ * Palavra reservada do SQL (ex.: "select", "table") FICA aceita de propósito: um nome desses
+ * faz o `CREATE SCHEMA` falhar na hora, com erro de sintaxe do Postgres, alto e claro, antes
+ * de qualquer schema existir ou qualquer dado ser tocado. Falha ruidosa e imediata não precisa
+ * de guarda própria aqui; manter uma lista de palavras reservadas seria uma lista que envelhece
+ * (o Postgres muda a lista entre versões) e ainda assim nunca cobre tudo.
  */
 const SCHEMA_NAME_PATTERN = /^[a-z_][a-z0-9_]*$/;
+const MAX_SCHEMA_NAME_LENGTH = 63;
 
 export function assertSchemaName(name: string): string {
   if (name === "public") {
@@ -24,6 +40,11 @@ export function assertSchemaName(name: string): string {
   if (!SCHEMA_NAME_PATTERN.test(name)) {
     throw new Error(
       `Nome de schema inválido: "${name}" — use apenas letras minúsculas, dígitos e underscore, começando por letra ou underscore (ex.: "ana", "ana_2").`
+    );
+  }
+  if (name.length > MAX_SCHEMA_NAME_LENGTH) {
+    throw new Error(
+      `Nome de schema inválido: "${name}" tem ${name.length} caracteres — o limite de identificador do Postgres é ${MAX_SCHEMA_NAME_LENGTH}. Acima disso o Postgres trunca em silêncio, e dois nomes diferentes poderiam colidir no mesmo schema. Use um nome com até ${MAX_SCHEMA_NAME_LENGTH} caracteres.`
     );
   }
   return name;
