@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.33.0",
+    date: "2026-10-03",
+    title: "O app agora também roda em cópias, uma por pessoa",
+    items: [
+      "Dá para abrir uma cópia independente deste app para outra pessoa: login e senha próprios, dados completamente separados dos seus — nada que ela lançar aparece no seu mês, e vice-versa.",
+      "Cada cópia tem seu próprio nome, exibido na tela de login, no título da aba do navegador e no ícone quando instalado no celular.",
+      "Lançar gasto pelo Telegram numa cópia exige um bot do Telegram próprio dela — o bot que você já usa continua servindo só a sua cópia, não as novas.",
+      "Cotação de ações e leitura de comprovante por foto no Telegram continuam opcionais por cópia: sem configurar, o resto do app funciona normalmente, só esses dois recursos específicos ficam de fora.",
+    ],
+  },
+  {
     version: "1.32.0",
     date: "2026-10-03",
     title: "Panorama: renomear também os lançamentos avulsos",
