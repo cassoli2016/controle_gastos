@@ -50,7 +50,18 @@ const ROUTES = [
 ];
 
 const PG_READY_TIMEOUT_MS = 60_000;
-const NEXT_READY_TIMEOUT_MS = 120_000;
+// Era 120_000. Nas execuções reais medidas (Next 16 + Turbopack, máquina de
+// dev comum) o "Ready" sai em ~200-300ms e a primeira resposta em ~1-1.3s —
+// 60s ainda dá ~40-60x de folga para cold start em máquina mais lenta/CI. O
+// caso de porta ocupada (ver explainNextFailure logo abaixo) nem chega a
+// esperar esse timeout: com este script sempre passando `-p`, o próprio Next
+// morre na hora com EADDRINUSE, pego pelo check de `exitCode` em menos de 1s
+// — então reduzir este valor não acelera esse caminho, só limita quanto o
+// smoke espera por um `next dev` genuinamente lento ou travado. Não reduzi
+// mais por falta de dado de pior caso numa máquina realmente lenta; se o
+// smoke começar a estourar esse timeout em uso normal, é sinal de subir o
+// valor de novo, não de investigar lentidão real do app.
+const NEXT_READY_TIMEOUT_MS = 60_000;
 const ROUTE_TIMEOUT_MS = 90_000;
 
 let nextProc: ChildProcess | null = null;
@@ -66,15 +77,41 @@ function sleep(ms: number) {
 
 // --- Portas -------------------------------------------------------------
 //
-// Next.js NÃO falha quando a porta pedida está ocupada: em dev ele tenta até
-// 10 portas seguintes e sobe numa delas (log "Port X is in use... using
-// available port Y instead"). Sem checar isso, o smoke ficaria perguntando
-// pela porta errada e reportaria as 11 rotas como quebradas quando o
-// problema real é só uma porta ocupada (ex.: um `npm run dev` aberto) — o
-// mesmo tipo de diagnóstico enganoso que o pg_isready evita para o Postgres.
-// Por isso: (1) checa as duas portas ANTES de subir qualquer coisa e aborta
-// cedo, nomeando a porta e a causa provável; (2) depois de subir o next dev,
-// confirma pelo próprio log dele que a porta usada foi a pedida.
+// Por padrão o Next NÃO falha quando a porta pedida está ocupada: em dev ele
+// tenta até 10 portas seguintes e sobe numa delas, só avisando no log ("Port
+// X is in use... using available port Y instead"). MAS isso só vale quando a
+// porta vem do padrão (3000); conferimos o código-fonte do Next 16
+// (node_modules/next/dist/cli/next-dev.js:193: `allowRetry = portSource ===
+// 'default'`) e, como este script sempre passa `-p` explicitamente, esse
+// fallback silencioso nunca roda aqui — confirmado também na prática (ver
+// fix round 2 no relatório): com a porta ocupada, o `next dev` desta versão
+// morre na hora com `EADDRINUSE` e `process.exit(1)`, não sobe em outra
+// porta por baixo dos panos. Mesmo assim, sem nenhuma checagem o smoke
+// ficaria perguntando pela porta certa e, num Next futuro que mude esse
+// comportamento, reportaria as 11 rotas como quebradas quando o problema
+// real é só uma porta ocupada — o mesmo tipo de diagnóstico enganoso que o
+// pg_isready evita para o Postgres.
+//
+// Duas camadas, com papéis DIFERENTES de propósito:
+// (1) ensurePortsFree() checa as duas portas ANTES de subir qualquer coisa e
+//     aborta cedo, nomeando a porta e a causa provável — esse é o detector
+//     principal, e é confiável (testa conexão de verdade).
+// (2) waitNextReady() é o ÚNICO detector de problema de porta DEPOIS de
+//     startNextDev(): ele já checa se o processo morreu sozinho (o caso real
+//     e confirmado, EADDRINUSE) e faz polling HTTP na porta pedida (se por
+//     algum motivo o Next subisse silenciosamente noutra porta, esse polling
+//     nunca veria 200 ali e o timeout estouraria) — os dois robustos e
+//     independentes de versão do Next. SÓ DEPOIS que o processo morre ou o
+//     timeout estoura, explainNextFailure() varre o log de boot capturado
+//     como tentativa de ENRIQUECER a mensagem (dizer que porta o Next
+//     realmente usou/tentou usar, se achar essa informação no log). Essa
+//     varredura nunca decide nada sozinha — se o formato do log mudar numa
+//     versão futura do Next e o regex parar de bater, o pior caso é a
+//     mensagem genérica, não um diagnóstico errado. (Lição aprendida: a
+//     primeira versão deste arquivo usava o log como gate/detector por
+//     iteração do polling, o que nunca foi exercitado pelos testes manuais e
+//     corria o risco de nunca disparar numa versão do Next com formato de
+//     banner diferente.)
 
 /**
  * Verifica se a porta está livre tentando CONECTAR nela (não dar `listen`).
@@ -136,35 +173,54 @@ function stripAnsi(s: string): string {
 }
 
 /**
- * Lê o próprio log de boot do next dev em busca de prova de que ele subiu
- * numa porta DIFERENTE da pedida (fallback silencioso por porta ocupada).
- * Roda a cada iteração do polling de prontidão — não espera o timeout
- * inteiro, porque nesse cenário o fetch na porta pedida nunca vai responder
- * 200 (quem está nela é outro processo), só vai dar timeout genérico.
+ * Chamada só DEPOIS que waitNextReady() já decidiu abortar (processo morreu
+ * sozinho OU timeout) — nunca para decidir isso, só para tentar explicar por
+ * quê. Varre o log de boot capturado em busca de evidência de problema de
+ * porta e, se achar, enriquece a mensagem genérica. Três formatos
+ * conhecidos, do mais provável (confirmado na prática, ver fix round 2) ao
+ * mais hipotético:
+ *  1. `EADDRINUSE` — o caso REAL: como o script sempre passa `-p`, o Next
+ *     não faz fallback silencioso, só morre com esse erro (capturado por
+ *     process.exit, visto no stderr).
+ *  2. Banner "- Local: http://host:PORTA" com porta diferente da pedida —
+ *     hipotético (exigiria `allowRetry`, que este script nunca aciona).
+ *  3. Aviso "Port X is in use... using available port Y instead" — mesma
+ *     hipótese de (2).
+ * Se nada bater, devolve a mensagem genérica sem inventar nada.
  */
-function detectPortMismatch(): Error | null {
+function explainNextFailure(genericMessage: string): string {
   const clean = stripAnsi(nextOutputBuffer);
+
+  const eaddrMatch = clean.match(/EADDRINUSE:\s*address already in use\s+([\w.:]+):(\d+)/);
+  if (eaddrMatch) {
+    const [, addr, portStr] = eaddrMatch;
+    return (
+      `${genericMessage} — a saída do next dev mostra EADDRINUSE em ${addr}:${portStr}: a porta ` +
+      `já estava ocupada por outro processo (ex.: um \`npm run dev\` aberto) quando ele tentou subir.`
+    );
+  }
+
   const localMatch = clean.match(/-\s*Local:\s*https?:\/\/[^\s:]+:(\d+)/);
   if (localMatch) {
     const boundPort = Number(localMatch[1]);
     if (boundPort !== APP_PORT) {
-      return new Error(
-        `next dev subiu na porta ${boundPort}, não na ${APP_PORT} que o smoke pediu — a porta ` +
-          `${APP_PORT} deve ter sido ocupada entre a checagem e a subida. Abortando para não testar ` +
-          `o servidor errado.`,
+      return (
+        `${genericMessage} — a saída do next dev indica que ele subiu na porta ${boundPort}, não ` +
+        `na ${APP_PORT} pedida; provavelmente a porta ${APP_PORT} estava ocupada por outro processo.`
       );
     }
-    return null;
   }
+
   const warnMatch = clean.match(/Port (\d+) is in use[^\n]*using available port (\d+) instead/);
   if (warnMatch) {
     const [, original, fallback] = warnMatch;
-    return new Error(
-      `next dev avisou que a porta ${original} estava em uso e subiu na ${fallback} em vez da ` +
-        `pedida. Abortando para não testar o servidor errado.`,
+    return (
+      `${genericMessage} — a saída do next dev avisou que a porta ${original} estava em uso e ` +
+      `ele subiu na ${fallback} em vez da pedida.`
     );
   }
-  return null;
+
+  return genericMessage;
 }
 
 // --- Docker -----------------------------------------------------------
@@ -261,7 +317,8 @@ function startNextDev(): ChildProcess {
     },
   });
   // Ecoa no próprio terminal (mesma visibilidade que `stdio: "inherit"` dava)
-  // e acumula num buffer p/ detectPortMismatch() ler o banner de boot.
+  // e acumula num buffer p/ explainNextFailure() ler o log de boot (só usado
+  // para enriquecer a mensagem SE waitNextReady() concluir que algo falhou).
   child.stdout?.on("data", (chunk: Buffer) => {
     nextOutputBuffer += chunk.toString();
     process.stdout.write(chunk);
@@ -279,10 +336,9 @@ async function waitNextReady() {
   let lastErr = "";
   while (Date.now() - start < NEXT_READY_TIMEOUT_MS) {
     if (nextProc && nextProc.exitCode !== null) {
-      throw new Error(`next dev encerrou sozinho antes de ficar pronto (código ${nextProc.exitCode})`);
+      const generic = `next dev encerrou sozinho antes de ficar pronto (código ${nextProc.exitCode})`;
+      throw new Error(explainNextFailure(generic));
     }
-    const mismatch = detectPortMismatch();
-    if (mismatch) throw mismatch;
     try {
       const res = await fetch(`${BASE}/api/auth/csrf`, { signal: AbortSignal.timeout(5_000) });
       if (res.ok) {
@@ -295,7 +351,8 @@ async function waitNextReady() {
     }
     await sleep(500);
   }
-  throw new Error(`next dev não respondeu em ${BASE} dentro de ${NEXT_READY_TIMEOUT_MS}ms (${lastErr})`);
+  const generic = `next dev não respondeu em ${BASE} dentro de ${NEXT_READY_TIMEOUT_MS}ms (${lastErr})`;
+  throw new Error(explainNextFailure(generic));
 }
 
 // --- Login (CSRF + credentials) -----------------------------------------
