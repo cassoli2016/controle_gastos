@@ -328,7 +328,7 @@ O cabeçalho do arquivo repete os limites herdados do `aplica-migration.ts` (sem
 - [ ] **Step 2: Conferir o dry-run num schema inexistente**
 
 Run: `npx tsx scripts/provisiona-instancia.ts teste_dry --dry-run`
-Expected: lista as 29 migrations como pendentes e diz que nada foi executado. Conferir que o schema NÃO foi criado.
+Expected: lista as 28 migrations como pendentes e diz que nada foi executado. Conferir que o schema NÃO foi criado.
 
 - [ ] **Step 3: Conferir a recusa**
 
@@ -338,7 +338,7 @@ Expected: erro mencionando `public`, sem tocar no banco.
 - [ ] **Step 4: Provisionar de verdade um schema descartável e reexecutar**
 
 Run: `npx tsx scripts/provisiona-instancia.ts teste_tmp` e logo depois o mesmo comando outra vez.
-Expected: na primeira, 29 aplicadas; na segunda, 0 pendentes. Derrubar o schema ao fim (`DROP SCHEMA teste_tmp CASCADE`) e registrar no relatório que foi derrubado.
+Expected: na primeira, 28 aplicadas; na segunda, 0 pendentes. Derrubar o schema ao fim (`DROP SCHEMA teste_tmp CASCADE`) e registrar no relatório que foi derrubado.
 
 - [ ] **Step 5: Commit**
 
