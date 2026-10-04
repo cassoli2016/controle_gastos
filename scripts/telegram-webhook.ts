@@ -4,13 +4,13 @@
  */
 import "dotenv/config";
 
-const APP_URL = process.env.APP_URL ?? "https://grana.cassolitech.com.br";
-
 async function main() {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const APP_URL = process.env.APP_URL;
   if (!token) throw new Error("TELEGRAM_BOT_TOKEN ausente no .env");
   if (!secret) throw new Error("TELEGRAM_WEBHOOK_SECRET ausente no .env");
+  if (!APP_URL) throw new Error("APP_URL ausente no .env");
 
   const res = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
     method: "POST",

@@ -186,14 +186,14 @@ git commit -m "feat: nome e endereço do app vêm do ambiente"
 ```ts
 it("as regras de categoria não dependem de nome de pessoa", () => {
   for (const termo of ["hana", "audrey", "heitor"])
-    expect(RULES.some((r) => r.pattern.source.toLowerCase().includes(termo))).toBe(false);
+    expect(KEYWORD_MAP.some((r) => r.pattern.source.toLowerCase().includes(termo))).toBe(false);
 });
 it("continua categorizando pelo termo universal", () => {
-  expect(categoryFor("DROGARIA SAO PAULO")).toBe("Saúde");
+  expect(keywordCategory("DROGARIA SAO PAULO")).toBe("Saúde");
 });
 ```
 
-Exportar `RULES` de `lib/import-normalize.ts` se ainda não for exportado.
+`KEYWORD_MAP` existe em `lib/import-normalize.ts:28` mas **não é exportado** — exportar. `keywordCategory` (`:37`) já é exportado e já é usado pelos testes atuais do arquivo; o import no topo do teste precisa ganhar `KEYWORD_MAP`.
 
 - [ ] **Step 2: Rodar e ver falhar**
 
@@ -294,7 +294,7 @@ Expected: FAIL — módulo não existe.
 - [ ] **Step 4: Rodar até passar**
 
 Run: `npx vitest run tests/instance-schema.test.ts`
-Expected: PASS (16 testes).
+Expected: PASS (14 testes).
 
 - [ ] **Step 5: Commit**
 
@@ -328,7 +328,7 @@ O cabeçalho do arquivo repete os limites herdados do `aplica-migration.ts` (sem
 - [ ] **Step 2: Conferir o dry-run num schema inexistente**
 
 Run: `npx tsx scripts/provisiona-instancia.ts teste_dry --dry-run`
-Expected: lista as 29 migrations como pendentes e diz que nada foi executado. Conferir que o schema NÃO foi criado.
+Expected: lista as 28 migrations como pendentes e diz que nada foi executado. Conferir que o schema NÃO foi criado.
 
 - [ ] **Step 3: Conferir a recusa**
 
@@ -338,7 +338,7 @@ Expected: erro mencionando `public`, sem tocar no banco.
 - [ ] **Step 4: Provisionar de verdade um schema descartável e reexecutar**
 
 Run: `npx tsx scripts/provisiona-instancia.ts teste_tmp` e logo depois o mesmo comando outra vez.
-Expected: na primeira, 29 aplicadas; na segunda, 0 pendentes. Derrubar o schema ao fim (`DROP SCHEMA teste_tmp CASCADE`) e registrar no relatório que foi derrubado.
+Expected: na primeira, 28 aplicadas; na segunda, 0 pendentes. Derrubar o schema ao fim (`DROP SCHEMA teste_tmp CASCADE`) e registrar no relatório que foi derrubado.
 
 - [ ] **Step 5: Commit**
 

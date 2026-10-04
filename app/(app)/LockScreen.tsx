@@ -16,8 +16,14 @@ import { Card, CardContent } from "@/components/ui/card";
  *
  * A senha aparece sempre como alternativa: passkey é presa ao aparelho e ao
  * domínio, e sem essa saída um celular novo deixaria você de fora.
+ *
+ * `appName` chega por prop, calculado pelo layout (Server Component): este
+ * componente é "use client", e `process.env.APP_NAME` não é inlinado no bundle
+ * do navegador (só variáveis `NEXT_PUBLIC_*` são) — chamar `appName()` aqui
+ * leria `undefined` no cliente e, na hidratação, sobrescreveria o texto certo
+ * vindo do servidor pelo valor padrão de `appName()`.
  */
-export function LockScreen() {
+export function LockScreen({ appName }: { appName: string }) {
   const router = useRouter();
   const [erro, setErro] = useState<string | null>(null);
   const [tentando, setTentando] = useState(false);
@@ -66,7 +72,7 @@ export function LockScreen() {
             <Fingerprint className="size-8 text-primary" />
           </div>
           <div className="text-center">
-            <p className="font-semibold">Grana está trancado</p>
+            <p className="font-semibold">{appName} está trancado</p>
             <p className="text-sm text-muted-foreground">Use o Face ID para entrar.</p>
           </div>
 

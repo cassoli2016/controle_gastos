@@ -22,7 +22,7 @@ no Supabase atual; changelog reescrito sem dado pessoal.
 Antes de desenhar, o app rodou contra um Postgres local vazio (Docker,
 descartado depois):
 
-- As 29 migrations aplicam limpo num banco zerado — `prisma migrate deploy`
+- As 28 migrations aplicam limpo num banco zerado — `prisma migrate deploy`
   funciona fora do pooler do Supabase.
 - As 11 rotas (`/dashboard`, `/mes`, `/panorama`, `/cartoes`, `/reservas`,
   `/investimentos`, `/itens`, `/categorias`, `/calculadora`, `/ajustes`,
@@ -115,7 +115,7 @@ casariam, e no repositório são dado pessoal sem função.
 
 1. valida o nome do schema (minúsculas, sem espaço, nunca `public`);
 2. `CREATE SCHEMA IF NOT EXISTS`;
-3. aplica as 29 migrations em ordem e registra em `_prisma_migrations`;
+3. aplica as 28 migrations em ordem e registra em `_prisma_migrations`;
 4. imprime o bloco de variáveis pronto para colar na Vercel, com uma
    `APP_PASSWORD` e um `AUTH_SECRET` sorteados.
 
@@ -200,9 +200,12 @@ automação da Vercel por API: com 2 a 3 cópias, criar o projeto pela interface
 - **Isolamento lógico.** Um vazamento da connection string alcança todas as
   cópias. Mitigação: a string vive só nas variáveis da Vercel e no `.env` local
   do dono.
-- **Provisionador não é o `migrate`.** Migration nova precisa ser idempotente
-  (`IF NOT EXISTS`) para poder ser repetida — exigência que já vale hoje para o
-  `aplica-migration.ts`.
+- **Provisionador não é o `migrate`.** A exigência de migration idempotente
+  (`IF NOT EXISTS`) para poder ser repetida continua valendo para o
+  `aplica-migration.ts`, mas não para o provisionador: ali cada migration roda
+  dentro de `BEGIN`/`COMMIT`, então uma falha dá `ROLLBACK` e não chega a
+  registrar em `_prisma_migrations` — reexecutar é seguro mesmo sem
+  `IF NOT EXISTS`.
 - **Suporte recai sobre o dono.** Esquecer a senha, renovar domínio e pagar o
   Supabase continuam sendo dele. É consequência de "eu monto para cada uma", e
   não de uma decisão técnica.

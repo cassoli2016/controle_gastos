@@ -28,4 +28,27 @@ describe("CHANGELOG", () => {
       for (const item of e.items) expect(item.length).toBeGreaterThan(0);
     }
   });
+
+  // Estas duas guardas são rede de REGRESSÃO para dado pessoal já achado — elas só
+  // pegam valor "R$ <dígito>" e os termos já catalogados abaixo. Não substituem ler a
+  // entrada nova antes de publicar: a 1.14.0 ("Seguro C3 e Seguro Duster") passou pelas
+  // duas sem disparar nada, porque "C3"/"Duster" não casam com nenhuma regra — só uma
+  // leitura humana pegou. Ao adicionar uma entrada, releia com os olhos.
+  const TERMOS_PESSOAIS = [
+    "cassoli", "heitor", "audrey", "hana", "gobrax", "marcos nunes",
+    "nucel", "ultravioleta", "franciscana", "psico", "duster",
+  ];
+
+  it("nenhuma entrada expõe valor em reais", () => {
+    for (const e of CHANGELOG)
+      for (const item of [e.title, ...e.items])
+        expect(item, `${e.version}: "${item.slice(0, 60)}…"`).not.toMatch(/R\$\s*\d/);
+  });
+
+  it("nenhuma entrada cita nome próprio de pessoa, conta ou empresa", () => {
+    for (const e of CHANGELOG)
+      for (const item of [e.title, ...e.items])
+        for (const termo of TERMOS_PESSOAIS)
+          expect(item.toLowerCase(), `${e.version} cita "${termo}"`).not.toContain(termo);
+  });
 });
