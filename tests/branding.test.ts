@@ -44,6 +44,11 @@ describe("branding", () => {
       expect(displayDomain()).toBe("x.com");
     });
 
+    it("corta o caminho", () => {
+      process.env.APP_URL = "https://x.com/app";
+      expect(displayDomain()).toBe("x.com");
+    });
+
     it("é null sem APP_URL", () => {
       expect(displayDomain()).toBeNull();
     });

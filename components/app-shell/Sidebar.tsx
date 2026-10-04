@@ -5,7 +5,14 @@ import { cn } from "@/lib/utils";
 import { NAV_ITEMS } from "./NavItems";
 import { version } from "@/package.json";
 
-export function Sidebar() {
+/**
+ * `appName` chega por prop, calculado pelo layout (Server Component): este
+ * componente é "use client", e `process.env.APP_NAME` não é inlinado no bundle
+ * do navegador (só variáveis `NEXT_PUBLIC_*` são) — chamar `appName()` aqui
+ * leria `undefined` no cliente e, na hidratação, sobrescreveria o texto certo
+ * vindo do servidor pelo valor padrão de `appName()`.
+ */
+export function Sidebar({ appName }: { appName: string }) {
   const path = usePathname();
   return (
     // Menu FIXO: gruda logo abaixo do topbar (h-14) e não rola com o conteúdo.
@@ -38,7 +45,7 @@ export function Sidebar() {
         href="/novidades"
         className="mt-auto block border-t p-4 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
-        <div>Grana · cassolitech</div>
+        <div>{appName}</div>
         <div className="tabular-nums">
           v{version}
           {process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA

@@ -22,19 +22,44 @@
  * para impedir, então o limite entra aqui, não só como corte de edge case. Como a regex acima
  * só permite ASCII de `[a-z0-9_]`, `.length` já é contagem de bytes — não precisa medir UTF-8.
  *
- * Palavra reservada do SQL (ex.: "select", "table") FICA aceita de propósito: um nome desses
- * faz o `CREATE SCHEMA` falhar na hora, com erro de sintaxe do Postgres, alto e claro, antes
- * de qualquer schema existir ou qualquer dado ser tocado. Falha ruidosa e imediata não precisa
- * de guarda própria aqui; manter uma lista de palavras reservadas seria uma lista que envelhece
- * (o Postgres muda a lista entre versões) e ainda assim nunca cobre tudo.
+ * Palavra reservada do SQL (ex.: "select", "table") FICA aceita de propósito: o provisionador
+ * monta `CREATE SCHEMA IF NOT EXISTS "${schema}"` com o nome entre aspas duplas
+ * (scripts/provisiona-instancia.ts), e "select" é um identificador legal entre aspas — não há
+ * diferença prática para o Postgres. Manter uma lista de palavras reservadas para recusar aqui
+ * seria uma lista que envelhece (o Postgres muda a lista entre versões) e ainda assim nunca
+ * cobre tudo. O caso que de fato importava — um schema que já existe e levaria as migrations
+ * da cópia nova para dentro dele — está barrado explicitamente abaixo (schema gerenciado do
+ * Supabase e `public`), não por recusa de palavra reservada.
  */
 const SCHEMA_NAME_PATTERN = /^[a-z_][a-z0-9_]*$/;
 const MAX_SCHEMA_NAME_LENGTH = 63;
+
+/**
+ * Schemas que o Supabase já cria e gerencia no mesmo banco. Passam na regex
+ * (são identificadores válidos) e já EXISTEM antes de qualquer provisionamento
+ * — o que faria `CREATE SCHEMA IF NOT EXISTS` virar no-op silencioso e as 28
+ * migrations da cópia nova serem aplicadas dentro do schema do Supabase, não
+ * num schema novo da pessoa.
+ */
+const SUPABASE_MANAGED_SCHEMAS = new Set([
+  "auth",
+  "storage",
+  "realtime",
+  "extensions",
+  "vault",
+  "graphql",
+  "supabase_functions",
+]);
 
 export function assertSchemaName(name: string): string {
   if (name === "public") {
     throw new Error(
       'Nome de schema recusado: "public" é o schema do dono — provisionar sobre ele mexeria nos dados reais dele.'
+    );
+  }
+  if (SUPABASE_MANAGED_SCHEMAS.has(name)) {
+    throw new Error(
+      `Nome de schema recusado: "${name}" é um schema gerenciado do Supabase — já existe no banco, e provisionar sobre ele aplicaria as migrations da cópia nova dentro dele em vez de um schema novo.`
     );
   }
   if (!SCHEMA_NAME_PATTERN.test(name)) {

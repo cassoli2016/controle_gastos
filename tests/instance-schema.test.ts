@@ -6,6 +6,10 @@ describe("assertSchemaName", () => {
   it("aceita dígitos e underscore", () => expect(assertSchemaName("ana_2")).toBe("ana_2"));
   it("recusa public — é o schema do dono", () =>
     expect(() => assertSchemaName("public")).toThrow(/public/i));
+  it("recusa schema gerenciado do Supabase (auth, storage)", () => {
+    expect(() => assertSchemaName("auth")).toThrow(/supabase/i);
+    expect(() => assertSchemaName("storage")).toThrow(/supabase/i);
+  });
   it("recusa aspas e ponto-e-vírgula — o CREATE SCHEMA é interpolado", () => {
     expect(() => assertSchemaName('x"; drop schema public cascade; --')).toThrow();
     expect(() => assertSchemaName("x'y")).toThrow();
@@ -40,7 +44,7 @@ describe("parseInstanceSchemas", () => {
 });
 
 describe("envBlock", () => {
-  it("traz o schema na connection string e nas variáveis", () => {
+  it("traz o schema e as demais variáveis no bloco de texto", () => {
     const txt = envBlock({ schema: "ana", appName: "Grana da Ana", appUrl: "https://ana.app", password: "p", authSecret: "s" });
     expect(txt).toContain("DATABASE_SCHEMA=ana");
     expect(txt).toContain("APP_NAME=Grana da Ana");

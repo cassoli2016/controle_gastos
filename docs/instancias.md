@@ -57,6 +57,17 @@ alcança) precisa de um projeto Supabase próprio, não de um schema aqui.
      deploy roda apenas `prisma generate`, que não precisa dela.
    - Complete os placeholders de `APP_NAME` e `APP_URL` com o nome e o
      domínio dessa pessoa.
+   - `CRON_SECRET`: sorteie um valor e cadastre. Sem ele, `/api/cron/quotes`
+     e `/api/cron/resumo` ficam abertos sem autenticação nessa cópia — nenhum
+     dos dois devolve dado financeiro no corpo da resposta, mas o endpoint
+     fica exposto para qualquer um disparar.
+
+   Depois de salvar as variáveis, **dispare um redeploy.** O projeto Vercel
+   já buildou ao ser criado no passo 3 — antes de qualquer variável existir
+   — e `/manifest.webmanifest` (rota estática) congela nesse build o
+   `appName()` lido naquele momento. Sem um redeploy agora, a cópia nasce
+   com o nome errado nesse arquivo até o próximo build acontecer por outro
+   motivo.
 5. Aponte o domínio da cópia (próprio ou subdomínio) para esse projeto
    Vercel.
 6. Acrescente o nome do schema novo a `INSTANCE_SCHEMAS` no `.env` do dono.
@@ -126,12 +137,19 @@ npm run instancia:atualiza -- --dry-run --schema <nome>
 
 Nessa ordem, sempre:
 
-1. Exporte o schema antes de mexer em qualquer coisa:
+1. Exporte o schema antes de mexer em qualquer coisa, usando a `DIRECT_URL`
+   (conexão de sessão, porta 5432) — a mesma que o passo 4 da criação ensina
+   a deixar de fora da Vercel. **Não** use a `DATABASE_URL` (pooler em modo
+   transação, porta 6543): `pg_dump` não funciona de forma confiável atrás
+   do pooler em modo transação; a conexão de sessão é a que serve:
    ```
-   pg_dump -n <schema> <connection-string> > <schema>-backup.sql
+   pg_dump -n <schema> <direct-url> > <schema>-backup.sql
    ```
-2. Derrube o projeto na Vercel dessa pessoa.
-3. **Só então** derrube o schema no Postgres.
+2. Confira o tamanho do arquivo antes de seguir — um `.sql` de poucos bytes
+   (ou vazio) é sinal de exportação que falhou em silêncio, e seguir com os
+   próximos passos destruiria o schema sem backup de verdade.
+3. Derrube o projeto na Vercel dessa pessoa.
+4. **Só então** derrube o schema no Postgres.
 
 Nenhum script de provisionamento apaga schema de instância — isso é manual,
 de propósito. `npm run instancia:nova` e `npm run instancia:atualiza` nunca

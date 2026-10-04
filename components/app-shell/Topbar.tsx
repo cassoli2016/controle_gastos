@@ -10,7 +10,20 @@ import { NAV_ITEMS } from "./NavItems";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { version } from "@/package.json";
 
-export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }) {
+/**
+ * `appName` chega por prop, calculado pelo layout (Server Component): este
+ * componente é "use client", e `process.env.APP_NAME` não é inlinado no bundle
+ * do navegador (só variáveis `NEXT_PUBLIC_*` são) — chamar `appName()` aqui
+ * leria `undefined` no cliente e, na hidratação, sobrescreveria o texto certo
+ * vindo do servidor pelo valor padrão de `appName()`.
+ */
+export function Topbar({
+  signOutAction,
+  appName,
+}: {
+  signOutAction: () => Promise<void>;
+  appName: string;
+}) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
   return (
@@ -25,7 +38,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
               <span className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-violet-600 text-white">
                 <Wallet className="size-4" />
               </span>
-              Grana
+              {appName}
             </SheetTitle>
             <SheetDescription className="sr-only">Navegação principal</SheetDescription>
             <nav className="flex flex-col gap-1">
@@ -57,7 +70,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
               onClick={() => setOpen(false)}
               className="mt-auto block border-t px-2 py-3 text-[11px] text-muted-foreground hover:text-foreground"
             >
-              Grana · cassolitech · <span className="tabular-nums">v{version}</span> — Novidades
+              {appName} · <span className="tabular-nums">v{version}</span> — Novidades
             </Link>
           </SheetContent>
         </Sheet>
@@ -66,7 +79,7 @@ export function Topbar({ signOutAction }: { signOutAction: () => Promise<void> }
         <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 text-white shadow-sm">
           <Wallet className="size-4.5" />
         </span>
-        <span className="text-[15px] font-semibold tracking-tight">Grana</span>
+        <span className="text-[15px] font-semibold tracking-tight">{appName}</span>
       </Link>
       <div className="ml-auto flex items-center gap-1">
         {/* Ajustes mora aqui, não na navegação: a barra do celular já tem 8

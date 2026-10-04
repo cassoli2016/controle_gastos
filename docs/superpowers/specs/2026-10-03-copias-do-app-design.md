@@ -200,9 +200,12 @@ automação da Vercel por API: com 2 a 3 cópias, criar o projeto pela interface
 - **Isolamento lógico.** Um vazamento da connection string alcança todas as
   cópias. Mitigação: a string vive só nas variáveis da Vercel e no `.env` local
   do dono.
-- **Provisionador não é o `migrate`.** Migration nova precisa ser idempotente
-  (`IF NOT EXISTS`) para poder ser repetida — exigência que já vale hoje para o
-  `aplica-migration.ts`.
+- **Provisionador não é o `migrate`.** A exigência de migration idempotente
+  (`IF NOT EXISTS`) para poder ser repetida continua valendo para o
+  `aplica-migration.ts`, mas não para o provisionador: ali cada migration roda
+  dentro de `BEGIN`/`COMMIT`, então uma falha dá `ROLLBACK` e não chega a
+  registrar em `_prisma_migrations` — reexecutar é seguro mesmo sem
+  `IF NOT EXISTS`.
 - **Suporte recai sobre o dono.** Esquecer a senha, renovar domínio e pagar o
   Supabase continuam sendo dele. É consequência de "eu monto para cada uma", e
   não de uma decisão técnica.

@@ -91,7 +91,7 @@ export function PasskeyManager({ passkeys }: { passkeys: Passkey[] }) {
             id="passkey-label"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="ex.: iPhone do Cristian"
+            placeholder="ex.: iPhone"
           />
         </div>
         <Button onClick={registrar} disabled={registrando}>

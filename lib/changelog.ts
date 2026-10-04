@@ -120,8 +120,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-09-05",
     title: "Todas as 25 faturas conferidas",
     items: [
-      "Passei fatura por fatura dos dois cartões — 12 do Bradesco e 13 do Nubank, de agosto/2026 a agosto/2027. Em todas, o valor que o app mostra bate com a soma dos lançamentos, e 557 parcelas foram casadas uma a uma com a do mês anterior. Nenhum problema.",
-      "As quatro parcelas da Amazon Retail voltaram a ser reconhecidas como parcelamento: quando renomeamos o apelido, elas perderam o \"(11/12)\" que ficava no nome, e o app deixou de saber que eram parcelas. Agora essa informação está gravada em campo próprio, então o nome fica limpo e a parcela continua identificada.",
+      "Passei fatura por fatura, de agosto/2026 a agosto/2027. Em todas, o valor que o app mostra bate com a soma dos lançamentos, e as parcelas foram casadas uma a uma com a do mês anterior. Nenhum problema.",
+      "Parcelas com o apelido renomeado voltaram a ser reconhecidas como parcelamento: ao trocar o apelido, elas perdiam o \"(11/12)\" que ficava no nome, e o app deixava de saber que eram parcelas. Agora essa informação fica gravada em campo próprio, então o nome fica limpo e a parcela continua identificada.",
     ],
   },
   {
@@ -142,7 +142,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Das 8 parcelas, só 4 estavam lançadas — faltavam a 2ª, a 4ª, a 5ª e a 7ª, um valor que o planejamento não previa. Agora as oito estão lá, de outubro/2026 a maio/2027.",
       "As que existiam também estavam um mês adiantadas: com a primeira parcela em outubro, a terceira tem que cair em dezembro, e não em novembro. Isso era efeito da correção do ciclo de ontem, que moveu a primeira parcela sem levar a fila junto.",
       "O valor da sua fatura de novembro não muda — o que mudou foi só o número da parcela, que agora é a 2ª de 8.",
-      "Conferi as outras 121 compras parceladas do Nubank: nenhuma tem parcela faltando no meio.",
+      "Conferi as demais compras parceladas: nenhuma tem parcela faltando no meio.",
     ],
   },
   {
@@ -218,7 +218,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       "Conta sem nada a pagar nem a receber deste mês em diante deixou de aparecer no Panorama. Saíram 6: quatro contas que já tinham acabado e viravam uma linha de traços, mais o Depósito e a Retirada de caixinha de setembro, que já aconteceram.",
       "Elas voltam com um clique em \"Mostrar quitados\" — o mesmo botão que já revelava os meses fechados. A legenda diz o que está escondido: \"Ocultando 2 meses quitados: jul/26, ago/26 · 6 contas quitadas\".",
-      "Conta paga no mês mas com cobrança à frente continua aparecendo: é o futuro que o Panorama serve para mostrar. Investidor10, PS Plus e Amazon Prime, por exemplo, ficam mesmo só com traços nos primeiros meses, porque a cobrança delas é anual.",
+      "Conta paga no mês mas com cobrança à frente continua aparecendo: é o futuro que o Panorama serve para mostrar. Uma assinatura anual, por exemplo, fica mesmo só com traços nos primeiros meses, porque a cobrança dela é uma vez por ano.",
       "O \"Ocultar pagos\" não mudou: ele continua sendo a visão do mês, escondendo quem já foi quitado até hoje.",
     ],
   },
@@ -274,7 +274,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Extrato da caixinha: dá para conferir com o banco",
     items: [
       "Cada caixinha ganhou um extrato (o ícone de lista no card, em Reservas): depósitos, retiradas e ajustes numa lista só, do mais recente para o mais antigo, com o saldo depois de cada linha. É a tela para abrir lado a lado com o app do banco.",
-      "As retiradas agora dizem o que pagaram — \"Pagamento de Bradesco Amazon\" no lugar de \"Retirada\" seguido do nome da própria caixinha, que não acrescentava nada.",
+      "As retiradas agora dizem o que pagaram — \"Pagamento de cartão de crédito\", por exemplo — no lugar de \"Retirada\" seguido do nome da própria caixinha, que não acrescentava nada.",
       "No topo do extrato, a checagem: o app soma os movimentos e compara com o saldo guardado. Suas três caixinhas fecham certinho.",
       "Mudar o valor da caixinha na mão deixou de ser invisível. Agora vira uma linha no extrato, com data e motivo — você escreve \"rendimento\" e no mês seguinte sabe de onde veio a diferença. Antes o número simplesmente mudava, e depois não havia como saber se foi rendimento, correção ou um depósito esquecido.",
       "Seu saldo antigo virou a primeira linha de cada extrato, \"Saldo de abertura\" em 19/07/2026, com o saldo que já existia em cada caixinha antes de o app registrar movimento. Agora o extrato fecha do primeiro dia até hoje.",
@@ -535,7 +535,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-08-05",
     title: "Fatura do Nubank conferida com o banco",
     items: [
-      "A fatura de agosto do Nubank agora bate exatamente com o valor fechado pelo banco: um estorno da Shopee estava descontado duas vezes.",
+      "A fatura de agosto agora bate exatamente com o valor fechado pelo banco: um estorno estava descontado duas vezes.",
       "As compras do dia do fechamento que o banco jogou para a fatura de setembro entraram no mês certo.",
       "O vencimento do cartão foi corrigido para o dia 12 — o fluxo de caixa do mês mostra a saída no dia real.",
     ],
