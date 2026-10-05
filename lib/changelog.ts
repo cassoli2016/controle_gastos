@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.33.1",
+    date: "2026-10-05",
+    title: "A folga das caixinhas parava de bater quando você pagava com elas",
+    items: [
+      "O card de Reservas diz quanto sobra das caixinhas depois de cobrir os meses no vermelho. Esse número estava descontando o mesmo dinheiro duas vezes: quando você pagava uma conta já prevista tirando da caixinha, a reserva caía — mas o buraco que ela precisava cobrir continuava contando aquela conta inteira, como se ainda estivesse em aberto.",
+      "Na prática: pagar uma conta prevista com a caixinha derrubava a sua folga na mesma hora, mesmo sem nada ter mudado de verdade. O dinheiro só tinha trocado de bolso.",
+      "Agora os dois lados da conta falam a mesma língua. Pagar uma conta prevista com a caixinha deixa a folga praticamente igual, que é o certo.",
+      "O erro valia nos dois sentidos, e a outra metade também foi corrigida: guardar dinheiro na caixinha fazia a folga parecer maior do que era, porque a reserva subia e ninguém descontava que o dinheiro saiu da conta. Por causa disso, um mês em que você guarda bastante pode passar a aparecer entre os meses no vermelho — e deve, porque a conta corrente fica mesmo mais magra naquele mês.",
+    ],
+  },
+  {
     version: "1.33.0",
     date: "2026-10-03",
     title: "O app agora também roda em cópias, uma por pessoa",

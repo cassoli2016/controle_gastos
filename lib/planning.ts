@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
-import { plannedBalance } from "@/lib/calc";
+import { cashBalance } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
 import { decimalToCents } from "@/lib/money";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -12,8 +12,33 @@ import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
 export type NegativeMonth = { month: string; balanceCents: number };
 
 /**
- * Meses (do corrente em diante) cujo saldo previsto é negativo — o
- * "descoberto" que as caixinhas de reserva precisam cobrir.
+ * Meses cujo saldo é negativo, a partir das linhas já agrupadas por mês — o
+ * "descoberto" que as caixinhas precisam cobrir.
+ *
+ * Usa `cashBalance`, que CONTA as transferências, e não `plannedBalance`, que
+ * as ignora. O motivo é que o número do outro lado da conta — o total das
+ * caixinhas — se mexe com elas: uma retirada já saiu daquele total. Medir um
+ * lado com transferência e o outro sem fazia o mesmo dinheiro ser descontado
+ * duas vezes da folga: ao pagar R$ 20 mil de uma conta prevista com a
+ * caixinha, a reserva caía 20 mil e o descoberto continuava contando a
+ * despesa inteira, como se ela seguisse em aberto.
+ *
+ * Vale nos dois sentidos: o depósito sai da conta corrente, então um mês que
+ * fecharia no azul pode virar descoberto — e deve, porque o dinheiro só trocou
+ * de bolso e o total das caixinhas já subiu.
+ */
+export function negativeMonths(byMonth: Map<string, EntryView[]>): NegativeMonth[] {
+  const out: NegativeMonth[] = [];
+  for (const [month, views] of byMonth) {
+    const balanceCents = cashBalance(views);
+    if (balanceCents < 0) out.push({ month, balanceCents });
+  }
+  return out;
+}
+
+/**
+ * Meses (do corrente em diante) cujo saldo é negativo, lendo o banco. A regra
+ * está em `negativeMonths`; aqui só se monta a entrada dela.
  */
 export async function getNegativeMonths(): Promise<NegativeMonth[]> {
   // "Hoje" vem sempre de todayISOInSaoPaulo() (regra do projeto): usar
@@ -39,15 +64,12 @@ export async function getNegativeMonths(): Promise<NegativeMonth[]> {
   // que fecharia no zero passa a precisar de cobertura.
   const budget = await getDailyBudget();
 
-  const out: NegativeMonth[] = [];
-  for (const [month, views] of byMonth) {
-    const withBudget = budget
-      ? [...views, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]
-      : views;
-    const balanceCents = plannedBalance(withBudget);
-    if (balanceCents < 0) out.push({ month, balanceCents });
+  if (budget) {
+    for (const [month, views] of byMonth) {
+      byMonth.set(month, [...views, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]);
+    }
   }
-  return out; // rows vêm ordenadas por mês; Map preserva a ordem de inserção
+  return negativeMonths(byMonth); // rows vêm ordenadas por mês; Map preserva a ordem
 }
 
 export type ReserveView = { id: string; name: string; amountCents: number };
