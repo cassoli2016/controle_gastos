@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.34.0",
+    date: "2026-10-05",
+    title: "Conta paga agora diz que está paga",
+    items: [
+      "Na lista do Mês, a conta já quitada ganhou uma etiqueta verde escrita \"Pago\" ao lado do nome — \"Recebido\", quando é receita. Antes isso só se percebia por ausência: o botão azul de pagar sumia, e você tinha que comparar com as linhas vizinhas para entender o que tinha acontecido.",
+      "A linha paga também parou de ficar apagada. O desbotamento existia para tirar do caminho o que já aconteceu, mas atrapalhava a leitura justamente de quem queria conferir o que foi pago. Agora quem diz que a conta está quitada é a etiqueta, não a falta de contraste.",
+      "O verde é o mesmo que o Panorama já usa para quitado, então as duas telas falam a mesma língua.",
+    ],
+  },
+  {
     version: "1.33.1",
     date: "2026-10-05",
     title: "A folga das caixinhas parava de bater quando você pagava com elas",

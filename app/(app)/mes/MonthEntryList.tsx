@@ -103,8 +103,17 @@ function EntryRow({
   const isMultiInstallment = (row.installmentCount ?? 0) > 1;
   // Consolidado do cartão: o nome da linha JÁ é o cartão — badge repetido é ruído.
   const showCardBadge = row.cardName !== null && row.cardName !== row.itemName;
-  const badges = (showCardBadge || isMultiInstallment || row.renewsThisMonth) && (
+  const badges = (row.paid || showCardBadge || isMultiInstallment || row.renewsThisMonth) && (
     <span className="flex items-center gap-1 flex-wrap">
+      {/* Marcador AFIRMATIVO de conta quitada. Antes o estado só se lia pela
+          ausência do botão de pagar e pelo desbotamento da linha — informação
+          por omissão, que exigia comparar com as vizinhas para entender.
+          Verde é o que já significa quitado no Panorama; a mesma língua. */}
+      {row.paid && (
+        <Badge variant="outline" className="border-emerald-500/50 text-emerald-600 dark:text-emerald-400">
+          {income ? "Recebido" : "Pago"}
+        </Badge>
+      )}
       {showCardBadge && <Badge variant="outline">{row.cardName}</Badge>}
       {isMultiInstallment && (
         <Badge variant="secondary">
@@ -129,14 +138,15 @@ function EntryRow({
       categories={categories}
     />
   );
-  // Atraso pinta o Dia de âmbar; linha paga esmaece inteira (o "Desmarcar"
-  // continua clicável — opacity não desabilita nada).
+  // Atraso pinta o Dia de âmbar. A linha paga NÃO esmaece: quem diz que ela
+  // está quitada é o badge verde ao lado do nome. Apagar o texto só dificultava
+  // a leitura do que já aconteceu — a hierarquia vem da cor do badge.
   const dayClass = row.overdue ? "text-amber-600 dark:text-amber-400 font-medium" : "text-muted-foreground";
   const daySuffix = row.overdue ? " ⚠" : "";
 
   if (variant === "desktop") {
     return (
-      <tr className={cn("border-b last:border-b-0", row.paid && "opacity-60")}>
+      <tr className="border-b last:border-b-0">
         <td className="px-3 py-1.5">
           <span className="flex items-center gap-1.5 flex-wrap">
             <span className="truncate">{row.itemName}</span>
@@ -160,7 +170,7 @@ function EntryRow({
   // "Previsto"/"Pago" saíram — repetidos em toda linha, só empurravam a lista
   // para baixo (cada lançamento ocupava quatro linhas e ~270px).
   return (
-    <div className={cn("flex flex-col gap-1 px-3 py-2", row.paid && "opacity-60")}>
+    <div className="flex flex-col gap-1 px-3 py-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="flex min-w-0 items-center gap-1.5 flex-wrap">
           <span className="truncate font-medium">{row.itemName}</span>
