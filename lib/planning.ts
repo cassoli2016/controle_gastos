@@ -11,6 +11,60 @@ import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
 
 export type NegativeMonth = { month: string; balanceCents: number };
 
+export type ReserveCurvePoint = {
+  month: string;
+  /** Saldo do próprio mês (entra e sai da conta). */
+  balanceCents: number;
+  /** Reservas projetadas ao FIM do mês. */
+  reservesCents: number;
+};
+
+export type ReserveOutlook = {
+  curve: ReserveCurvePoint[];
+  /**
+   * Mês do ponto mais baixo da curva; null quando ela nunca desce abaixo do
+   * saldo de hoje — nesse caso não existe "pior momento" a avisar.
+   */
+  lowMonth: string | null;
+  /** Reservas no ponto mais baixo (o saldo de hoje, quando a curva só sobe). */
+  lowCents: number;
+};
+
+/**
+ * Curva projetada das reservas: parte do saldo de HOJE e soma, em ordem, o
+ * saldo de cada mês. O número que interessa é o ponto mais baixo — o aperto
+ * máximo entre aqui e o fim do horizonte.
+ *
+ * Existe porque somar só os meses negativos responde a pergunta errada. Ela
+ * trata cada buraco como se tivesse de ser coberto pelo saldo de hoje, e
+ * joga fora a sobra dos meses bons — que é justamente o dinheiro que vai
+ * cobri-los. Com três meses magros logo depois de um mês de sobra grande, a
+ * régua antiga anunciava um descoberto que nunca aconteceria.
+ *
+ * A ORDEM é o ponto inteiro: a sobra de um mês cobre os meses SEGUINTES,
+ * nunca os anteriores. Dinheiro não anda para trás, e somar tudo de uma vez
+ * deixaria a sobra de 2029 "pagar" o buraco deste novembro.
+ *
+ * Empate no mínimo fica com o primeiro mês que o atinge: é quando o aperto
+ * começa, e é disso que o usuário precisa ser avisado.
+ */
+export function reserveOutlook(startCents: number, byMonth: Map<string, EntryView[]>): ReserveOutlook {
+  const curve: ReserveCurvePoint[] = [];
+  let reservesCents = startCents;
+  let lowCents = startCents;
+  let lowMonth: string | null = null;
+  for (const [month, views] of byMonth) {
+    const balanceCents = cashBalance(views);
+    reservesCents += balanceCents;
+    curve.push({ month, balanceCents, reservesCents });
+    if (reservesCents < lowCents) {
+      lowCents = reservesCents;
+      lowMonth = month;
+    }
+  }
+  return { curve, lowMonth, lowCents };
+}
+
 /**
  * Meses cujo saldo é negativo, a partir das linhas já agrupadas por mês — o
  * "descoberto" que as caixinhas precisam cobrir.
@@ -45,9 +99,17 @@ export async function getNegativeMonths(): Promise<NegativeMonth[]> {
   // `new Date()` aqui divergiria no fuso do servidor e poderia trocar de mês
   // horas antes/depois do que o resto do app, nas primeiras horas do dia 1.
   const today = todayISOInSaoPaulo();
-  const current = monthToDate(today.slice(0, 7));
+  return negativeMonths(await monthlyViewsFromToday(today));
+}
+
+/**
+ * Lançamentos do mês corrente em diante, agrupados por mês e já com a linha
+ * da reserva do dia a dia — que é despesa do mês e por isso pesa no saldo.
+ * A ordem do Map é a dos meses, porque a consulta vem ordenada.
+ */
+async function monthlyViewsFromToday(today: string): Promise<Map<string, EntryView[]>> {
   const rows = await prisma.monthlyEntry.findMany({
-    where: { month: { gte: current } },
+    where: { month: { gte: monthToDate(today.slice(0, 7)) } },
     include: { item: { include: { category: true } }, category: true },
     orderBy: { month: "asc" },
   });
@@ -55,21 +117,26 @@ export async function getNegativeMonths(): Promise<NegativeMonth[]> {
   const byMonth = new Map<string, EntryView[]>();
   for (const r of rows) {
     const key = monthStringFromDate(r.month);
-    const list = byMonth.get(key) ?? [];
-    list.push(toEntryView(r as never));
-    byMonth.set(key, list);
+    byMonth.set(key, [...(byMonth.get(key) ?? []), toEntryView(r as never)]);
   }
 
-  // A reserva do dia a dia é despesa do mês, então pesa no descoberto: um mês
-  // que fecharia no zero passa a precisar de cobertura.
   const budget = await getDailyBudget();
-
   if (budget) {
     for (const [month, views] of byMonth) {
       byMonth.set(month, [...views, dailyBudgetEntryView(dailyBudgetLine(month, today, budget.perDayCents))]);
     }
   }
-  return negativeMonths(byMonth); // rows vêm ordenadas por mês; Map preserva a ordem
+  return byMonth;
+}
+
+/** Curva projetada das reservas lendo o banco. A regra está em `reserveOutlook`. */
+export async function getReserveOutlook(): Promise<ReserveOutlook> {
+  const today = todayISOInSaoPaulo();
+  const reservas = await getReserves();
+  return reserveOutlook(
+    reservas.reduce((a, r) => a + r.amountCents, 0),
+    await monthlyViewsFromToday(today),
+  );
 }
 
 export type ReserveView = { id: string; name: string; amountCents: number };

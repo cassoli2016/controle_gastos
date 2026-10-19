@@ -4,7 +4,8 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target, AlarmClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getNegativeMonths, getReserves, getDailyBudget } from "@/lib/planning";
+import { getNegativeMonths, getReserves, getDailyBudget, getReserveOutlook } from "@/lib/planning";
+import { shortMonthLabel } from "@/lib/matrix";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { monthToDate, formatCompetencia, shortCompetencia, sanitizeMonth } from "@/lib/dates";
@@ -62,8 +63,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
   // categories não depende de budget (só pieData depende) — entra no mesmo
   // Promise.all para não rodar em série à toa.
-  const [negativeMonths, reserves, investAssets, renewalItems, budget, categories, activeCards] = await Promise.all([
+  const [negativeMonths, outlook, reserves, investAssets, renewalItems, budget, categories, activeCards] = await Promise.all([
     getNegativeMonths(),
+    getReserveOutlook(),
     getReserves(),
     prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
     prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
@@ -372,20 +374,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   : `Guardado em ${reserves.length} ${reserves.length === 1 ? "caixinha" : "caixinhas"}`}
               </p>
             </div>
-            {uncoveredCents < 0 && (
-              <p className="text-sm">
-                {reservesTotalCents + uncoveredCents >= 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    Cobrem todo o descoberto — sobram {formatCents(reservesTotalCents + uncoveredCents)}.
-                  </span>
-                ) : (
-                  <span className="text-amber-600 dark:text-amber-400">
-                    Cobrem {Math.round((reservesTotalCents / -uncoveredCents) * 100)}% do descoberto —
-                    faltam {formatCents(-(reservesTotalCents + uncoveredCents))}.
-                  </span>
-                )}
-              </p>
-            )}
+            {/* O que importa não é somar os buracos, é saber até onde a curva
+                desce. A sobra de um mês cobre os SEGUINTES, então um mês de
+                superávit antes de três magros muda tudo — a régua antiga
+                anunciava um descoberto que nunca aconteceria. */}
+            <p className="text-sm">
+              {outlook.lowMonth === null ? (
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  Daqui para a frente as reservas só crescem — nenhum mês derruba o saldo de hoje.
+                </span>
+              ) : outlook.lowCents >= 0 ? (
+                <span className="text-emerald-600 dark:text-emerald-400">
+                  No mês mais apertado ({shortMonthLabel(outlook.lowMonth)}) ainda sobram{" "}
+                  {formatCents(outlook.lowCents)}.
+                </span>
+              ) : (
+                <span className="text-amber-600 dark:text-amber-400">
+                  Não chegam até o fim: em {shortMonthLabel(outlook.lowMonth)} faltam{" "}
+                  {formatCents(-outlook.lowCents)}.
+                </span>
+              )}
+            </p>
             <Button asChild variant="outline" size="sm">
               <Link href="/reservas">Gerenciar caixinhas</Link>
             </Button>
