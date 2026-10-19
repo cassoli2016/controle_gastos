@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { monthStringFromDate } from "@/lib/dates";
 import { formatCents, decimalToCents } from "@/lib/money";
 import { toAppRow, canonicalFaturaDescription } from "@/lib/fatura-match";
+import { groupInstallmentPlans, duplicateSeqs, planName, type PlanLine } from "@/lib/installment-plan";
 import { descriptionsMatch } from "@/lib/description-match";
 import { realizedBalance, plannedIncome, plannedExpense, type EntryView } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
@@ -115,63 +116,49 @@ async function main() {
           amount: true,
           installmentSeq: true,
           installmentCount: true,
+          purchaseDate: true,
         },
       });
-      // Balde: (descrição canônica sem marcador, count). Dentro do balde,
-      // cluster por valor com tolerância de 10 centavos (arredondamento do
-      // banco entre parcelas do MESMO plano — Renner 159,88 vs 159,86).
-      type Line = { month: string; seq: number; count: number; cents: number; desc: string };
-      const buckets = new Map<string, Line[]>();
+      // Um PLANO é identificado em lib/installment-plan.ts, pela âncora
+      // `mês − parcela` (constante dentro de um plano) e pela data de compra
+      // quando existe. A regra antiga agrupava por valor com 10 centavos de
+      // tolerância, e juntava compras diferentes do mesmo estabelecimento —
+      // era isso que fazia a Amazon acusar parcela "cobrada 2x" sem haver
+      // duplicata nenhuma.
+      const lines: PlanLine[] = [];
       for (const t of txs) {
         const row = toAppRow(t);
         if (!row.installment) continue;
-        const base = canonicalFaturaDescription(row.description).replace(/ - parcela \d+\/\d+$/, "");
-        const key = `${base}|${row.installment.count}`;
-        const list = buckets.get(key) ?? [];
-        list.push({
-          month: monthStringFromDate(t.month),
+        lines.push({
+          monthISO: monthStringFromDate(t.month),
           seq: row.installment.seq,
           count: row.installment.count,
           cents: row.cents,
-          desc: row.description,
+          purchaseDateISO: t.purchaseDate ? t.purchaseDate.toISOString().slice(0, 10) : null,
+          desc: planName(canonicalFaturaDescription(row.description)),
         });
-        buckets.set(key, list);
       }
-      for (const [, lines] of buckets) {
-        // clusters por valor
-        lines.sort((a, b) => a.cents - b.cents);
-        const clusters: Line[][] = [];
-        for (const l of lines) {
-          const last = clusters[clusters.length - 1];
-          if (last && l.cents - last[last.length - 1].cents <= 10) last.push(l);
-          else clusters.push([l]);
+      for (const plan of groupInstallmentPlans(lines)) {
+        plans++;
+        for (const l of plan) {
+          if (l.seq > l.count) {
+            seqOverCount++;
+            fail(`${c.name}: "${l.desc}" parcela ${l.seq}/${l.count} — seq > total`);
+          }
         }
-        for (const cluster of clusters) {
-          plans++;
-          const bySeq = new Map<number, string[]>();
-          for (const l of cluster) {
-            bySeq.set(l.seq, [...(bySeq.get(l.seq) ?? []), l.month]);
-            if (l.seq > l.count) {
-              seqOverCount++;
-              fail(`${c.name}: "${l.desc}" parcela ${l.seq}/${l.count} — seq > total`);
-            }
-          }
-          for (const [seq, months] of bySeq) {
-            if (months.length > 1) {
-              dupSeq++;
-              fail(`${c.name}: "${cluster[0].desc}" parcela ${seq} cobrada ${months.length}x (${months.join(", ")})`);
-            }
-          }
-          // mês não pode DIMINUIR conforme a parcela aumenta (antecipação põe
-          // várias no mesmo mês, o que é legítimo — igual não é violação).
-          const seqsSorted = [...bySeq.keys()].sort((a, b) => a - b);
-          for (let i = 1; i < seqsSorted.length; i++) {
-            const prev = bySeq.get(seqsSorted[i - 1])![0];
-            const cur = bySeq.get(seqsSorted[i])![0];
-            if (cur < prev) {
-              outOfOrder++;
-              warn(`${c.name}: "${cluster[0].desc}" parcela ${seqsSorted[i]} (${cur}) vem antes da ${seqsSorted[i - 1]} (${prev})`);
-            }
+        for (const { seq, months } of duplicateSeqs(plan)) {
+          dupSeq++;
+          fail(`${c.name}: "${plan[0].desc}" parcela ${seq} cobrada ${months.length}x (${months.join(", ")})`);
+        }
+        // mês não pode DIMINUIR conforme a parcela aumenta (antecipação põe
+        // várias no mesmo mês, o que é legítimo — igual não é violação).
+        const porSeq = new Map<number, string>();
+        for (const l of plan) if (!porSeq.has(l.seq)) porSeq.set(l.seq, l.monthISO);
+        const seqsSorted = [...porSeq.keys()].sort((a, b) => a - b);
+        for (let i = 1; i < seqsSorted.length; i++) {
+          if (porSeq.get(seqsSorted[i])! < porSeq.get(seqsSorted[i - 1])!) {
+            outOfOrder++;
+            warn(`${c.name}: "${plan[0].desc}" parcela ${seqsSorted[i]} (${porSeq.get(seqsSorted[i])}) vem antes da ${seqsSorted[i - 1]} (${porSeq.get(seqsSorted[i - 1])})`);
           }
         }
       }
