@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.35.0",
+    date: "2026-10-19",
+    title: "A folga das caixinhas passou a olhar a ordem dos meses",
+    items: [
+      "O card de Reservas somava todos os meses no vermelho e tratava o total como um buraco único a cobrir. Isso ignora a ordem: a sobra de um mês bom cobre os meses seguintes, e jogar essa sobra fora anunciava um aperto que nunca ia acontecer.",
+      "Agora ele projeta a curva: parte do que você tem hoje, soma o saldo de cada mês em ordem, e avisa o ponto mais baixo. Se a curva nunca desce, ele diz isso; se desce, diz em qual mês e quanto resta ali.",
+      "A ordem é o ponto inteiro: a sobra de um mês cobre os SEGUINTES, nunca os anteriores. Dinheiro não anda para trás, e somar tudo de uma vez deixaria uma sobra lá de 2029 \"pagar\" um buraco deste novembro.",
+      "O card de meses no vermelho continua igual, somando os saldos negativos — ele responde outra pergunta, e continua respondendo a dela.",
+    ],
+  },
+  {
     version: "1.34.1",
     date: "2026-10-19",
     title: "A auditoria parou de acusar compra duplicada onde não havia",
