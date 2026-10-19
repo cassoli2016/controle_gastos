@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.34.1",
+    date: "2026-10-19",
+    title: "A auditoria parou de acusar compra duplicada onde não havia",
+    items: [
+      "A conferência que roda sobre os cartões vinha apontando parcelas da Amazon como \"cobradas duas vezes\". Não eram: o nome do estabelecimento se repete em compras diferentes, e a conferência tratava todas como se fossem a mesma compra.",
+      "Agora ela identifica cada compra parcelada pelo conjunto que de fato a distingue: estabelecimento, número de parcelas, o mês em que a compra começou, a data da compra e o valor. Com isso, sete compras feitas na mesma loja no mesmo mês passam a ser sete compras, não uma com sete cobranças.",
+      "O arredondamento que o banco espalha entre as parcelas deixou de atrapalhar: uma parcela de 59,86 e a seguinte de 59,84 continuam sendo a mesma compra.",
+      "A conferência continua acusando duplicata de verdade — foi testada com uma cópia injetada de propósito, e acusou.",
+    ],
+  },
+  {
     version: "1.34.0",
     date: "2026-10-05",
     title: "Conta paga agora diz que está paga",
