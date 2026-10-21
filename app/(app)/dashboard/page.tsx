@@ -24,7 +24,9 @@ import { plannedIncome, plannedExpense, plannedBalance, monthSplit, expenseByCat
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
 import { budgetLines, budgetTone } from "@/lib/budget";
-import { patrimonyProjection } from "@/lib/patrimony";
+import { patrimonyProjection, withHistory } from "@/lib/patrimony";
+import { getPatrimonySnapshots } from "@/lib/patrimony-snapshot";
+import { SnapshotButton } from "./SnapshotButton";
 import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
 import { cardCycleStatus } from "@/lib/card-estimate";
@@ -282,6 +284,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ...p,
     ...(patrimonyTrend ? { trendCents: patrimonyTrend[i].totalCents } : {}),
   }));
+  // O que aconteceu de verdade: as fotos mensais dos 12 meses anteriores ao
+  // exibido (e a do mês corrente, se já existe), ao lado da projeção.
+  const historyFrom = (() => {
+    const d = monthToDate(month);
+    d.setUTCMonth(d.getUTCMonth() - 12);
+    return monthStringFromDate(d);
+  })();
+  const snapshots = await getPatrimonySnapshots(historyFrom, chartMonths[chartMonths.length - 1]);
+  const chartPoints = withHistory(
+    snapshots.map((s) => ({ month: shortCompetencia(monthToDate(s.month)), totalCents: s.totalCents })),
+    patrimonyPoints,
+  );
+  const currentSnapshot = snapshots.find((s) => s.month === currentMonth) ?? null;
 
   // Orçamento do mês: planejado da categoria vs meta (estouro aparece antes).
   const monthBudgets = budgetLines(
@@ -611,9 +626,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
               )}
               <span className="text-xs font-normal text-muted-foreground">reservas + investimentos + saldos previstos · estimado</span>
             </CardTitle>
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              <SnapshotButton />
+              <span className="text-xs text-muted-foreground">
+                {currentSnapshot
+                  ? `Foto deste mês: ${formatCents(currentSnapshot.totalCents)}, atualizada em ${currentSnapshot.takenAt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}. O app refaz todo dia.`
+                  : "O app passa a registrar caixinhas + carteira todo dia; a foto do mês vira a linha escura do gráfico."}
+              </span>
+            </div>
           </CardHeader>
           <CardContent>
-            <PatrimonyChart data={patrimonyPoints} />
+            <PatrimonyChart data={chartPoints} />
           </CardContent>
         </Card>
 

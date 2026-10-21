@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { accumulateBalance, patrimonyProjection } from "@/lib/patrimony";
+import { accumulateBalance, patrimonyProjection, withHistory } from "@/lib/patrimony";
 import type { EntryView } from "@/lib/calc";
 
 describe("accumulateBalance", () => {
@@ -58,4 +58,29 @@ describe("patrimonyProjection", () => {
     expect(patrimonyProjection(500000, [{ month: "set.", views: [] }])).toEqual([
       { month: "set.", totalCents: 500000 },
     ]));
+});
+
+describe("withHistory", () => {
+  it("passado só com o registrado; mês corrente com os dois; futuro só projeção", () => {
+    const pts = withHistory(
+      [
+        { month: "ago/26", totalCents: 100 },
+        { month: "set/26", totalCents: 110 },
+        { month: "out/26", totalCents: 120 },
+      ],
+      [
+        { month: "out/26", totalCents: 125, trendCents: 118 },
+        { month: "nov/26", totalCents: 130, trendCents: 115 },
+      ],
+    );
+    expect(pts).toEqual([
+      { month: "ago/26", realCents: 100 },
+      { month: "set/26", realCents: 110 },
+      { month: "out/26", totalCents: 125, trendCents: 118, realCents: 120 },
+      { month: "nov/26", totalCents: 130, trendCents: 115 },
+    ]);
+  });
+  it("sem histórico, a projeção passa intacta", () => {
+    expect(withHistory([], [{ month: "out/26", totalCents: 1 }])).toEqual([{ month: "out/26", totalCents: 1 }]);
+  });
 });

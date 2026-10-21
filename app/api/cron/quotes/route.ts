@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { revalidateFinance } from "@/lib/revalidate";
 import { refreshAllQuotes } from "@/lib/quote-refresh";
+import { takePatrimonySnapshot } from "@/lib/patrimony-snapshot";
 import { formatCents } from "@/lib/money";
 import { formatPct } from "@/lib/investments";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,13 @@ export async function GET(req: Request) {
   }
 
   const r = await refreshAllQuotes();
+  // Foto do patrimônio do mês (caixinhas + carteira), com as cotações recém
+  // atualizadas. Falha aqui não pode derrubar o resumo nem as renovações.
+  try {
+    await takePatrimonySnapshot();
+  } catch (e) {
+    console.error("cron quotes: snapshot do patrimônio falhou:", (e as Error).message);
+  }
   revalidateFinance();
 
   // Resumo no Telegram (primeiro chat autorizado).
