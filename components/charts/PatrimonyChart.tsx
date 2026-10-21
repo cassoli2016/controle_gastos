@@ -12,19 +12,13 @@ import {
 } from "recharts";
 import { formatCents } from "@/lib/money";
 import { seriesDomain } from "@/lib/chart-scale";
+import type { PatrimonyChartPoint } from "@/lib/patrimony";
 import { SERIES, TICK, TooltipBox, LegendChip, type TooltipRow } from "./theme";
 
-export type PatrimonyPoint = {
-  /** Rótulo do mês (ex.: "ago. de 2026"). */
-  month: string;
-  totalCents: number;
-  /**
-   * O mesmo ponto com o gasto variável OBSERVADO nos últimos ciclos no lugar
-   * da reserva do dia a dia (lib/trend.ts). Ausente quando não há ciclo
-   * fechado para medir.
-   */
-  trendCents?: number;
-};
+export type PatrimonyPoint = PatrimonyChartPoint;
+
+/** A linha do que aconteceu: cor de texto, não de série — é fato, não cenário. */
+const REAL = "var(--foreground)";
 
 function PatrimonyTooltip({
   active,
@@ -35,7 +29,9 @@ function PatrimonyTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
-  const rows: TooltipRow[] = [{ label: p.trendCents !== undefined ? "plano" : "patrimônio", value: formatCents(p.totalCents), color: SERIES.brand }];
+  const rows: TooltipRow[] = [];
+  if (p.realCents !== undefined) rows.push({ label: "registrado", value: formatCents(p.realCents), color: REAL });
+  if (p.totalCents !== undefined) rows.push({ label: p.trendCents !== undefined ? "plano" : "projeção", value: formatCents(p.totalCents), color: SERIES.brand });
   if (p.trendCents !== undefined) rows.push({ label: "tendência", value: formatCents(p.trendCents), color: SERIES.warn });
   return <TooltipBox title={p.month} rows={rows} />;
 }
@@ -47,17 +43,21 @@ function compact(cents: number): string {
 
 export function PatrimonyChart({ data }: { data: PatrimonyPoint[] }) {
   const hasTrend = data.some((d) => d.trendCents !== undefined);
-  // A faixa do eixo enquadra as DUAS séries: a tendência pode descer bem
+  const hasReal = data.some((d) => d.realCents !== undefined);
+  // A faixa do eixo enquadra TODAS as séries: a tendência pode descer bem
   // abaixo do plano, e cortá-la seria esconder justamente o aviso.
-  const values = data.flatMap((d) => (d.trendCents !== undefined ? [d.totalCents, d.trendCents] : [d.totalCents]));
+  const values = data.flatMap((d) => [d.totalCents, d.trendCents, d.realCents].filter((v): v is number => v !== undefined));
   return (
     <div className="text-muted-foreground">
-      {hasTrend && (
+      {(hasTrend || hasReal) && (
         <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          {hasReal && <LegendChip color={REAL}>Registrado: caixinhas + carteira, mês a mês</LegendChip>}
           <LegendChip color={SERIES.brand}>Plano: reserva do dia a dia como configurada</LegendChip>
-          <LegendChip color={SERIES.warn} dashed>
-            Tendência: gasto variável dos últimos ciclos
-          </LegendChip>
+          {hasTrend && (
+            <LegendChip color={SERIES.warn} dashed>
+              Tendência: gasto variável dos últimos ciclos
+            </LegendChip>
+          )}
         </div>
       )}
       <ResponsiveContainer width="100%" height={260}>
@@ -88,6 +88,17 @@ export function PatrimonyChart({ data }: { data: PatrimonyPoint[] }) {
               strokeWidth={2}
               strokeDasharray="6 4"
               dot={false}
+              isAnimationActive={false}
+            />
+          )}
+          {hasReal && (
+            <Line
+              type="monotone"
+              dataKey="realCents"
+              stroke={REAL}
+              strokeWidth={2}
+              dot={{ r: 4, fill: REAL, stroke: "var(--card)", strokeWidth: 2 }}
+              activeDot={{ r: 5, stroke: "var(--card)", strokeWidth: 2 }}
               isAnimationActive={false}
             />
           )}

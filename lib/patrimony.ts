@@ -35,3 +35,29 @@ export function patrimonyProjection(
     months.map((m) => ({ month: m.month, balanceCents: cashBalance(m.views) })),
   );
 }
+
+export type PatrimonyChartPoint = {
+  month: string;
+  /** Projeção (plano). Ausente nos meses passados, que só têm o registrado. */
+  totalCents?: number;
+  /** Projeção com o gasto variável observado (lib/trend.ts). */
+  trendCents?: number;
+  /** O que foi registrado de fato (foto mensal: caixinhas + carteira). */
+  realCents?: number;
+};
+
+/**
+ * Junta o histórico registrado com a projeção: meses passados entram só com o
+ * real; meses da projeção levam o real quando também há foto deles (o mês
+ * corrente, normalmente), para a linha registrada encostar na projetada.
+ */
+export function withHistory(
+  history: { month: string; totalCents: number }[],
+  projection: { month: string; totalCents: number; trendCents?: number }[],
+): PatrimonyChartPoint[] {
+  const projected = new Set(projection.map((p) => p.month));
+  const real = new Map(history.map((h) => [h.month, h.totalCents]));
+  const past = history.filter((h) => !projected.has(h.month)).map((h) => ({ month: h.month, realCents: h.totalCents }));
+  const future = projection.map((p) => (real.has(p.month) ? { ...p, realCents: real.get(p.month) } : { ...p }));
+  return [...past, ...future];
+}

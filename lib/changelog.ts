@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.45.0",
+    date: "2026-10-21",
+    title: "Patrimônio real ao lado da projeção",
+    items: [
+      "O gráfico de patrimônio ganhou a linha do que aconteceu de verdade. Todo dia o app registra caixinhas mais carteira; a foto de cada mês vira um ponto na linha escura, ao lado da projeção em roxo e da tendência em âmbar. Comece pelo botão \"Registrar hoje\" no card; daí em diante é automático, junto com a atualização das cotações.",
+    ],
+  },
+  {
     version: "1.44.0",
     date: "2026-10-21",
     title: "Meta que é mínimo, busca rápida e o resumo fixo do Mês no celular",

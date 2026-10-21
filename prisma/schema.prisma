@@ -331,3 +331,16 @@ model Dividend {
   @@index([assetId, payDate])
   @@index([received, payDate])
 }
+
+// Foto mensal do patrimônio REAL: caixinhas + carteira no último registro do
+// mês. O cron diário atualiza a foto do mês corrente; ao virar o mês, a
+// anterior congela. É o que permite desenhar real × projetado no Dashboard.
+model PatrimonySnapshot {
+  id        String   @id @default(cuid())
+  month     DateTime @unique @db.Date
+  reserves  Decimal  @db.Decimal(12, 2)
+  portfolio Decimal  @db.Decimal(12, 2)
+  total     Decimal  @db.Decimal(12, 2)
+  takenAt   DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
