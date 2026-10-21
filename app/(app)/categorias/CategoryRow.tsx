@@ -31,7 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { Money } from "@/components/Money";
-import { usageTone } from "@/lib/card-usage";
+import { budgetTone } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
 
@@ -43,6 +43,8 @@ type Category = {
   budgetCents: number | null;
   /** Depósito/retirada de caixinha: nem ganho nem gasto. */
   isTransfer?: boolean;
+  /** A meta é um mínimo (investir, guardar): passar dela é bom. */
+  budgetIsFloor?: boolean;
 };
 
 const TONE_BAR = { emerald: "bg-emerald-500", amber: "bg-amber-500", rose: "bg-rose-500" } as const;
@@ -94,6 +96,8 @@ export function CategoryRow({
 
   // Meta só faz sentido em despesa; a barra mede o mês contra ela.
   const pct = category.budgetCents && category.budgetCents > 0 ? Math.round((monthCents / category.budgetCents) * 100) : null;
+  const isFloor = category.budgetIsFloor === true;
+  const tone = pct === null ? "emerald" : budgetTone({ pct, isFloor });
   const budgetCell =
     category.budgetCents === null || category.budgetCents === 0 ? (
       <span className="text-xs text-muted-foreground">sem meta</span>
@@ -101,12 +105,17 @@ export function CategoryRow({
       <span className="inline-flex min-w-36 flex-col gap-1">
         <span className="flex items-baseline justify-between gap-2 text-xs">
           <Money cents={category.budgetCents} className="text-muted-foreground" />
-          <span className={cn("tabular-nums", pct !== null && pct > 100 ? "font-medium text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
-            {pct}%
+          <span
+            className={cn(
+              "tabular-nums",
+              tone === "rose" ? "font-medium text-rose-600 dark:text-rose-400" : isFloor && tone === "emerald" ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-muted-foreground",
+            )}
+          >
+            {pct}%{isFloor && " mín."}
           </span>
         </span>
         <span className="block h-1 w-full overflow-hidden rounded-full bg-muted">
-          <span className={cn("block h-full rounded-full", TONE_BAR[usageTone(pct ?? 0)])} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+          <span className={cn("block h-full rounded-full", TONE_BAR[tone])} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
         </span>
       </span>
     );
@@ -237,6 +246,15 @@ export function CategoryRow({
                 Aparece no card &quot;Orçamento do mês&quot; do Dashboard (só despesas).
               </p>
             </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" name="budgetIsFloor" value="1" defaultChecked={category.budgetIsFloor === true} className="mt-0.5 size-4 accent-primary" />
+              <span>
+                A meta é um mínimo
+                <span className="block text-xs text-muted-foreground">
+                  Para investir ou guardar: passar dela fica verde, ficar aquém fica âmbar. Desmarcado, a meta é um teto.
+                </span>
+              </span>
+            </label>
             <DialogFooter>
               <Button type="submit" disabled={updatePending}>
                 Salvar

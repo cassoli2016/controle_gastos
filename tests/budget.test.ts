@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { budgetLines } from "@/lib/budget";
+import { budgetLines, budgetTone } from "@/lib/budget";
 import type { EntryView } from "@/lib/calc";
 
 const VIEWS: EntryView[] = [
@@ -34,5 +34,23 @@ describe("budgetLines", () => {
   });
   it("ordena por pct desc", () => {
     expect(lines[0].pct).toBeGreaterThanOrEqual(lines[1].pct);
+  });
+});
+
+describe("meta-piso", () => {
+  it("isFloor sai da categoria; padrão é teto", () => {
+    const lines = budgetLines(VIEWS, [
+      { id: "c-alim", name: "Alimentação", color: "#84cc16", budgetCents: 50000, budgetIsFloor: true },
+      { id: "c-lazer", name: "Lazer", color: "#d946ef", budgetCents: 30000 },
+    ]);
+    expect(lines.find((l) => l.categoryId === "c-alim")?.isFloor).toBe(true);
+    expect(lines.find((l) => l.categoryId === "c-lazer")?.isFloor).toBe(false);
+  });
+  it("teto: estourar é vermelho; piso: bater é verde, faltar é âmbar", () => {
+    expect(budgetTone({ pct: 120, isFloor: false })).toBe("rose");
+    expect(budgetTone({ pct: 40, isFloor: false })).toBe("emerald");
+    expect(budgetTone({ pct: 120, isFloor: true })).toBe("emerald");
+    expect(budgetTone({ pct: 100, isFloor: true })).toBe("emerald");
+    expect(budgetTone({ pct: 40, isFloor: true })).toBe("amber");
   });
 });

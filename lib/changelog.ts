@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.44.0",
+    date: "2026-10-21",
+    title: "Meta que é mínimo, busca rápida e o resumo fixo do Mês no celular",
+    items: [
+      "Ao editar uma categoria, marque \"a meta é um mínimo\" para o que você quer investir ou guardar. Passar dela fica verde no Orçamento do mês e em Categorias; ficar aquém fica âmbar. Desmarcado, a meta continua sendo um teto.",
+      "Busca rápida: a lupa no topo, ou Ctrl+K e ⌘K, abre uma caixa para pular para qualquer tela, mês ou conta pelo nome, com as setas e Enter.",
+      "No celular, o Mês ganhou uma barra fixa logo acima da navegação com o que falta pagar e a próxima conta a vencer, atrasada primeiro.",
+    ],
+  },
+  {
     version: "1.43.0",
     date: "2026-10-21",
     title: "Metas nas caixinhas e um Panorama que cabe no celular",

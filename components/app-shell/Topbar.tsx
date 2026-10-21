@@ -2,7 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, LogOut, Wallet, Settings } from "lucide-react";
+import { Menu, LogOut, Wallet, Settings, Search } from "lucide-react";
+import { CommandMenu } from "./CommandMenu";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -20,12 +21,16 @@ import { version } from "@/package.json";
 export function Topbar({
   signOutAction,
   appName,
+  searchItems,
 }: {
   signOutAction: () => Promise<void>;
   appName: string;
+  /** Nomes das contas ativas, para a busca rápida. */
+  searchItems: string[];
 }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
       <div className="md:hidden">
@@ -87,6 +92,10 @@ export function Topbar({
         <span className="text-[15px] font-semibold tracking-tight">{appName}</span>
       </Link>
       <div className="ml-auto flex items-center gap-1">
+        <Button variant="ghost" size="icon" aria-label="Buscar (Ctrl+K)" title="Buscar · Ctrl+K" onClick={() => setSearchOpen(true)}>
+          <Search className="h-5 w-5" />
+        </Button>
+        <CommandMenu open={searchOpen} onOpenChange={setSearchOpen} items={searchItems} />
         {/* Ajustes mora aqui, não na navegação: a barra do celular já tem 8
             itens e um nono deixaria todos ilegíveis. */}
         <Button asChild variant="ghost" size="icon" aria-label="Ajustes">

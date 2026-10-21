@@ -74,6 +74,13 @@ export function NewCategoryForm() {
               Aparece no card &quot;Orçamento do mês&quot; do Dashboard (só despesas).
             </p>
           </div>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" name="budgetIsFloor" value="1" className="mt-0.5 size-4 accent-primary" />
+            <span>
+              A meta é um mínimo
+              <span className="block text-xs text-muted-foreground">Para investir ou guardar: passar dela fica verde.</span>
+            </span>
+          </label>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Criar

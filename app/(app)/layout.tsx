@@ -7,6 +7,7 @@ import { hasPasskeys } from "@/lib/passkey";
 import { isUnlocked } from "@/lib/passkey-session";
 import { LockScreen } from "./LockScreen";
 import { appName } from "@/lib/branding";
+import { prisma } from "@/lib/prisma";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -26,9 +27,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     "use server";
     await signOut({ redirectTo: "/login" });
   }
+  // Nomes das contas ativas para a busca rápida (⌘K): lista curta, uma query.
+  const searchItems = (await prisma.item.findMany({ where: { active: true }, select: { name: true }, orderBy: { name: "asc" } })).map((i) => i.name);
   return (
     <div className="flex min-h-screen flex-col">
-      <Topbar signOutAction={doSignOut} appName={name} />
+      <Topbar signOutAction={doSignOut} appName={name} searchItems={searchItems} />
       <div className="flex flex-1">
         <Sidebar appName={name} />
         {/* min-w-0 + overflow-x-clip: nenhum conteúdo largo pode estourar a
