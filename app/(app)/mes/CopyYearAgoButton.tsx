@@ -21,7 +21,7 @@ export function CopyYearAgoButton({ month }: { month: string }) {
       <input type="hidden" name="month" value={month} />
       <Button type="submit" variant="outline" size="sm" disabled={pending}>
         <History className="size-4" />
-        Copiar mês do ano passado
+        Copiar do ano passado
       </Button>
     </form>
   );

@@ -10,7 +10,7 @@ export function DividendsBars({ data }: { data: DividendsPoint[] }) {
     <div className="text-muted-foreground">
       <ResponsiveContainer width="100%" height={240}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
+          <CartesianGrid stroke="currentColor" strokeOpacity={0.12} vertical={false} />
           <XAxis dataKey="month" tick={{ fill: "currentColor", fontSize: 12 }} tickLine={false} axisLine={false} />
           <YAxis
             tick={{ fill: "currentColor", fontSize: 12 }}
@@ -23,9 +23,9 @@ export function DividendsBars({ data }: { data: DividendsPoint[] }) {
           <Tooltip
             formatter={(v) => [formatCents(Number(v)), "Proventos"]}
             cursor={{ fill: "currentColor", opacity: 0.06 }}
-            contentStyle={{ borderRadius: 8 }}
+            contentStyle={{ borderRadius: 8, borderColor: "var(--border)", background: "var(--popover)", color: "var(--popover-foreground)", fontSize: 12 }}
           />
-          <Bar dataKey="cents" fill="#10b981" radius={4} maxBarSize={40} />
+          <Bar dataKey="cents" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={24} />
         </BarChart>
       </ResponsiveContainer>
     </div>

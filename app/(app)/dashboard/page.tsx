@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { upcomingRenewals, renewalLabel, MONTH_NAMES } from "@/lib/renewals";
+import type { ReactNode } from "react";
+import { upcomingRenewals, MONTH_NAMES } from "@/lib/renewals";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target, AlarmClock } from "lucide-react";
@@ -28,10 +29,13 @@ import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
 import { cardCycleStatus } from "@/lib/card-estimate";
 import { usageTone } from "@/lib/card-usage";
+import { horizonCells, horizonHeadline } from "@/lib/horizon";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
 import { MonthBalanceCard } from "@/components/MonthBalanceCard";
 import { MonthNav } from "@/components/MonthNav";
+import { Money } from "@/components/Money";
+import { Horizon, type HorizonSentence } from "@/components/Horizon";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ExpensePie } from "@/components/charts/ExpensePie";
 import { MonthlyBalance, type MonthlyBalancePoint } from "@/components/charts/MonthlyBalance";
@@ -39,6 +43,23 @@ import { PatrimonyChart } from "@/components/charts/PatrimonyChart";
 import { RankingBars } from "@/components/charts/RankingBars";
 import { installmentMonths } from "@/lib/installments";
 import { monthStringFromDate } from "@/lib/dates";
+
+/**
+ * Uma banda do Dashboard: título pequeno à esquerda, a pista do que ela cobre
+ * à direita. A ordem das bandas é a ordem de leitura: agora, o que vem,
+ * análise.
+ */
+function Section({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-baseline justify-between gap-3 px-0.5">
+        <h2 className="text-sm font-semibold">{title}</h2>
+        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
+      </div>
+      {children}
+    </section>
+  );
+}
 
 export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const { month: qMonth } = await searchParams;
@@ -209,6 +230,45 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ...monthSplit(v),
   }));
 
+  // O Horizonte lê os mesmos 12 saldos do gráfico: uma fonte, duas formas. No
+  // mês corrente entra só o que AINDA falta acontecer — o mesmo número que
+  // "Meses no vermelho" usa. O saldo do mês inteiro (que já aconteceu em boa
+  // parte) esmagava os outros onze meses na escala e não dizia nada do futuro.
+  const horizon = horizonCells(
+    chartMonths.map((m, i) => ({
+      month: m,
+      balanceCents: m === currentMonth ? (balanceData[i].toComeCents ?? balanceData[i].balanceCents) : balanceData[i].balanceCents,
+    })),
+    currentMonth,
+  );
+  // O que importa não é somar os buracos, é saber até onde a curva desce. A
+  // sobra de um mês cobre os SEGUINTES, então um mês de superávit antes de
+  // três magros muda tudo — a régua antiga anunciava um descoberto que nunca
+  // aconteceria.
+  const planLine: HorizonSentence =
+    outlook.lowMonth === null
+      ? { label: planLabel(budget), tone: "good", sentence: "Daqui para a frente as reservas só crescem: nenhum mês derruba o saldo de hoje." }
+      : outlook.lowCents >= 0
+        ? {
+            label: planLabel(budget),
+            tone: "good",
+            sentence: `No mês mais apertado, ${shortMonthLabel(outlook.lowMonth)}, ainda sobram ${formatCents(outlook.lowCents)} nas caixinhas.`,
+          }
+        : {
+            label: planLabel(budget),
+            tone: "warn",
+            sentence: `As caixinhas não chegam até o fim: em ${shortMonthLabel(outlook.lowMonth)} faltam ${formatCents(-outlook.lowCents)}.`,
+          };
+  // A segunda curva, com o gasto à vista medido nas últimas faturas fechadas.
+  // Ela não substitui o plano: diz o que acontece se o ritmo atual continuar.
+  const trendLine: HorizonSentence | null = trend
+    ? {
+        label: `Tendência · ${formatCents(trend.perDayCents)} por dia, média de ${trend.label}`,
+        tone: trend.sentence.includes("chegam") ? "good" : "warn",
+        sentence: trend.sentence,
+      }
+    : null;
+
   // Patrimônio projetado: caixinhas + carteira hoje, somando o saldo de CAIXA
   // de cada mês — não o saldo do gráfico acima, que ignora as transferências.
   // O ponto de partida já contém o dinheiro das caixinhas; usar o saldo do mês
@@ -223,9 +283,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     ...(patrimonyTrend ? { trendCents: patrimonyTrend[i].totalCents } : {}),
   }));
 
-  // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
-  // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
-  // apenas — o gasto conta no mês em que a fatura vence.
   // Orçamento do mês: planejado da categoria vs meta (estouro aparece antes).
   const monthBudgets = budgetLines(
     views,
@@ -239,6 +296,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       })),
   );
 
+  // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
+  // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
+  // apenas — o gasto conta no mês em que a fatura vence.
   const nextThree = new Set(chartMonths.slice(1, 4));
   const upcomingFaturas = upcomingCardCommitments(
     rangeRows
@@ -246,349 +306,342 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       .map((r) => ({ month: monthStringFromDate(r.month), plannedCents: decimalToCents(String(r.plannedAmount)) })),
   );
 
+  const rose = "text-rose-600 dark:text-rose-400";
+  const emerald = "text-emerald-600 dark:text-emerald-400";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="text-sm font-medium text-muted-foreground">Dashboard</h1>
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
-      <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
+      <Horizon
+        cells={horizon}
+        headline={horizonHeadline(horizon)}
+        plan={planLine}
+        trend={trendLine}
+        freeCents={negativeMonths.length > 0 ? freeCents : null}
+      />
 
-      <MonthBalanceCard views={views} />
-
-      {vencendo.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-2">
-                <AlarmClock className="size-4 text-amber-600 dark:text-amber-400" />
-                Vence em breve
-              </span>
-              <span className="text-sm font-semibold tabular-nums">
-                {formatCents(vencendo.reduce((a, r) => a + r.cents, 0))}
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-0 pb-0">
-            <ul className="divide-y border-t">
-              {vencendo.slice(0, 6).map((r) => (
-                <li key={r.entryId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm md:px-6">
-                  <span className="min-w-0 truncate">{r.itemName}</span>
-                  <span className="flex shrink-0 items-center gap-3">
-                    <span
-                      className={cn(
-                        "text-xs tabular-nums",
-                        r.overdue ? "font-medium text-rose-600 dark:text-rose-400" : "text-muted-foreground",
-                      )}
-                    >
-                      {r.overdue
-                        ? "atrasada"
-                        : r.daysLeft === 0
-                          ? "vence hoje"
-                          : r.daysLeft === 1
-                            ? "amanhã"
-                            : `em ${r.daysLeft} dias`}
+      <Section title="Agora" hint={formatCompetencia(monthDate)}>
+        {vencendo.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  <AlarmClock className="size-4 text-amber-600 dark:text-amber-400" />
+                  Vence em breve
+                </span>
+                <Money cents={vencendo.reduce((a, r) => a + r.cents, 0)} className="text-sm font-semibold" />
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <ul className="divide-y border-t">
+                {vencendo.slice(0, 6).map((r) => (
+                  <li key={r.entryId} className="flex items-center justify-between gap-3 px-4 py-2 text-sm md:px-6">
+                    <span className="min-w-0 truncate">{r.itemName}</span>
+                    <span className="flex shrink-0 items-center gap-3">
+                      <span className={cn("text-xs tabular-nums", r.overdue ? cn("font-medium", rose) : "text-muted-foreground")}>
+                        {r.overdue
+                          ? "atrasada"
+                          : r.daysLeft === 0
+                            ? "vence hoje"
+                            : r.daysLeft === 1
+                              ? "amanhã"
+                              : `em ${r.daysLeft} dias`}
+                      </span>
+                      <Money cents={r.cents} />
                     </span>
-                    <span className="tabular-nums">{formatCents(r.cents)}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <div className="flex items-center justify-between gap-2 border-t px-4 py-2 md:px-6">
-              <span className="text-xs text-muted-foreground">
-                {vencendo.length > 6 ? `e mais ${vencendo.length - 6} nos próximos dias` : "\u00A0"}
-              </span>
-              <Button asChild variant="outline" size="sm">
-                <Link href={`/mes?month=${month}`}>Pagar no Mês</Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* items-start: cada card fica com a altura do próprio conteúdo. Sem
-          isso, "Renovações" sem renovação nenhuma esticava para acompanhar o
-          card ao lado — 190px para uma frase. */}
-      {cycles.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCardIcon className="size-4 text-muted-foreground" />
-              Fatura em formação · {formatCompetencia(monthToDate(nextCycleMonth))}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {cycles.map((c) => (
-              <div key={c.cardId} className="space-y-1.5">
-                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                  <span className="font-medium">{c.name}</span>
-                  <span className="tabular-nums">
-                    {formatCents(c.bookedCents)}
-                    <span className="text-muted-foreground"> de {formatCents(c.limitCents)}</span>
-                  </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={cn(
-                      "h-full rounded-full",
-                      c.pct >= 100 ? "bg-rose-500" : c.pct >= 80 ? "bg-amber-500" : "bg-emerald-500",
-                    )}
-                    style={{ width: `${Math.min(100, c.pct)}%` }}
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {c.remainingCents === 0
-                    ? `Passou do teto em ${formatCents(c.bookedCents - c.limitCents)} (${c.pct}%)`
-                    : `Restam ${formatCents(c.remainingCents)} até o teto · ${c.pct}% usado`}
-                </p>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-center justify-between gap-2 border-t px-4 py-2 md:px-6">
+                <span className="text-xs text-muted-foreground">
+                  {vencendo.length > 6 ? `e mais ${vencendo.length - 6} nos próximos dias` : " "}
+                </span>
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/mes?month=${month}`}>Pagar no Mês</Link>
+                </Button>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Meses no vermelho</CardTitle>
-            <CalendarX2 className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {negativeMonths.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhum mês com saldo previsto negativo. 🎉
-              </p>
-            ) : (
-              <>
-                <div>
-                  <div className="text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
-                    {formatCents(uncoveredCents)}
-                  </div>
+        <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
+
+        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
+          <MonthBalanceCard views={views} />
+
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Cartões</CardTitle>
+              <CreditCardIcon className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="flex h-full flex-col gap-4">
+              {cycles.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum cartão com teto mensal definido.</p>
+              ) : (
+                <div className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Soma dos saldos negativos de {negativeMonths.length}{" "}
-                    {negativeMonths.length === 1 ? "mês" : "meses"} (do atual em diante)
+                    Fatura em formação, {formatCompetencia(monthToDate(nextCycleMonth))}, contra o teto de cada cartão.
+                  </p>
+                  {cycles.map((c) => (
+                    <div key={c.cardId} className="space-y-1">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+                        <span className="font-medium">{c.name}</span>
+                        <span className="tabular-nums">
+                          <Money cents={c.bookedCents} />
+                          <span className="text-muted-foreground">
+                            {" "}de <Money cents={c.limitCents} />
+                          </span>
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn(
+                            "h-full rounded-full",
+                            c.pct >= 100 ? "bg-rose-500" : c.pct >= 80 ? "bg-amber-500" : "bg-emerald-500",
+                          )}
+                          style={{ width: `${Math.min(100, c.pct)}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {c.remainingCents === 0
+                          ? `Passou do teto em ${formatCents(c.bookedCents - c.limitCents)}, ${c.pct}% usado`
+                          : `Restam ${formatCents(c.remainingCents)} até o teto, ${c.pct}% usado`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {upcomingFaturas.length > 0 && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-medium text-muted-foreground">Próximas faturas, todos os cartões</p>
+                  <ul className="mt-1.5 grid grid-cols-3 gap-2">
+                    {upcomingFaturas.map((f) => (
+                      <li key={f.month}>
+                        <div className="text-xs text-muted-foreground">{shortMonthLabel(f.month)}</div>
+                        <Money cents={f.totalCents} className="text-sm font-medium" />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-auto">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/cartoes">Ver cartões</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Section>
+
+      <Section title="O que vem" hint="caixinhas, meses no vermelho, renovações e carteira">
+        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Reservas</CardTitle>
+              <PiggyBank className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="flex h-full flex-col gap-3">
+              <div>
+                <Money cents={reservesTotalCents} tabular={false} className={cn("text-2xl font-semibold tracking-tight", emerald)} />
+                <p className="text-xs text-muted-foreground">
+                  {reserves.length === 0
+                    ? "Nenhuma caixinha ainda"
+                    : `Guardado em ${reserves.length} ${reserves.length === 1 ? "caixinha" : "caixinhas"}`}
+                </p>
+                {/* O dinheiro que já sobrou no mês e ainda está na conta: a curva
+                    já o conta (é o saldo do mês corrente), mas quem olha só o
+                    total das caixinhas não o vê. */}
+                {currentLeftoverCents > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    + {formatCents(currentLeftoverCents)} na conta, sobra de {formatCompetencia(monthToDate(currentMonth))} ainda não guardada
+                  </p>
+                )}
+              </div>
+              {/* Saldo livre: guardado menos os meses no vermelho. É a régua
+                  conservadora, pedida pelo usuário para segurar os custos — cada
+                  buraco coberto pelo que existe hoje, sem contar com a sobra dos
+                  meses bons. O Horizonte faz a conta otimista; as duas convivem. */}
+              {negativeMonths.length > 0 && (
+                <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                  <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                    <span>guardado</span>
+                    <Money cents={reservesTotalCents} />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                    <span>meses no vermelho, {negativeMonths.length}</span>
+                    <Money cents={uncoveredCents} />
+                  </div>
+                  <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-1">
+                    <span className="text-sm font-medium">Saldo livre</span>
+                    <Money cents={freeCents} className={cn("text-lg font-semibold", freeCents < 0 ? rose : emerald)} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {freeCents >= 0
+                      ? "O que sobra das caixinhas depois de cobrir todos os meses no vermelho. É o seu teto para segurar os custos."
+                      : "As caixinhas não cobrem todos os meses no vermelho: é o que falta."}
                   </p>
                 </div>
-                <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-                  {negativeMonths.map((m) => (
-                    <li key={m.month} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-muted-foreground">{formatCompetencia(monthToDate(m.month))}</span>
-                      <span className="tabular-nums text-rose-600 dark:text-rose-400">
-                        {formatCents(m.balanceCents)}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Investimentos</CardTitle>
-            <TrendingUp className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="text-2xl font-bold tabular-nums">{formatCents(portfolio.valueCents)}</div>
-              <p className="text-xs text-muted-foreground">
-                {investAssets.length === 0
-                  ? "Nenhuma posição ainda"
-                  : `${investAssets.length} ativos · investido ${formatCents(portfolio.costCents)} · resultado ${formatCents(portfolio.resultCents)} (${formatPct(portfolio.resultPct)})`}
-              </p>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/investimentos">Ver carteira</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Reservas</CardTitle>
-            <PiggyBank className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <div className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-                {formatCents(reservesTotalCents)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {reserves.length === 0
-                  ? "Nenhuma caixinha ainda"
-                  : `Guardado em ${reserves.length} ${reserves.length === 1 ? "caixinha" : "caixinhas"}`}
-              </p>
-              {/* O dinheiro que já sobrou no mês e ainda está na conta: a curva
-                  abaixo já o conta (é o saldo do mês corrente), mas quem olha só
-                  o total das caixinhas não o vê. */}
-              {currentLeftoverCents > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  + {formatCents(currentLeftoverCents)} na conta, sobra de{" "}
-                  {formatCompetencia(monthToDate(currentMonth))} ainda não guardada
-                </p>
               )}
-            </div>
-            {/* Saldo livre: guardado menos os meses no vermelho. É a régua
-                conservadora, pedida pelo usuário para segurar os custos — cada
-                buraco coberto pelo que existe hoje, sem contar com a sobra dos
-                meses bons. A curva logo abaixo faz a conta otimista; as duas
-                convivem de propósito. */}
-            {negativeMonths.length > 0 && (
-              <div className="rounded-lg border bg-muted/30 px-3 py-2">
-                <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-                  <span>guardado</span>
-                  <span className="tabular-nums">{formatCents(reservesTotalCents)}</span>
+              <div className="mt-auto">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/reservas">Gerenciar caixinhas</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Meses no vermelho</CardTitle>
+              <CalendarX2 className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="flex h-full flex-col gap-3">
+              {negativeMonths.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum mês com saldo previsto negativo.</p>
+              ) : (
+                <>
+                  <div>
+                    <Money cents={uncoveredCents} tabular={false} className={cn("text-2xl font-semibold tracking-tight", rose)} />
+                    <p className="text-xs text-muted-foreground">
+                      Soma dos saldos negativos de {negativeMonths.length} {negativeMonths.length === 1 ? "mês" : "meses"}, do atual em diante
+                    </p>
+                  </div>
+                  <ul className="space-y-1">
+                    {negativeMonths.map((m) => (
+                      <li key={m.month} className="flex items-center justify-between gap-2 text-sm">
+                        <Link href={`/mes?month=${m.month}`} className="text-muted-foreground hover:text-foreground">
+                          {formatCompetencia(monthToDate(m.month))}
+                        </Link>
+                        <Money cents={m.balanceCents} className={rose} />
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              <div className="mt-auto border-t pt-3">
+                <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <BellRing className="size-3.5" aria-hidden />
+                  Renovações
                 </div>
-                <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-                  <span>
-                    meses no vermelho ({negativeMonths.length})
-                  </span>
-                  <span className="tabular-nums">{formatCents(uncoveredCents)}</span>
-                </div>
-                <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-1">
-                  <span className="text-sm font-medium">Saldo livre</span>
-                  <span
-                    className={cn(
-                      "text-lg font-bold tabular-nums",
-                      freeCents < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
+                {renewals.length === 0 ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Nenhuma nos próximos 3 meses.
+                    {renewalItems.length === 0 && (
+                      <>
+                        {" "}
+                        <Link href="/itens" className="underline underline-offset-2 hover:text-foreground">
+                          Configure o mês de renovação nos itens.
+                        </Link>
+                      </>
                     )}
-                  >
-                    {formatCents(freeCents)}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {freeCents >= 0
-                    ? "O que sobra das caixinhas depois de cobrir todos os meses no vermelho daqui para a frente. É o seu teto para segurar os custos."
-                    : "As caixinhas não cobrem todos os meses no vermelho: é o que falta."}
-                </p>
-              </div>
-            )}
-            {/* O que importa não é somar os buracos, é saber até onde a curva
-                desce. A sobra de um mês cobre os SEGUINTES, então um mês de
-                superávit antes de três magros muda tudo — a régua antiga
-                anunciava um descoberto que nunca aconteceria. */}
-            <div className="space-y-2 text-sm">
-              <p>
-                <span className="block text-xs font-medium text-muted-foreground">
-                  Plano{budget ? ` · ${formatCents(budget.perDayCents)}/dia` : ""}
-                </span>
-                {outlook.lowMonth === null ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    Daqui para a frente as reservas só crescem — nenhum mês derruba o saldo de hoje.
-                  </span>
-                ) : outlook.lowCents >= 0 ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">
-                    No mês mais apertado ({shortMonthLabel(outlook.lowMonth)}) ainda sobram{" "}
-                    {formatCents(outlook.lowCents)}.
-                  </span>
+                  </p>
                 ) : (
-                  <span className="text-amber-600 dark:text-amber-400">
-                    Não chegam até o fim: em {shortMonthLabel(outlook.lowMonth)} faltam{" "}
-                    {formatCents(-outlook.lowCents)}.
-                  </span>
+                  <ul className="mt-1 space-y-1">
+                    {renewals.map((r) => (
+                      <li key={r.name} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="font-medium">{r.name}</span>
+                        <span className={r.monthsAway === 0 ? "font-medium text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
+                          {r.monthsAway === 0 ? "este mês" : MONTH_NAMES[r.renewalMonth - 1]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </p>
-              {/* A segunda curva, com o gasto à vista medido nas últimas faturas
-                  fechadas. Ela não substitui o plano: diz o que acontece se o
-                  ritmo atual continuar, e é isso que dá o norte. */}
-              {trend && (
-                <p>
-                  <span className="block text-xs font-medium text-muted-foreground">
-                    Tendência · {formatCents(trend.perDayCents)}/dia (média de {trend.label})
-                  </span>
-                  <span
-                    className={
-                      trend.sentence.includes("chegam")
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-400"
-                    }
-                  >
-                    {trend.sentence}
-                  </span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Investimentos</CardTitle>
+              <TrendingUp className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="flex h-full flex-col gap-3">
+              <div>
+                <Money cents={portfolio.valueCents} tabular={false} className="text-2xl font-semibold tracking-tight" />
+                <p className="text-xs text-muted-foreground">
+                  {investAssets.length === 0
+                    ? "Nenhuma posição ainda"
+                    : `${investAssets.length} ativos · investido ${formatCents(portfolio.costCents)}`}
                 </p>
+                {investAssets.length > 0 && (
+                  <p className={cn("text-xs font-medium", portfolio.resultCents < 0 ? rose : emerald)}>
+                    resultado {formatCents(portfolio.resultCents)}, {formatPct(portfolio.resultPct)}
+                  </p>
+                )}
+              </div>
+              <div className="mt-auto">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/investimentos">Ver carteira</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </Section>
+
+      <Section title="Análise" hint="12 meses à frente, e o mês por dentro">
+        <Card>
+          <CardHeader>
+            <CardTitle>Saldo mensal, próximos 12 meses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MonthlyBalance data={balanceData} />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span>Patrimônio projetado, 12 meses</span>
+              {/* O número que o gráfico existe para dar, escrito: a curva mostra
+                  a forma, o título mostra o tamanho. */}
+              {patrimonyGrowth && (
+                <span className={cn("text-sm font-semibold tabular-nums", patrimonyGrowth.deltaCents < 0 ? rose : emerald)}>
+                  {patrimonyGrowth.deltaCents < 0 ? "−" : "+"}
+                  {formatCents(Math.abs(patrimonyGrowth.deltaCents))}
+                  {patrimonyGrowth.pct !== null && `, ${patrimonyGrowth.pct > 0 ? "+" : ""}${patrimonyGrowth.pct}%`}
+                </span>
               )}
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/reservas">Gerenciar caixinhas</Link>
-            </Button>
+              <span className="text-xs font-normal text-muted-foreground">reservas + investimentos + saldos previstos · estimado</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PatrimonyChart data={patrimonyPoints} />
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Renovações</CardTitle>
-            <BellRing className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {renewals.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma renovação nos próximos 3 meses.
-                {renewalItems.length === 0 && " Configure o mês de renovação nos Itens (ex.: seguro)."}
-              </p>
-            ) : (
-              <ul className="space-y-1.5">
-                {renewals.map((r) => (
-                  <li key={r.name} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="font-medium">{r.name}</span>
-                    <span
-                      className={
-                        r.monthsAway === 0
-                          ? "text-amber-600 dark:text-amber-400 font-medium"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {r.monthsAway === 0 ? "este mês ⚠️" : MONTH_NAMES[r.renewalMonth - 1]}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <Button asChild variant="outline" size="sm">
-              <Link href="/itens">Configurar itens</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle>Despesas por categoria</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hasExpenses ? <ExpensePie data={pieData} /> : <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>}
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Maiores despesas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {hasExpenses ? <RankingBars data={ranking} /> : <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Próximas faturas</CardTitle>
-            <CreditCardIcon className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {upcomingFaturas.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nada comprometido nas próximas faturas.</p>
-            ) : (
-              <ul className="space-y-1.5">
-                {upcomingFaturas.map((f) => (
-                  <li key={f.month} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground">{formatCompetencia(monthToDate(f.month))}</span>
-                    <span className="font-medium tabular-nums">{formatCents(f.totalCents)}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Compras no cartão que já vão cair nos próximos meses.
-            </p>
-            <Button asChild variant="outline" size="sm">
-              <Link href="/cartoes">Ver cartões</Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex items-center justify-between gap-2">
-            <CardTitle>Orçamento do mês</CardTitle>
-            <Target className="size-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {monthBudgets.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nenhuma categoria com meta ainda. Defina a meta mensal ao editar uma categoria.
-              </p>
-            ) : (
+        {monthBudgets.length > 0 && (
+          <Card>
+            <CardHeader className="flex items-center justify-between gap-2">
+              <CardTitle>Orçamento do mês</CardTitle>
+              <Target className="size-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="space-y-3">
               <ul className="space-y-2.5">
                 {monthBudgets.map((b) => (
                   <li key={b.categoryId} className="space-y-1">
@@ -597,12 +650,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <span className="size-2.5 rounded-full" style={{ background: b.color }} aria-hidden />
                         {b.name}
                       </span>
-                      <span
-                        className={cn(
-                          "tabular-nums text-xs",
-                          b.pct > 100 ? "font-semibold text-rose-600 dark:text-rose-400" : "text-muted-foreground",
-                        )}
-                      >
+                      <span className={cn("text-xs tabular-nums", b.pct > 100 ? cn("font-semibold", rose) : "text-muted-foreground")}>
                         {formatCents(b.plannedCents)} de {formatCents(b.budgetCents)} · {b.pct}%
                       </span>
                     </div>
@@ -619,79 +667,17 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </li>
                 ))}
               </ul>
-            )}
-            <Button asChild variant="outline" size="sm">
-              <Link href="/categorias">Definir metas</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Saldo mensal (próximos 12 meses)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <MonthlyBalance data={balanceData} />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span>Patrimônio projetado (12 meses)</span>
-            {/* O número que o gráfico existe para dar, escrito: a curva mostra
-                a forma, o título mostra o tamanho. */}
-            {patrimonyGrowth && (
-              <span
-                className={cn(
-                  "text-sm font-semibold tabular-nums",
-                  patrimonyGrowth.deltaCents < 0
-                    ? "text-rose-600 dark:text-rose-400"
-                    : "text-emerald-600 dark:text-emerald-400",
-                )}
-              >
-                {patrimonyGrowth.deltaCents < 0 ? "−" : "+"}
-                {formatCents(Math.abs(patrimonyGrowth.deltaCents))}
-                {patrimonyGrowth.pct !== null && ` (${patrimonyGrowth.pct > 0 ? "+" : ""}${patrimonyGrowth.pct}%)`}
-              </span>
-            )}
-            <span className="text-xs font-normal text-muted-foreground">
-              reservas + investimentos + saldos previstos · estimado
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <PatrimonyChart data={patrimonyPoints} />
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Despesas por categoria</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hasExpenses ? (
-              <ExpensePie data={pieData} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
-            )}
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Ranking de despesas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {hasExpenses ? (
-              <RankingBars data={ranking} />
-            ) : (
-              <p className="text-sm text-muted-foreground">Sem despesas neste mês</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/categorias">Definir metas</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </Section>
     </div>
   );
+}
+
+function planLabel(budget: { perDayCents: number } | null): string {
+  return budget ? `Plano · reserva do dia a dia de ${formatCents(budget.perDayCents)} por dia` : "Plano";
 }

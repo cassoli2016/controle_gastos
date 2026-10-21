@@ -11,6 +11,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { formatCents } from "@/lib/money";
+import { SERIES, TICK, TooltipBox, LegendChip, compactBRL, type TooltipRow } from "./theme";
 
 export type MonthlyBalancePoint = {
   /** Rótulo curto do mês (ex.: "set/26"). */
@@ -28,11 +29,6 @@ export type MonthlyBalancePoint = {
   toComeCents?: number;
 };
 
-const INCOME = "#10b981"; // emerald-500
-const EXPENSE = "#f43f5e"; // rose-500
-const BALANCE = "#7c3aed"; // violet-600 (a cor da marca) — terceira cor de propósito: verde e
-// vermelho aqui significam entrada e saída, não sobra e falta.
-
 function BalanceTooltip({
   active,
   payload,
@@ -42,46 +38,16 @@ function BalanceTooltip({
 }) {
   if (!active || !payload || payload.length === 0) return null;
   const p = payload[0].payload;
-  return (
-    <div className="rounded-md border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-md">
-      <div className="mb-1 font-medium">{p.month}</div>
-      <div className="space-y-0.5 tabular-nums">
-        <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Receitas</span>
-          <span style={{ color: INCOME }}>{formatCents(p.incomeCents)}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Despesas</span>
-          <span style={{ color: EXPENSE }}>{formatCents(p.expenseCents)}</span>
-        </div>
-        <div className="flex justify-between gap-4 font-medium">
-          <span>Saldo</span>
-          <span style={{ color: p.balanceCents < 0 ? EXPENSE : INCOME }}>{formatCents(p.balanceCents)}</span>
-        </div>
-        {p.pastCents !== undefined && p.pastCents !== 0 && (
-          <div className="mt-1 space-y-0.5 border-t pt-1">
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">já aconteceu</span>
-              <span>{formatCents(p.pastCents)}</span>
-            </div>
-            <div className="flex justify-between gap-4">
-              <span className="text-muted-foreground">falta acontecer</span>
-              <span>{formatCents(p.toComeCents ?? 0)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Chip({ color, children }: { color: string; children: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className="size-2 rounded-full" style={{ background: color }} aria-hidden />
-      {children}
-    </span>
-  );
+  const rows: TooltipRow[] = [
+    { label: "Receitas", value: formatCents(p.incomeCents), color: SERIES.income },
+    { label: "Despesas", value: formatCents(p.expenseCents), color: SERIES.expense },
+    { label: "Saldo", value: formatCents(p.balanceCents), color: SERIES.brand, strong: true },
+  ];
+  if (p.pastCents !== undefined && p.pastCents !== 0) {
+    rows.push({ label: "já aconteceu", value: formatCents(p.pastCents) });
+    rows.push({ label: "falta acontecer", value: formatCents(p.toComeCents ?? 0) });
+  }
+  return <TooltipBox title={p.month} rows={rows} />;
 }
 
 /**
@@ -90,7 +56,9 @@ function Chip({ color, children }: { color: string; children: string }) {
  * A versão anterior desenhava só a barra do saldo, e ela some: um mês que
  * movimenta R$ 30 mil para cada lado e fecha em R$ 695 virava um traço perto
  * do zero, como se nada tivesse acontecido. Aqui o tamanho do mês aparece nas
- * duas barras e o saldo é a distância entre as pontas.
+ * duas barras e o saldo é a distância entre as pontas. A direção da barra
+ * (sobe/desce) carrega o significado junto com a cor — verde e rosa sozinhos
+ * se confundem para quem não distingue vermelho de verde.
  */
 export function MonthlyBalance({ data }: { data: MonthlyBalancePoint[] }) {
   // Despesa desenha para baixo; o valor original fica no ponto, para o
@@ -100,46 +68,30 @@ export function MonthlyBalance({ data }: { data: MonthlyBalancePoint[] }) {
   return (
     <div className="text-muted-foreground">
       <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <Chip color={INCOME}>Receitas</Chip>
-        <Chip color={EXPENSE}>Despesas</Chip>
-        <Chip color={BALANCE}>Saldo</Chip>
+        <LegendChip color={SERIES.income}>Receitas</LegendChip>
+        <LegendChip color={SERIES.expense}>Despesas</LegendChip>
+        <LegendChip color={SERIES.brand}>Saldo</LegendChip>
       </div>
       <ResponsiveContainer width="100%" height={280}>
         {/* barGap "-100%" = as duas barras ocupam o MESMO x, uma para cima e
             outra para baixo: o mês é uma coluna só. Empilhar com stackId não
             serve — o recharts soma acumulado e a despesa desenha em cima da
-            receita, em vez de espelhar. Percentual, e não pixel fixo, para a
-            barra continuar se ajustando à largura da tela. */}
+            receita, em vez de espelhar. */}
         <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }} barGap="-100%">
-          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" vertical={false} />
-          <XAxis
-            dataKey="month"
-            tick={{ fill: "currentColor", fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            interval="preserveStartEnd"
-            minTickGap={4}
-          />
-          <YAxis
-            tick={{ fill: "currentColor", fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-            width={44}
-            tickFormatter={(v: number) =>
-              (Number(v) / 100).toLocaleString("pt-BR", { maximumFractionDigits: 0, notation: "compact" })
-            }
-          />
-          <Tooltip content={<BalanceTooltip />} cursor={{ fill: "currentColor", opacity: 0.06 }} />
-          <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.35} />
-          <Bar dataKey="incomeCents" maxBarSize={14} fill={INCOME} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="expenseDownCents" maxBarSize={14} fill={EXPENSE} radius={[0, 0, 3, 3]} />
+          <CartesianGrid stroke="currentColor" strokeOpacity={0.12} vertical={false} />
+          <XAxis dataKey="month" tick={TICK} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={4} />
+          <YAxis tick={TICK} tickLine={false} axisLine={false} width={44} tickFormatter={compactBRL} />
+          <Tooltip content={<BalanceTooltip />} cursor={{ fill: "currentColor", opacity: 0.05 }} />
+          <ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.3} />
+          <Bar dataKey="incomeCents" maxBarSize={18} fill={SERIES.income} radius={[4, 4, 0, 0]} />
+          <Bar dataKey="expenseDownCents" maxBarSize={18} fill={SERIES.expense} radius={[0, 0, 4, 4]} />
           <Line
             type="linear"
             dataKey="balanceCents"
-            stroke={BALANCE}
+            stroke={SERIES.brand}
             strokeWidth={2}
-            dot={{ r: 3, fill: BALANCE, strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
+            dot={{ r: 4, fill: SERIES.brand, stroke: "var(--card)", strokeWidth: 2 }}
+            activeDot={{ r: 5, stroke: "var(--card)", strokeWidth: 2 }}
             isAnimationActive={false}
           />
         </ComposedChart>

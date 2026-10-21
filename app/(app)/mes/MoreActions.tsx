@@ -31,7 +31,16 @@ export function MoreActions({ children }: { children: React.ReactNode }) {
       >
         {open ? <X className="size-4" /> : <MoreHorizontal className="size-4" />}
       </Button>
-      <div className={cn("flex-wrap items-center gap-2 md:flex", open ? "flex basis-full md:basis-auto" : "hidden")}>{children}</div>
+      {/* Aberto no celular, vira uma grade de duas colunas: botões de largura
+          igual, em vez de uma fila irregular que quebrava em quatro linhas. */}
+      <div
+        className={cn(
+          "gap-2 md:flex md:flex-wrap md:items-center",
+          open ? "grid basis-full grid-cols-2 md:basis-auto [&>button]:h-auto [&>button]:min-w-0 [&>button]:w-full [&>button]:justify-start [&>button]:whitespace-normal [&>button]:py-1.5 [&>button]:text-left" : "hidden",
+        )}
+      >
+        {children}
+      </div>
     </>
   );
 }

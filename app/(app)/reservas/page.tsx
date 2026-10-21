@@ -48,18 +48,18 @@ export default async function ReservasPage() {
           (guardado − meses no vermelho = livre), e os filetes a mantêm junta. */}
       <StatStrip
         items={[
-          { label: "Total guardado", value: formatCents(totalCents), tone: "income", icon: PiggyBank },
+          { label: "Total guardado", cents: totalCents, tone: "income", icon: PiggyBank },
           ...(uncoveredCents < 0
             ? ([
                 {
                   label: "Descoberto (meses no vermelho)",
-                  value: formatCents(uncoveredCents),
+                  cents: uncoveredCents,
                   tone: "expense",
                   icon: CalendarX2,
                 },
                 {
                   label: "Saldo livre",
-                  value: formatCents(freeCents),
+                  cents: freeCents,
                   tone: freeCents < 0 ? "expense" : "income",
                   icon: Wallet,
                   detail: "guardado menos os meses no vermelho",

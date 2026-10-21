@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Money } from "@/components/Money";
 import { cn } from "@/lib/utils";
 
 /**
@@ -16,7 +17,10 @@ const TONES = {
 
 export type StatItem = {
   label: string;
-  value: string;
+  /** Texto pronto (percentual, contagem). Para dinheiro, prefira `cents`. */
+  value?: string;
+  /** Valor em centavos: ganha a tipografia de extrato (símbolo menor, menos tipográfico). */
+  cents?: number;
   tone?: keyof typeof TONES;
   /** Ícone pequeno junto do rótulo — sinal, não decoração. */
   icon?: LucideIcon;
@@ -32,12 +36,18 @@ export type StatItem = {
   progress?: number;
 };
 
+function StatValue({ item, className }: { item: StatItem; className?: string }) {
+  if (item.cents !== undefined) return <Money cents={item.cents} className={className} tabular={false} />;
+  return <span className={className}>{item.value}</span>;
+}
+
 /**
  * O conteúdo de uma estatística: rótulo, valor grande, detalhe e barra. Os
- * números são o desenho — o valor é a única coisa pesada, em algarismos
- * tabulares, e a barra desce até a base para alinhar entre vizinhos (mt-auto).
+ * números são o desenho — o valor é a única coisa pesada, e a barra desce até
+ * a base para alinhar entre vizinhos (mt-auto).
  */
-export function StatBlock({ label, value, tone = "default", icon: Icon, detail, detailShort, progress }: StatItem) {
+export function StatBlock(item: StatItem) {
+  const { label, tone = "default", icon: Icon, detail, detailShort, progress } = item;
   const t = TONES[tone];
   return (
     <div className="flex h-full min-w-0 flex-col gap-0.5">
@@ -45,7 +55,9 @@ export function StatBlock({ label, value, tone = "default", icon: Icon, detail, 
         {Icon && <Icon className="size-3.5 shrink-0" aria-hidden />}
         <span className="truncate">{label}</span>
       </div>
-      <div className={cn("truncate text-lg font-bold tracking-tight tabular-nums md:text-2xl", t.value)}>{value}</div>
+      <div className={cn("truncate text-xl font-semibold tracking-tight md:text-2xl", t.value)}>
+        <StatValue item={item} />
+      </div>
       {detail && (
         // Sem truncate: cortar comia justamente o "R$ 490,00 falta". No
         // celular entra a versão curta, quando houver.
@@ -113,7 +125,8 @@ export function StatStrip({ items, className }: { items: StatItem[]; className?:
   );
 }
 
-function StatRow({ label, value, tone = "default", icon: Icon, detail, detailShort, progress }: StatItem) {
+function StatRow(item: StatItem) {
+  const { label, tone = "default", icon: Icon, detail, detailShort, progress } = item;
   const t = TONES[tone];
   return (
     <div className="flex flex-col gap-1 px-3 py-2.5">
@@ -122,7 +135,9 @@ function StatRow({ label, value, tone = "default", icon: Icon, detail, detailSho
           {Icon && <Icon className="size-3.5 shrink-0" aria-hidden />}
           <span className="truncate">{label}</span>
         </div>
-        <div className={cn("shrink-0 text-lg font-bold tracking-tight tabular-nums", t.value)}>{value}</div>
+        <div className={cn("shrink-0 text-lg font-semibold tracking-tight", t.value)}>
+          <StatValue item={item} />
+        </div>
       </div>
       {(detailShort ?? detail) && (
         <div className="text-[11px] leading-tight text-muted-foreground">{detailShort ?? detail}</div>

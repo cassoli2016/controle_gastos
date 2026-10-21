@@ -8,9 +8,9 @@ import { filterViews, visibleRows, visibleGroups } from "@/lib/month-filter";
 import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY } from "@/lib/reserve-flow";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
+import { daysInMonth } from "@/lib/daily-budget";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { PayCell } from "./PayCell";
@@ -69,9 +69,11 @@ function EntryRow({
 }) {
   // Dia: item fixo mostra o dia de vencimento; avulso mostra a data do
   // lançamento (dd/mm) quando registrada.
+  // Tudo em dd/mm: "6" ao lado de "26/10" na mesma coluna era o que o olho
+  // lia como desalinhado. O dia de vencimento vira data no mês exibido.
   const dayLabel =
     row.dueDay !== null
-      ? String(row.dueDay)
+      ? `${String(Math.min(row.dueDay, daysInMonth(month))).padStart(2, "0")}/${month.slice(5, 7)}`
       : row.purchaseDate
         ? `${String(row.purchaseDate.getUTCDate()).padStart(2, "0")}/${String(row.purchaseDate.getUTCMonth() + 1).padStart(2, "0")}`
         : null;
@@ -196,7 +198,7 @@ function EntryRow({
       </div>
       <div className="flex items-center gap-2">
         <span className={cn("min-w-0 flex-1 truncate text-xs tabular-nums", dayClass)}>
-          {row.dueDay ? `Dia ${row.dueDay}` : dayLabel ?? "—"}
+          {dayLabel ?? "—"}
           {daySuffix}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">{pay}</div>
@@ -267,12 +269,15 @@ function GroupHeader({
             <span className="hidden sm:inline"> {state.doneLabel}</span>
           </span>
         )}
-        {/* O badge Receita/Despesa some no celular: a cor do valor e o "pagos"
-            já dizem, e ele espremia o nome da categoria até truncar. */}
-        <span className="hidden sm:inline">
-          <CategoryTypeBadge type={group.categoryType} />
+        {/* Sem etiqueta Receita/Despesa: a cor do total diz (verde entra). */}
+        <span
+          className={cn(
+            "text-sm font-semibold tabular-nums",
+            group.categoryType === "INCOME" && "text-emerald-700 dark:text-emerald-400",
+          )}
+        >
+          {formatCents(group.subtotalCents)}
         </span>
-        <span className="text-sm font-semibold tabular-nums">{formatCents(group.subtotalCents)}</span>
         {state.collapsible && (
           <ChevronDown
             className={cn("size-4 text-muted-foreground transition-transform", state.expanded && "rotate-180")}
