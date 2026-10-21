@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.46.0",
+    date: "2026-10-21",
+    title: "Extrato do mês em PDF, seis meses por categoria e o saldo livre no bom-dia",
+    items: [
+      "Em Mais ações do Mês, \"Extrato em PDF\" abre uma página limpa com os números do mês e todas as contas por categoria, com a data de pagamento. Imprima ou salve em PDF; no celular, pelo Compartilhar.",
+      "Categorias mostra os últimos seis meses de cada uma em barrinhas, com o mês atual em destaque. Dá para ver se um gasto está subindo sem abrir o Dashboard.",
+      "O resumo matinal do Telegram ganhou uma linha com o saldo livre: o que sobra das caixinhas depois dos meses no vermelho.",
+    ],
+  },
+  {
     version: "1.45.0",
     date: "2026-10-21",
     title: "Patrimônio real ao lado da projeção",

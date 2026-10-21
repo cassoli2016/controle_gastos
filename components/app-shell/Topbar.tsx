@@ -32,7 +32,7 @@ export function Topbar({
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-4 backdrop-blur print:hidden">
       <div className="md:hidden">
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>

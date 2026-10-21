@@ -31,6 +31,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { Money } from "@/components/Money";
+import { Sparkline } from "@/components/Sparkline";
 import { budgetTone } from "@/lib/budget";
 import { cn } from "@/lib/utils";
 import { Trash2 } from "lucide-react";
@@ -53,11 +54,16 @@ export function CategoryRow({
   category,
   monthCents,
   monthLabel,
+  history,
+  historyLabels,
 }: {
   category: Category;
   /** Soma prevista da categoria no mês corrente. */
   monthCents: number;
   monthLabel: string;
+  /** Seis meses, o atual por último, em centavos. */
+  history: number[];
+  historyLabels: string[];
 }) {
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateCategory, {});
   useActionToast(updateState, { success: "Categoria atualizada." });
@@ -120,6 +126,11 @@ export function CategoryRow({
       </span>
     );
   const monthCell = monthCents === 0 ? <span className="text-muted-foreground">—</span> : <Money cents={monthCents} className="font-medium" />;
+  const spark = history.some((v) => v !== 0) ? (
+    <Sparkline values={history} labels={historyLabels} tone={category.type === "INCOME" ? "income" : "default"} />
+  ) : (
+    <span className="text-xs text-muted-foreground">—</span>
+  );
 
   const colorChip = (
     <span
@@ -150,6 +161,7 @@ export function CategoryRow({
           </TableCell>
           <TableCell>{typeBadge}</TableCell>
           <TableCell className="text-right">{monthCell}</TableCell>
+          <TableCell>{spark}</TableCell>
           <TableCell>{category.type === "EXPENSE" ? budgetCell : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
           <TableCell>
             <div className="flex items-center justify-end gap-1">
@@ -171,7 +183,7 @@ export function CategoryRow({
 
         {/* Mobile: mini-card empilhado numa única célula */}
         <TableRow className="md:hidden">
-          <TableCell colSpan={5} className="p-0">
+          <TableCell colSpan={6} className="p-0">
             <div className="flex flex-col gap-2 p-3 whitespace-normal">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
@@ -182,7 +194,10 @@ export function CategoryRow({
                 <span className="shrink-0">{monthCell}</span>
               </div>
               <div className="flex items-center justify-between gap-3">
-                <span className="text-xs text-muted-foreground">em {monthLabel}</span>
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  em {monthLabel}
+                  {spark}
+                </span>
                 {category.type === "EXPENSE" && budgetCell}
               </div>
               <div className="flex items-center gap-1">

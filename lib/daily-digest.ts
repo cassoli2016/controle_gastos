@@ -122,3 +122,15 @@ export function digestMessage(digest: DailyDigest, todayISO: string): string {
   ];
   return partes.filter(Boolean).join("\n\n");
 }
+
+/**
+ * Linha do resumo matinal com o norte do futuro: o que sobra das caixinhas
+ * depois de cobrir os meses no vermelho (o mesmo "Saldo livre" do Dashboard).
+ */
+export function freeReserveLine(reservesTotalCents: number, negatives: { month: string; balanceCents: number }[]): string {
+  const uncovered = negatives.reduce((a, m) => a + m.balanceCents, 0);
+  const free = reservesTotalCents + uncovered;
+  if (negatives.length === 0) return `🧭 Saldo livre ${formatCents(free)} · nenhum mês no vermelho à frente`;
+  const n = negatives.length;
+  return `🧭 Saldo livre ${formatCents(free)} · guardado ${formatCents(reservesTotalCents)} menos ${n} ${n === 1 ? "mês" : "meses"} no vermelho (${formatCents(-uncovered)})`;
+}

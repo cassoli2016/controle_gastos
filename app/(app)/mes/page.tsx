@@ -1,4 +1,6 @@
-import { Inbox } from "lucide-react";
+import { Inbox, Printer } from "lucide-react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { prisma } from "@/lib/prisma";
 import { monthToDate, sanitizeMonth, formatCompetencia } from "@/lib/dates";
 import { decimalToCents } from "@/lib/money";
@@ -225,6 +227,12 @@ export default async function MesPage({
             <CopyYearAgoButton month={month} />
             <AddEntryForm month={month} availableItems={availableItems} />
             <BulkApplyForm items={allActiveItems} defaultMonth={month} />
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/mes/imprimir?month=${month}`}>
+                <Printer className="size-4" />
+                Extrato em PDF
+              </Link>
+            </Button>
           </MoreActions>
         </div>
       </div>

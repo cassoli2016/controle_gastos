@@ -25,7 +25,7 @@ export function MobileNav() {
   const secondaryActive = SECONDARY.some((i) => path.startsWith(i.href));
 
   return (
-    <nav className="md:hidden fixed inset-x-0 bottom-0 z-20 flex border-t bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)]">
+    <nav className="md:hidden fixed inset-x-0 bottom-0 z-20 flex border-t bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] print:hidden">
       {PRIMARY.map(({ href, label, icon: Icon }) => {
         const active = path.startsWith(href);
         return (

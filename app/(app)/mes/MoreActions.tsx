@@ -36,7 +36,7 @@ export function MoreActions({ children }: { children: React.ReactNode }) {
       <div
         className={cn(
           "gap-2 md:flex md:flex-wrap md:items-center",
-          open ? "grid basis-full grid-cols-2 md:basis-auto [&>button]:h-auto [&>button]:min-w-0 [&>button]:w-full [&>button]:justify-start [&>button]:whitespace-normal [&>button]:py-1.5 [&>button]:text-left" : "hidden",
+          open ? "grid basis-full grid-cols-2 md:basis-auto [&>button]:h-auto [&>button]:min-w-0 [&>button]:w-full [&>button]:justify-start [&>button]:whitespace-normal [&>button]:py-1.5 [&>button]:text-left [&>a]:h-auto [&>a]:min-w-0 [&>a]:w-full [&>a]:justify-start [&>a]:whitespace-normal [&>a]:py-1.5 [&>a]:text-left" : "hidden",
         )}
       >
         {children}

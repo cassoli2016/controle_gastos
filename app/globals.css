@@ -130,3 +130,13 @@
     @apply font-sans;
   }
 }
+
+/* Impressão: fundo branco, margem de papel e nada de cor de canvas. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  body {
+    background: white;
+  }
+}
