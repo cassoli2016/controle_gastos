@@ -3,6 +3,7 @@ import { useActionState } from "react";
 import { PiggyBank } from "lucide-react";
 import { setDailyBudget, type ActionState } from "./actions";
 import { formatCents } from "@/lib/money";
+import { Money } from "@/components/Money";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
@@ -41,7 +42,7 @@ export function DailyBudgetCard({
             <PiggyBank className="size-3.5 shrink-0" aria-hidden />
             Reserva do dia a dia
           </div>
-          <div className="text-2xl font-bold tracking-tight tabular-nums">{formatCents(remainingCents)}</div>
+          <Money cents={remainingCents} tabular={false} className="block text-2xl font-semibold tracking-tight" />
           <div className="text-[11px] text-muted-foreground">
             {daysRemaining} de {daysInMonth} dias · mês cheio {formatCents(monthTotalCents)}
           </div>

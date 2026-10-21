@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.42.0",
+    date: "2026-10-20",
+    title: "Itens com valor, categorias com gasto e meta, caixinhas com vida",
+    items: [
+      "Itens: cada conta mostra o valor previsto no mês (ou o do próximo mês em que cai, para as bimestrais e anuais), quando vence e a cadência. No alto, quanto as contas ativas somam no mês em despesas e em receitas.",
+      "Categorias: ao lado de cada uma, o total movimentado no mês e a meta mensal com a barra de uso. O botão de excluir virou um ícone discreto; a confirmação continua em vermelho.",
+      "Reservas: cada caixinha mostra a fatia do total guardado e o último movimento, e as ações ganharam nome (Depositar, Retirar). Se o extrato não bater com o saldo, a caixinha avisa.",
+      "Investimentos: proventos previstos de ações que você já vendeu saíram do total a receber e foram para uma lista recolhida, de onde dá para apagá-los.",
+      "Ajustes virou um lugar de verdade: segurança, exportação dos seus dados em CSV (que estava escondida no Panorama) e um mapa de onde cada coisa se configura.",
+    ],
+  },
+  {
     version: "1.41.0",
     date: "2026-10-20",
     title: "Dashboard reorganizado: o Horizonte mostra o ano de relance",

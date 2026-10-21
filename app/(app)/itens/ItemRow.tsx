@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { Money } from "@/components/Money";
 
 type Item = {
   id: string;
@@ -54,12 +55,19 @@ export function ItemRow({
   categoryName,
   categoryColor,
   categories,
+  value,
+  dueText,
+  frequencyText,
   adjust,
 }: {
   item: Item;
   categoryName: string;
   categoryColor?: string;
   categories: { id: string; name: string }[];
+  /** Valor previsto no mês corrente; `month` preenchido quando é de um mês à frente. */
+  value: { cents: number; month: string | null } | null;
+  dueText: string;
+  frequencyText: string;
   adjust: AdjustInfo;
 }) {
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateItem, {});
@@ -123,6 +131,15 @@ export function ItemRow({
 
   const archiveActionLabel = item.active ? "Arquivar" : "Reativar";
 
+  const valueCell = value ? (
+    <span className="inline-flex flex-col items-end leading-tight">
+      <Money cents={value.cents} className="font-medium" />
+      {value.month && <span className="text-[11px] text-muted-foreground">em {value.month}</span>}
+    </span>
+  ) : (
+    <span className="text-muted-foreground">—</span>
+  );
+
   // Um único par Dialog/AlertDialog (estado controlado, single instance) para
   // Editar/Arquivar, com DOIS gatilhos cada (linha desktop + mini-card
   // mobile) — mesmo padrão do CardRow/CategoryRow. O AdjustDialog é um
@@ -137,7 +154,9 @@ export function ItemRow({
         <TableRow className="hidden md:table-row">
           <TableCell>{nameCell}</TableCell>
           <TableCell>{categoryBadge}</TableCell>
-          <TableCell>{item.dueDay ?? "—"}</TableCell>
+          <TableCell className="text-muted-foreground">{dueText}</TableCell>
+          <TableCell className="text-muted-foreground">{frequencyText}</TableCell>
+          <TableCell className="text-right">{valueCell}</TableCell>
           <TableCell>{statusBadge}</TableCell>
           <TableCell>
             <div className="flex items-center justify-end gap-2">
@@ -158,15 +177,18 @@ export function ItemRow({
 
         {/* Mobile: mini-card empilhado numa única célula */}
         <TableRow className="md:hidden">
-          <TableCell colSpan={5} className="p-0">
+          <TableCell colSpan={7} className="p-0">
             <div className="flex flex-col gap-2 p-3 whitespace-normal">
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-start justify-between gap-3">
                 {nameCell}
-                {statusBadge}
+                <span className="shrink-0 text-right">{valueCell}</span>
               </div>
-              <div className="flex items-center gap-2 flex-wrap text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 {categoryBadge}
-                <span>Dia venc.: {item.dueDay ?? "—"}</span>
+                <span>
+                  {dueText} · {frequencyText}
+                </span>
+                {!item.active && statusBadge}
               </div>
               <div className="flex items-center gap-2">
                 <AdjustDialog itemId={item.id} itemName={item.name} adjust={adjust} />
