@@ -29,6 +29,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { Money } from "@/components/Money";
+import { usageTone } from "@/lib/card-usage";
+import { cn } from "@/lib/utils";
+import { Trash2 } from "lucide-react";
 
 type Category = {
   id: string;
@@ -38,7 +42,18 @@ type Category = {
   budgetCents: number | null;
 };
 
-export function CategoryRow({ category }: { category: Category }) {
+const TONE_BAR = { emerald: "bg-emerald-500", amber: "bg-amber-500", rose: "bg-rose-500" } as const;
+
+export function CategoryRow({
+  category,
+  monthCents,
+  monthLabel,
+}: {
+  category: Category;
+  /** Soma prevista da categoria no mês corrente. */
+  monthCents: number;
+  monthLabel: string;
+}) {
   const [updateState, updateAction, updatePending] = useActionState<ActionState, FormData>(updateCategory, {});
   useActionToast(updateState, { success: "Categoria atualizada." });
 
@@ -70,6 +85,26 @@ export function CategoryRow({ category }: { category: Category }) {
     <CategoryTypeBadge type={category.type} />
   );
 
+  // Meta só faz sentido em despesa; a barra mede o mês contra ela.
+  const pct = category.budgetCents && category.budgetCents > 0 ? Math.round((monthCents / category.budgetCents) * 100) : null;
+  const budgetCell =
+    category.budgetCents === null || category.budgetCents === 0 ? (
+      <span className="text-xs text-muted-foreground">sem meta</span>
+    ) : (
+      <span className="inline-flex min-w-36 flex-col gap-1">
+        <span className="flex items-baseline justify-between gap-2 text-xs">
+          <Money cents={category.budgetCents} className="text-muted-foreground" />
+          <span className={cn("tabular-nums", pct !== null && pct > 100 ? "font-medium text-rose-600 dark:text-rose-400" : "text-muted-foreground")}>
+            {pct}%
+          </span>
+        </span>
+        <span className="block h-1 w-full overflow-hidden rounded-full bg-muted">
+          <span className={cn("block h-full rounded-full", TONE_BAR[usageTone(pct ?? 0)])} style={{ width: `${Math.min(100, pct ?? 0)}%` }} />
+        </span>
+      </span>
+    );
+  const monthCell = monthCents === 0 ? <span className="text-muted-foreground">—</span> : <Money cents={monthCents} className="font-medium" />;
+
   const colorChip = (
     <span
       className="size-3 shrink-0 rounded-full ring-1 ring-foreground/10"
@@ -98,16 +133,20 @@ export function CategoryRow({ category }: { category: Category }) {
             </div>
           </TableCell>
           <TableCell>{typeBadge}</TableCell>
+          <TableCell className="text-right">{monthCell}</TableCell>
+          <TableCell>{category.type === "EXPENSE" ? budgetCell : <span className="text-xs text-muted-foreground">—</span>}</TableCell>
           <TableCell>
-            <div className="flex items-center justify-end gap-2">
+            <div className="flex items-center justify-end gap-1">
               <DialogTrigger asChild>
                 <Button type="button" variant="outline" size="sm">
                   Editar
                 </Button>
               </DialogTrigger>
+              {/* Excluir é irreversível, então continua vermelho — mas só o ícone:
+                  dezesseis botões vermelhos numa lista gritavam mais que a ação. */}
               <AlertDialogTrigger asChild>
-                <Button type="button" variant="destructive" size="sm">
-                  Excluir
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={`Excluir ${category.name}`}>
+                  <Trash2 className="size-4 text-destructive" />
                 </Button>
               </AlertDialogTrigger>
             </div>
@@ -116,24 +155,29 @@ export function CategoryRow({ category }: { category: Category }) {
 
         {/* Mobile: mini-card empilhado numa única célula */}
         <TableRow className="md:hidden">
-          <TableCell colSpan={3} className="p-0">
+          <TableCell colSpan={5} className="p-0">
             <div className="flex flex-col gap-2 p-3 whitespace-normal">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
                   {colorChip}
-                  <span className="font-medium">{category.name}</span>
+                  <span className="truncate font-medium">{category.name}</span>
+                  {typeBadge}
                 </div>
-                {typeBadge}
+                <span className="shrink-0">{monthCell}</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-muted-foreground">em {monthLabel}</span>
+                {category.type === "EXPENSE" && budgetCell}
+              </div>
+              <div className="flex items-center gap-1">
                 <DialogTrigger asChild>
                   <Button type="button" variant="outline" size="sm">
                     Editar
                   </Button>
                 </DialogTrigger>
                 <AlertDialogTrigger asChild>
-                  <Button type="button" variant="destructive" size="sm">
-                    Excluir
+                  <Button type="button" variant="ghost" size="icon-sm" aria-label={`Excluir ${category.name}`}>
+                    <Trash2 className="size-4 text-destructive" />
                   </Button>
                 </AlertDialogTrigger>
               </div>
@@ -206,7 +250,7 @@ export function CategoryRow({ category }: { category: Category }) {
             <input type="hidden" name="id" value={category.id} />
             <AlertDialogFooter>
               <AlertDialogCancel type="button">Cancelar</AlertDialogCancel>
-              <AlertDialogAction type="submit" disabled={deletePending}>
+              <AlertDialogAction type="submit" variant="destructive" disabled={deletePending}>
                 Excluir
               </AlertDialogAction>
             </AlertDialogFooter>

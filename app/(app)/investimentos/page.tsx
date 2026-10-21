@@ -50,7 +50,13 @@ export default async function InvestimentosPage() {
     })),
   );
 
-  const pending = dividends.filter((d) => !d.received);
+  // Provento previsto de ação que já saiu da carteira não vai chegar: fica
+  // fora do total e numa lista à parte, para o usuário limpar quando quiser.
+  const heldIds = new Set(assets.filter((a) => a.quantity > 0).map((a) => a.id));
+  const pendingAll = dividends.filter((d) => !d.received);
+  const pending = pendingAll.filter((d) => heldIds.has(d.assetId));
+  const pendingSold = pendingAll.filter((d) => !heldIds.has(d.assetId));
+  const pendingSoldCents = sumCents(pendingSold.map((d) => decimalToCents(String(d.net))));
   const receivedList = dividends.filter((d) => d.received).slice(-8).reverse();
   const pendingCents = sumCents(pending.map((d) => decimalToCents(String(d.net))));
   const lastQuoteAt = assets
@@ -304,6 +310,31 @@ export default async function InvestimentosPage() {
                   </li>
                 ))}
               </ul>
+            )}
+            {pendingSold.length > 0 && (
+              <details className="mt-3 border-t pt-3">
+                <summary className="cursor-pointer text-xs text-muted-foreground">
+                  {pendingSold.length} {pendingSold.length === 1 ? "previsto" : "previstos"} de ações que você já vendeu,
+                  fora do total: {formatCents(pendingSoldCents)}
+                </summary>
+                <ul className="mt-2 divide-y">
+                  {pendingSold.map((d) => (
+                    <li key={d.id} className="flex items-center justify-between gap-2 py-2 text-sm text-muted-foreground">
+                      <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                        <span className="shrink-0 text-xs tabular-nums">{fmtDateBR(d.payDate)}</span>
+                        <span className="font-medium">{d.asset.ticker}</span>
+                        <Badge variant="secondary" className="shrink-0">
+                          {d.type}
+                        </Badge>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="tabular-nums">{formatCents(decimalToCents(String(d.net)))}</span>
+                        <DividendDeleteButton dividendId={d.id} label={`${d.type} ${d.asset.ticker}`} />
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             )}
           </CardContent>
         </Card>

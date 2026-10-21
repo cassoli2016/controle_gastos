@@ -5,8 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Money } from "@/components/Money";
 import { decimalToCents } from "@/lib/money";
-import { filterItems, parseItemStatus, type ItemStatusFilter } from "@/lib/items-filter";
+import { monthToDate, monthStringFromDate } from "@/lib/dates";
+import { shortMonthLabel } from "@/lib/matrix";
+import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { filterItems, parseItemStatus, frequencyLabel, dueLabel, type ItemStatusFilter } from "@/lib/items-filter";
 import { NewItemForm } from "./NewItemForm";
 import { ItemRow } from "./ItemRow";
 
@@ -19,10 +23,23 @@ const STATUS_LABELS: Record<ItemStatusFilter, string> = {
 export default async function ItensPage({ searchParams }: { searchParams: Promise<{ q?: string; status?: string }> }) {
   const { q, status: qStatus } = await searchParams;
   const status = parseItemStatus(qStatus);
-  const [items, categories] = await Promise.all([
+  const currentMonth = todayISOInSaoPaulo().slice(0, 7);
+  const [items, categories, upcoming] = await Promise.all([
     prisma.item.findMany({ include: { category: true }, orderBy: { name: "asc" } }),
     prisma.category.findMany({ orderBy: { name: "asc" } }),
+    // O valor de cada conta: o lançamento do mês corrente ou, se a conta não
+    // cai neste mês (bimestral, anual…), o próximo provisionado.
+    prisma.monthlyEntry.findMany({
+      where: { itemId: { not: null }, month: { gte: monthToDate(currentMonth) } },
+      select: { itemId: true, month: true, plannedAmount: true },
+      orderBy: { month: "asc" },
+    }),
   ]);
+  const nextValue = new Map<string, { cents: number; month: string }>();
+  for (const e of upcoming) {
+    if (e.itemId === null || nextValue.has(e.itemId)) continue;
+    nextValue.set(e.itemId, { cents: decimalToCents(String(e.plannedAmount)), month: monthStringFromDate(e.month) });
+  }
   const categoryOptions = categories.map((c) => ({ id: c.id, name: c.name }));
   const visible = filterItems(items, q, status);
   const counts: Record<ItemStatusFilter, number> = {
@@ -30,11 +47,29 @@ export default async function ItensPage({ searchParams }: { searchParams: Promis
     arquivados: items.filter((i) => !i.active).length,
     todos: items.length,
   };
+  // Quanto as contas ativas somam NESTE mês, por tipo: a pergunta que a lista
+  // existe para responder e que antes exigia abrir cada item.
+  let fixedExpenseCents = 0;
+  let fixedIncomeCents = 0;
+  for (const i of items) {
+    if (!i.active) continue;
+    const v = nextValue.get(i.id);
+    if (!v || v.month !== currentMonth) continue;
+    if (i.category.type === "INCOME") fixedIncomeCents += v.cents;
+    else fixedExpenseCents += v.cents;
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Itens</h1>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Itens</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            As contas que se repetem. Em {shortMonthLabel(currentMonth)}, as ativas somam{" "}
+            <Money cents={fixedExpenseCents} className="font-medium text-foreground" /> de despesas e{" "}
+            <Money cents={fixedIncomeCents} className="font-medium text-foreground" /> de receitas.
+          </p>
+        </div>
         <NewItemForm categories={categoryOptions} />
       </div>
 
@@ -68,7 +103,9 @@ export default async function ItensPage({ searchParams }: { searchParams: Promis
               <TableRow>
                 <TableHead>Item</TableHead>
                 <TableHead>Categoria</TableHead>
-                <TableHead>Dia venc.</TableHead>
+                <TableHead>Vence</TableHead>
+                <TableHead>Cadência</TableHead>
+                <TableHead className="text-right">Valor</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Ações</TableHead>
               </TableRow>
@@ -76,25 +113,31 @@ export default async function ItensPage({ searchParams }: { searchParams: Promis
             <TableBody>
               {visible.length === 0 && (
                 <TableRow>
-                  <td colSpan={5} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-sm text-muted-foreground">
                     Nenhum item encontrado.
                   </td>
                 </TableRow>
               )}
-              {visible.map((i) => (
-                <ItemRow
-                  key={i.id}
-                  item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, businessDay: i.businessDay, intervalMonths: i.intervalMonths, renewalMonth: i.renewalMonth, renewalAmount: i.renewalAmount === null ? null : Number(i.renewalAmount), renewalInstallments: i.renewalInstallments, active: i.active }}
-                  categoryName={i.category.name}
-              categoryColor={i.category.color}
-                  categories={categoryOptions}
-                  adjust={{
-                    month: i.adjustMonth,
-                    percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
-                    amountCents: i.adjustAmount === null ? null : decimalToCents(String(i.adjustAmount)),
-                  }}
-                />
-              ))}
+              {visible.map((i) => {
+                const v = nextValue.get(i.id) ?? null;
+                return (
+                  <ItemRow
+                    key={i.id}
+                    item={{ id: i.id, name: i.name, categoryId: i.categoryId, dueDay: i.dueDay, businessDay: i.businessDay, intervalMonths: i.intervalMonths, renewalMonth: i.renewalMonth, renewalAmount: i.renewalAmount === null ? null : Number(i.renewalAmount), renewalInstallments: i.renewalInstallments, active: i.active }}
+                    categoryName={i.category.name}
+                    categoryColor={i.category.color}
+                    categories={categoryOptions}
+                    value={v ? { cents: v.cents, month: v.month === currentMonth ? null : shortMonthLabel(v.month) } : null}
+                    dueText={dueLabel(i.dueDay, i.businessDay)}
+                    frequencyText={frequencyLabel(i.intervalMonths)}
+                    adjust={{
+                      month: i.adjustMonth,
+                      percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
+                      amountCents: i.adjustAmount === null ? null : decimalToCents(String(i.adjustAmount)),
+                    }}
+                  />
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

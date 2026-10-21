@@ -91,11 +91,12 @@ export default async function ReservasPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {reserves.map((r) => (
             <ReserveCard
               key={r.id}
               reserve={r}
+              totalCents={totalCents}
               leftoverCents={leftoverCents}
               statement={statements[r.id] ?? { lines: [], check: { ok: false, differenceCents: r.amountCents } }}
             />
