@@ -25,7 +25,7 @@ export type PatrimonyPoint = {
   trendCents?: number;
 };
 
-const LINE = "#3b82f6"; // blue-500 (neutro: patrimônio não é receita nem despesa)
+const LINE = "#7c3aed"; // violet-600, a cor da marca: patrimônio não é receita nem despesa
 const TREND = "#f59e0b"; // amber-500: aviso, não erro — é o ritmo real, não o plano
 
 function PatrimonyTooltip({

@@ -166,8 +166,8 @@ export default async function MesPage({
           com quebra de linha — evita estourar a largura da tela (overflow
           horizontal que cortava os cards). */}
       <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <h1 className="text-2xl font-bold tracking-tight">Lançamentos</h1>
+        <div>
+          <h1 className="text-sm font-medium text-muted-foreground">Lançamentos</h1>
           <MonthNav month={month} basePath="/mes" />
         </div>
         {/* Ações em dois grupos: lançar (primárias, sólidas) × utilitárias

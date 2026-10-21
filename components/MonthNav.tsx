@@ -23,9 +23,12 @@ export function MonthNav({ month, basePath }: { month: string; basePath: string 
     router.push(`${basePath}?month=${alvo}`);
   }
 
+  // O mês é a manchete das telas mensais: grande, tipográfico e clicável (abre
+  // a grade de meses). Era uma pílula no canto; o mês é o quadro de tudo que a
+  // tela mostra, então ele lidera.
   return (
-    <div className="flex items-center rounded-lg border bg-card shadow-xs">
-      <Button asChild variant="ghost" size="icon-sm" className="rounded-r-none" aria-label="Mês anterior">
+    <div className="flex items-center gap-0.5">
+      <Button asChild variant="ghost" size="icon-sm" aria-label="Mês anterior">
         <Link href={`${basePath}?month=${prev}`}>
           <ChevronLeft className="size-4" />
         </Link>
@@ -43,7 +46,7 @@ export function MonthNav({ month, basePath }: { month: string; basePath: string 
           <button
             type="button"
             aria-label="Escolher mês e ano"
-            className="min-w-32 border-x px-3 py-1.5 text-center text-sm font-medium tabular-nums hover:bg-muted"
+            className="rounded-md px-1.5 py-0.5 text-2xl font-semibold tracking-tight tabular-nums hover:bg-muted md:text-[1.75rem]"
           >
             {monthLabel(month)}
           </button>
@@ -96,7 +99,7 @@ export function MonthNav({ month, basePath }: { month: string; basePath: string 
         </PopoverContent>
       </Popover>
 
-      <Button asChild variant="ghost" size="icon-sm" className="rounded-l-none" aria-label="Próximo mês">
+      <Button asChild variant="ghost" size="icon-sm" aria-label="Próximo mês">
         <Link href={`${basePath}?month=${next}`}>
           <ChevronRight className="size-4" />
         </Link>

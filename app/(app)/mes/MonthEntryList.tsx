@@ -382,7 +382,7 @@ export function MonthEntryList({
                 <col className="w-[14%]" />
               </colgroup>
               <thead className="sticky top-0 z-20 bg-card">
-                <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b text-left text-xs font-medium text-muted-foreground">
                   <th className="px-3 py-2 font-medium">Item</th>
                   <th className="px-3 py-2 font-medium">Dia</th>
                   <th className="px-3 py-2 text-right font-medium">Previsto</th>

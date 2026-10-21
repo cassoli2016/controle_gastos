@@ -12,7 +12,7 @@ import { cyclesLabel } from "@/lib/trend";
 import { dailyBudget } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { sumCents, formatCents } from "@/lib/money";
-import { StatCard } from "@/components/StatCard";
+import { StatStrip, type StatItem } from "@/components/StatCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { NewReserveForm } from "./NewReserveForm";
 import { ReserveCard } from "./ReserveCard";
@@ -40,32 +40,34 @@ export default async function ReservasPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Reservas</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Reservas</h1>
         <NewReserveForm />
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard label="Total guardado" value={formatCents(totalCents)} tone="income" icon={PiggyBank} />
-        {uncoveredCents < 0 && (
-          <StatCard
-            label="Descoberto (meses no vermelho)"
-            value={formatCents(uncoveredCents)}
-            tone="expense"
-            icon={CalendarX2}
-          />
-        )}
-        {/* Guardado menos os meses no vermelho: o mesmo "Saldo livre" do
-            Dashboard, para o teto de gastos estar onde as caixinhas estão. */}
-        {uncoveredCents < 0 && (
-          <StatCard
-            label="Saldo livre"
-            value={formatCents(freeCents)}
-            tone={freeCents < 0 ? "expense" : "income"}
-            icon={Wallet}
-            detail="guardado menos os meses no vermelho"
-          />
-        )}
-      </div>
+      {/* Guardado, descoberto e saldo livre numa faixa só: é uma conta
+          (guardado − meses no vermelho = livre), e os filetes a mantêm junta. */}
+      <StatStrip
+        items={[
+          { label: "Total guardado", value: formatCents(totalCents), tone: "income", icon: PiggyBank },
+          ...(uncoveredCents < 0
+            ? ([
+                {
+                  label: "Descoberto (meses no vermelho)",
+                  value: formatCents(uncoveredCents),
+                  tone: "expense",
+                  icon: CalendarX2,
+                },
+                {
+                  label: "Saldo livre",
+                  value: formatCents(freeCents),
+                  tone: freeCents < 0 ? "expense" : "income",
+                  icon: Wallet,
+                  detail: "guardado menos os meses no vermelho",
+                },
+              ] satisfies StatItem[])
+            : []),
+        ]}
+      />
 
       {budgetView && (
         <DailyBudgetCard

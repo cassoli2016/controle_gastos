@@ -248,8 +248,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+      <div>
+        <h1 className="text-sm font-medium text-muted-foreground">Dashboard</h1>
         <MonthNav month={month} basePath="/dashboard" />
       </div>
 
@@ -471,7 +471,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 anunciava um descoberto que nunca aconteceria. */}
             <div className="space-y-2 text-sm">
               <p>
-                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="block text-xs font-medium text-muted-foreground">
                   Plano{budget ? ` · ${formatCents(budget.perDayCents)}/dia` : ""}
                 </span>
                 {outlook.lowMonth === null ? (
@@ -495,7 +495,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   ritmo atual continuar, e é isso que dá o norte. */}
               {trend && (
                 <p>
-                  <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  <span className="block text-xs font-medium text-muted-foreground">
                     Tendência · {formatCents(trend.perDayCents)}/dia (média de {trend.label})
                   </span>
                   <span

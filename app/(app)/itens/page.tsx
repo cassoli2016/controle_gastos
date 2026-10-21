@@ -34,7 +34,7 @@ export default async function ItensPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Itens</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Itens</h1>
         <NewItemForm categories={categoryOptions} />
       </div>
 

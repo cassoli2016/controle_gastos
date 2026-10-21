@@ -8,7 +8,7 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { ExpensePie } from "@/components/charts/ExpensePie";
 import { DividendsBars } from "@/components/charts/DividendsBars";
 import { RankingBars } from "@/components/charts/RankingBars";
-import { StatCard } from "@/components/StatCard";
+import { StatStrip } from "@/components/StatCard";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RefreshQuotesButton } from "./RefreshQuotesButton";
@@ -96,7 +96,7 @@ export default async function InvestimentosPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Investimentos</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Investimentos</h1>
         <div className="flex flex-wrap items-center gap-2">
           <RefreshQuotesButton />
           <TradeDialog tickers={assets.map((a) => a.ticker)} />
@@ -105,33 +105,33 @@ export default async function InvestimentosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Investido (custo)" value={formatCents(totals.costCents)} icon={Wallet} />
-        <StatCard
-          label="Valor atual"
-          value={formatCents(totals.valueCents)}
-          tone={totals.resultCents >= 0 ? "income" : "expense"}
-          icon={totals.resultCents >= 0 ? TrendingUp : TrendingDown}
-        />
-        <StatCard
-          label="Resultado"
-          value={formatCents(totals.resultCents)}
-          detail={`${formatPct(totals.resultPct)} sobre o custo`}
-          tone={totals.resultCents >= 0 ? "income" : "expense"}
-          icon={totals.resultCents >= 0 ? TrendingUp : TrendingDown}
-        />
-        <StatCard label="Proventos a receber" value={formatCents(pendingCents)} tone="warn" icon={CalendarClock} />
-      </div>
+      <StatStrip
+        items={[
+          { label: "Investido (custo)", value: formatCents(totals.costCents), icon: Wallet },
+          {
+            label: "Valor atual",
+            value: formatCents(totals.valueCents),
+            tone: totals.resultCents >= 0 ? "income" : "expense",
+            icon: totals.resultCents >= 0 ? TrendingUp : TrendingDown,
+          },
+          {
+            label: "Resultado",
+            value: formatCents(totals.resultCents),
+            detail: `${formatPct(totals.resultPct)} sobre o custo`,
+            tone: totals.resultCents >= 0 ? "income" : "expense",
+            icon: totals.resultCents >= 0 ? TrendingUp : TrendingDown,
+          },
+          { label: "Proventos a receber", value: formatCents(pendingCents), tone: "warn", icon: CalendarClock },
+        ]}
+      />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-        <StatCard label="Renda 12 meses" value={formatCents(income12Cents)} tone="income" icon={Coins} />
-        <StatCard label="Média mensal" value={formatCents(monthlyAvgCents)} tone="income" icon={CalendarClock} />
-        <StatCard
-          label="Yield 12m (s/ carteira)"
-          value={formatPct(yield12).replace("+", "")}
-          icon={Percent}
-        />
-      </div>
+      <StatStrip
+        items={[
+          { label: "Renda 12 meses", value: formatCents(income12Cents), tone: "income", icon: Coins },
+          { label: "Média mensal", value: formatCents(monthlyAvgCents), tone: "income", icon: CalendarClock },
+          { label: "Yield 12m (s/ carteira)", value: formatPct(yield12).replace("+", ""), icon: Percent },
+        ]}
+      />
 
       {lastQuoteAt ? (
         <p className="text-xs text-muted-foreground">

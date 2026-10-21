@@ -30,7 +30,7 @@ export type MonthlyBalancePoint = {
 
 const INCOME = "#10b981"; // emerald-500
 const EXPENSE = "#f43f5e"; // rose-500
-const BALANCE = "#6366f1"; // indigo-500 — terceira cor de propósito: verde e
+const BALANCE = "#7c3aed"; // violet-600 (a cor da marca) — terceira cor de propósito: verde e
 // vermelho aqui significam entrada e saída, não sobra e falta.
 
 function BalanceTooltip({

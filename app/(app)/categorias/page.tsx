@@ -11,7 +11,7 @@ export default async function CategoriasPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-xl font-semibold">Categorias</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Categorias</h1>
         <NewCategoryForm />
       </div>
 

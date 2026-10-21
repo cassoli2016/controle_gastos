@@ -35,7 +35,7 @@ export function Topbar({
           </SheetTrigger>
           <SheetContent side="left" className="w-64">
             <SheetTitle className="flex items-center gap-2 px-2 py-3">
-              <span className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-primary to-violet-600 text-white">
+              <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <Wallet className="size-4" />
               </span>
               {appName}
@@ -76,7 +76,7 @@ export function Topbar({
         </Sheet>
       </div>
       <Link href="/dashboard" className="flex items-center gap-2.5">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet-600 text-white shadow-sm">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <Wallet className="size-4.5" />
         </span>
         <span className="text-[15px] font-semibold tracking-tight">{appName}</span>
