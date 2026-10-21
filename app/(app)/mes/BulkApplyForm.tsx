@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { Layers } from "lucide-react";
 
 export function BulkApplyForm({
   items,
@@ -39,8 +40,9 @@ export function BulkApplyForm({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button" variant="outline">
-          Aplicar em lote
+        <Button type="button" variant="outline" size="sm">
+          <Layers className="size-4" />
+          Valor em lote
         </Button>
       </DialogTrigger>
       <DialogContent>

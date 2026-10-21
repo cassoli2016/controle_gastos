@@ -1,8 +1,9 @@
-import { TrendingUp, TrendingDown, Clock } from "lucide-react";
-import { StatStrip } from "@/components/StatCard";
+import { TrendingUp, TrendingDown, Clock, Wallet } from "lucide-react";
+import { StatStrip, type StatItem } from "@/components/StatCard";
 import {
   plannedIncome,
   plannedExpense,
+  plannedBalance,
   balanceToCome,
   remainingToReceive,
   remainingToPay,
@@ -15,21 +16,25 @@ import { formatCents } from "@/lib/money";
 import type { DailyBudgetLine } from "@/lib/daily-budget";
 
 /**
- * Os três cards do mês (Dashboard e tela Mês, sempre iguais). O saldo saiu
- * daqui para o MonthBalanceCard, que precisa de largura para mostrar as quatro
- * pontas que o formam.
+ * Os números do mês numa faixa só (Dashboard e tela Mês, sempre iguais).
  * `views` = lançamentos + linha derivada da reserva; `realViews` = só os
  * lançamentos do banco — a contagem "N contas" não inclui a reserva, que não
  * é conta pagável.
+ *
+ * `withBalance` acrescenta o saldo do mês como quarto número: a tela Mês não
+ * tem o card do saldo (a lista é a protagonista lá), mas o número precisa
+ * continuar à vista.
  */
 export function MonthStatCards({
   views,
   realViews,
   budgetLine,
+  withBalance = false,
 }: {
   views: EntryView[];
   realViews: EntryView[];
   budgetLine: DailyBudgetLine | null;
+  withBalance?: boolean;
 }) {
   const incomeTotal = plannedIncome(views);
   const expenseTotal = plannedExpense(views);
@@ -55,41 +60,47 @@ export function MonthStatCards({
   const toComeShort =
     remaining === 0 ? undefined : toCome < 0 ? `faltam ${formatCents(-toCome)}` : `sobram ${formatCents(toCome)}`;
 
-  // Uma faixa só com os três números do mês, separados por filetes: é o
-  // extrato do mês, não três cards soltos.
-  return (
-    <StatStrip
-      items={[
-        {
-          label: "Receitas",
-          value: formatCents(incomeTotal),
-          tone: "income",
-          icon: TrendingUp,
-          detail:
-            incomeTotal > 0
-              ? `${formatCents(receivedInc)} recebido · ${formatCents(incomeTotal - receivedInc)} a receber`
-              : "nenhuma receita lançada",
-          detailShort: incomeTotal > 0 ? `${formatCents(incomeTotal - receivedInc)} a receber` : undefined,
-          progress: incomeTotal > 0 ? progressPct(receivedInc, incomeTotal) : undefined,
-        },
-        {
-          label: "Despesas",
-          value: formatCents(expenseTotal),
-          tone: "expense",
-          icon: TrendingDown,
-          detail: `${formatCents(paidExp)} pago · ${formatCents(remaining)} falta`,
-          detailShort: `${formatCents(remaining)} falta`,
-          progress: progressPct(paidExp, expenseTotal),
-        },
-        {
-          label: "Falta pagar",
-          value: formatCents(remaining),
-          tone: "warn",
-          icon: Clock,
-          detail: toComeDetail ?? faltaDetail,
-          detailShort: toComeShort,
-        },
-      ]}
-    />
-  );
+  const items: StatItem[] = [
+    {
+      label: "Receitas",
+      cents: incomeTotal,
+      tone: "income",
+      icon: TrendingUp,
+      detail:
+        incomeTotal > 0
+          ? `${formatCents(receivedInc)} recebido · ${formatCents(incomeTotal - receivedInc)} a receber`
+          : "nenhuma receita lançada",
+      detailShort: incomeTotal > 0 ? `${formatCents(incomeTotal - receivedInc)} a receber` : undefined,
+      progress: incomeTotal > 0 ? progressPct(receivedInc, incomeTotal) : undefined,
+    },
+    {
+      label: "Despesas",
+      cents: expenseTotal,
+      tone: "expense",
+      icon: TrendingDown,
+      detail: `${formatCents(paidExp)} pago · ${formatCents(remaining)} falta`,
+      detailShort: `${formatCents(remaining)} falta`,
+      progress: progressPct(paidExp, expenseTotal),
+    },
+    {
+      label: "Falta pagar",
+      cents: remaining,
+      tone: "warn",
+      icon: Clock,
+      detail: toComeDetail ?? faltaDetail,
+      detailShort: toComeShort,
+    },
+  ];
+  if (withBalance) {
+    const balance = plannedBalance(views);
+    items.push({
+      label: "Saldo do mês",
+      cents: balance,
+      tone: balance < 0 ? "expense" : "default",
+      icon: Wallet,
+      detail: "receitas menos despesas, pagas ou não",
+    });
+  }
+
+  return <StatStrip items={items} />;
 }

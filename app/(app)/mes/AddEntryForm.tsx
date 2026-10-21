@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useActionToast } from "@/hooks/use-action-toast";
+import { ListPlus } from "lucide-react";
 
 export function AddEntryForm({
   month,
@@ -42,11 +43,14 @@ export function AddEntryForm({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button type="button">Adicionar lançamento</Button>
+        <Button type="button" variant="outline" size="sm">
+          <ListPlus className="size-4" />
+          Conta fixa no mês
+        </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Adicionar lançamento</DialogTitle>
+          <DialogTitle>Conta fixa no mês</DialogTitle>
           <DialogDescription>
             Escolha um item ativo e informe o valor previsto para este mês.
           </DialogDescription>

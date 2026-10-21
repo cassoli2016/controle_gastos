@@ -11,7 +11,6 @@ import { isOverdue, realizedBalance, realizedCashBalance } from "@/lib/calc";
 import { dailyCashflow } from "@/lib/cashflow";
 import { MonthNav } from "@/components/MonthNav";
 import { MonthStatCards } from "@/components/MonthStatCards";
-import { MonthBalanceCard } from "@/components/MonthBalanceCard";
 import { Card, CardContent } from "@/components/ui/card";
 import { CopyPreviousMonthButton } from "./CopyPreviousMonthButton";
 import { CopyYearAgoButton } from "./CopyYearAgoButton";
@@ -202,6 +201,8 @@ export default async function MesPage({
             />
             <CopyPreviousMonthButton month={month} />
             <CopyYearAgoButton month={month} />
+            <AddEntryForm month={month} availableItems={availableItems} />
+            <BulkApplyForm items={allActiveItems} defaultMonth={month} />
           </MoreActions>
         </div>
       </div>
@@ -212,15 +213,15 @@ export default async function MesPage({
             <Inbox className="size-10 text-muted-foreground" />
             <p className="text-muted-foreground">Nenhum lançamento neste mês.</p>
             <p className="text-sm text-muted-foreground">
-              Use &quot;Copiar mês anterior&quot; acima ou adicione um lançamento abaixo.
+              Use &quot;Copiar mês anterior&quot; ou &quot;Conta fixa no mês&quot; nas ações acima.
             </p>
           </CardContent>
         </Card>
       ) : (
         <>
-          <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} />
-
-        <MonthBalanceCard views={views} />
+          {/* Quatro números, com o saldo: o card do saldo com as quatro pontas
+              mora no Dashboard; aqui a lista é a protagonista. */}
+          <MonthStatCards views={views} realViews={realViews} budgetLine={budgetLine} withBalance />
 
           {/* A key com o mês recolhe o card ao trocar de mês: sem ela o estado
               do useState sobrevive à soft navigation (mesmo motivo do
@@ -245,14 +246,6 @@ export default async function MesPage({
           />
         </>
       )}
-
-      {/* Barra de ações: os próprios botões abrem o Dialog com o formulário e
-          título, então não repetimos um Card/CardTitle aqui (evita título
-          duplicado com o do Dialog). */}
-      <div className="flex flex-wrap items-center gap-3 border-t pt-4">
-        <AddEntryForm month={month} availableItems={availableItems} />
-        <BulkApplyForm items={allActiveItems} defaultMonth={month} />
-      </div>
     </div>
   );
 }

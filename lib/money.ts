@@ -46,3 +46,23 @@ export function parseBRLToCents(input: string): number {
   if (Number.isNaN(n)) throw new Error(`Valor monetário inválido: ${input}`);
   return Math.round(n * 100);
 }
+
+export type MoneyParts = {
+  /** Valor abaixo de zero: quem renderiza decide o sinal (o app usa o menos tipográfico "−"). */
+  negative: boolean;
+  /** "R$" */
+  symbol: string;
+  /** "1.234,56" — sem sinal e sem símbolo. */
+  digits: string;
+};
+
+/**
+ * Separa um valor nas partes que a tipografia trata diferente: o símbolo
+ * (menor e mais leve), os dígitos (o número de verdade) e o sinal. É o que
+ * permite um extrato em que o olho lê "1.234,56" e não "R$1.234,56".
+ */
+export function splitMoney(cents: number): MoneyParts {
+  const s = formatCents(Math.abs(cents));
+  const idx = s.search(/\d/);
+  return { negative: cents < 0, symbol: s.slice(0, idx).trim(), digits: s.slice(idx) };
+}

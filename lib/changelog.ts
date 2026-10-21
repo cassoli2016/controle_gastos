@@ -14,6 +14,19 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.41.0",
+    date: "2026-10-20",
+    title: "Dashboard reorganizado: o Horizonte mostra o ano de relance",
+    items: [
+      "O Dashboard abre com o Horizonte: uma faixa dos próximos 12 meses, cada mês com uma barra que sobe quando sobra e desce quando falta, o saldo livre ao lado e, embaixo, a frase que resume (quantos meses fecham no vermelho e qual é o mais apertado), o plano e a tendência. Tocar num mês abre o Mês. No mês atual entra só o que ainda falta acontecer.",
+      "O resto do Dashboard ficou em três bandas, na ordem de leitura: Agora (os números do mês, o saldo com as quatro pontas e os cartões, com a fatura em formação e as próximas faturas num bloco só), O que vem (reservas e saldo livre, meses no vermelho com as renovações, carteira) e Análise (os gráficos). Saíram as repetições: meses no vermelho e próximas faturas apareciam duas vezes, e Renovações ocupava meia linha para dizer \"nenhuma\".",
+      "Valores em dinheiro ganharam tipografia de extrato em todo o app: o símbolo menor e mais leve, os dígitos em destaque e o sinal de menos tipográfico.",
+      "Cartões: a barra embaixo da fatura ganhou nome, Limite usado, e a fatura seguinte aparece ao lado da fatura do mês, medida contra o teto do cartão.",
+      "Mês: a coluna Dia mostra sempre dia/mês, os grupos perderam a etiqueta Receita/Despesa (o total em verde diz que é entrada), o saldo do mês virou o quarto número da faixa e os botões que viviam perdidos no fim da página (conta fixa no mês e valor em lote) subiram para as ações do mês. No celular, as ações abertas ficam numa grade de duas colunas.",
+      "Gráficos no mesmo padrão: grade em filete fino, barras finas com ponta arredondada, dica de valor em caixa de papel, e a rosca de categorias junta as fatias menores em \"Outras\". O menu lateral ficou agrupado: Dia a dia, Dinheiro, Cadastros e Ferramentas.",
+    ],
+  },
+  {
     version: "1.40.0",
     date: "2026-10-20",
     title: "Mês no celular: cada linha com a mesma geometria",

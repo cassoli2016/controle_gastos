@@ -6,7 +6,7 @@ import { Menu, LogOut, Wallet, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { NAV_ITEMS } from "./NavItems";
+import { NAV_ITEMS, NAV_GROUPS } from "./NavItems";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { version } from "@/package.json";
 
@@ -41,18 +41,23 @@ export function Topbar({
               {appName}
             </SheetTitle>
             <SheetDescription className="sr-only">Navegação principal</SheetDescription>
-            <nav className="flex flex-col gap-1">
-              {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-                const active = path.startsWith(href);
-                return (
-                  <Link key={href} href={href} onClick={() => setOpen(false)}
-                    aria-current={active ? "page" : undefined}
-                    className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm",
-                      active ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent")}>
-                    <Icon className="h-4 w-4" /> {label}
-                  </Link>
-                );
-              })}
+            <nav className="flex flex-col gap-3">
+              {NAV_GROUPS.map((group) => (
+                <div key={group}>
+                  <div className="px-3 pb-1 text-[11px] font-medium text-muted-foreground/80">{group}</div>
+                  {NAV_ITEMS.filter((i) => i.group === group).map(({ href, label, icon: Icon }) => {
+                    const active = path.startsWith(href);
+                    return (
+                      <Link key={href} href={href} onClick={() => setOpen(false)}
+                        aria-current={active ? "page" : undefined}
+                        className={cn("flex items-center gap-2 rounded-md px-3 py-2 text-sm",
+                          active ? "bg-primary/10 text-primary font-medium" : "hover:bg-accent")}>
+                        <Icon className="h-4 w-4" /> {label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              ))}
               <Link
                 href="/ajustes"
                 onClick={() => setOpen(false)}
