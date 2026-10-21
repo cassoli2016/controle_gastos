@@ -6,6 +6,7 @@ import {
   getReserveStatements,
   getCurrentMonthLeftover,
   getObservedVariableSpend,
+  freeReserveCents,
 } from "@/lib/planning";
 import { cyclesLabel } from "@/lib/trend";
 import { dailyBudget } from "@/lib/daily-budget";
@@ -32,6 +33,7 @@ export default async function ReservasPage() {
   ]);
   const totalCents = sumCents(reserves.map((r) => r.amountCents));
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
+  const freeCents = freeReserveCents(totalCents, negativeMonths);
   const today = todayISOInSaoPaulo();
   const budgetView = budget ? dailyBudget(today.slice(0, 7), today, budget.perDayCents) : null;
 
@@ -42,13 +44,23 @@ export default async function ReservasPage() {
         <NewReserveForm />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Total guardado" value={formatCents(totalCents)} tone="income" icon={PiggyBank} />
         {uncoveredCents < 0 && (
           <StatCard
             label="Descoberto (meses no vermelho)"
             value={formatCents(uncoveredCents)}
             tone="expense"
+          />
+        )}
+        {/* Guardado menos os meses no vermelho: o mesmo "Saldo livre" do
+            Dashboard, para o teto de gastos estar onde as caixinhas estão. */}
+        {uncoveredCents < 0 && (
+          <StatCard
+            label="Saldo livre"
+            value={formatCents(freeCents)}
+            tone={freeCents < 0 ? "expense" : "income"}
+            detail="guardado menos os meses no vermelho"
           />
         )}
       </div>
