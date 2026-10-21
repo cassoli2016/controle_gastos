@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.42.1",
+    date: "2026-10-20",
+    title: "Proventos de ações vendidas voltam ao total a receber",
+    items: [
+      "Quem tinha a ação na data-com recebe o provento mesmo vendendo depois. A versão anterior tirava esses proventos do total e os escondia numa lista recolhida; agora eles contam e aparecem na lista normal, só com a marca \"ação vendida\" ao lado do ticker.",
+    ],
+  },
+  {
     version: "1.42.0",
     date: "2026-10-20",
     title: "Itens com valor, categorias com gasto e meta, caixinhas com vida",
