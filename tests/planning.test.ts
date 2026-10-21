@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { negativeMonths } from "@/lib/planning";
+import { negativeMonths, freeReserveCents } from "@/lib/planning";
 import type { EntryView } from "@/lib/calc";
 
 const v = (p: Partial<EntryView> & Pick<EntryView, "itemName" | "categoryType" | "plannedCents">): EntryView => ({
@@ -50,6 +50,24 @@ describe("negativeMonths — o descoberto que as caixinhas precisam cobrir", () 
       { month: "2026-10", balanceCents: -300_000 },
     ]);
   });
+
+  it("saldo livre: guardado menos os meses no vermelho", () => {
+    // Out/2026: R$ 40.920,03 nas caixinhas e quatro meses no vermelho somando
+    // -R$ 13.695,26 → sobram R$ 27.224,77 para segurar os custos.
+    const negatives = [
+      { month: "2026-11", balanceCents: -894651 },
+      { month: "2026-12", balanceCents: -162122 },
+      { month: "2027-01", balanceCents: -120531 },
+      { month: "2028-10", balanceCents: -192222 },
+    ];
+    expect(freeReserveCents(4_092_003, negatives)).toBe(2_722_477);
+  });
+
+  it("saldo livre sem mês no vermelho é o próprio total guardado", () =>
+    expect(freeReserveCents(4_092_003, [])).toBe(4_092_003));
+
+  it("saldo livre fica negativo quando as caixinhas não cobrem os buracos", () =>
+    expect(freeReserveCents(100_000, [{ month: "2026-11", balanceCents: -250_000 }])).toBe(-150_000));
 
   it("mês no azul fica de fora", () => {
     expect(negativeMonths(mapa([SALARIO]))).toEqual([]);

@@ -4,7 +4,14 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target, AlarmClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getNegativeMonths, getReserves, getDailyBudget, getReserveOutlooks, getCurrentMonthLeftover } from "@/lib/planning";
+import {
+  getNegativeMonths,
+  getReserves,
+  getDailyBudget,
+  getReserveOutlooks,
+  getCurrentMonthLeftover,
+  freeReserveCents,
+} from "@/lib/planning";
 import { curveSummary, cyclesLabel, trendSentence } from "@/lib/trend";
 import { shortMonthLabel } from "@/lib/matrix";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -99,6 +106,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   );
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
   const reservesTotalCents = sumCents(reserves.map((r) => r.amountCents));
+  // O que sobra das caixinhas depois de cobrir todos os meses no vermelho —
+  // o teto para segurar os custos.
+  const freeCents = freeReserveCents(reservesTotalCents, negativeMonths);
 
   // A reserva do dia a dia é despesa derivada do calendário: entra em views
   // antes dos totais, da pizza e do ranking, para os três somarem o mesmo. Mês
@@ -420,6 +430,41 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                 </p>
               )}
             </div>
+            {/* Saldo livre: guardado menos os meses no vermelho. É a régua
+                conservadora, pedida pelo usuário para segurar os custos — cada
+                buraco coberto pelo que existe hoje, sem contar com a sobra dos
+                meses bons. A curva logo abaixo faz a conta otimista; as duas
+                convivem de propósito. */}
+            {negativeMonths.length > 0 && (
+              <div className="rounded-lg border bg-muted/30 px-3 py-2">
+                <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                  <span>guardado</span>
+                  <span className="tabular-nums">{formatCents(reservesTotalCents)}</span>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+                  <span>
+                    meses no vermelho ({negativeMonths.length})
+                  </span>
+                  <span className="tabular-nums">{formatCents(uncoveredCents)}</span>
+                </div>
+                <div className="mt-1 flex items-baseline justify-between gap-3 border-t pt-1">
+                  <span className="text-sm font-medium">Saldo livre</span>
+                  <span
+                    className={cn(
+                      "text-lg font-bold tabular-nums",
+                      freeCents < 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400",
+                    )}
+                  >
+                    {formatCents(freeCents)}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {freeCents >= 0
+                    ? "O que sobra das caixinhas depois de cobrir todos os meses no vermelho daqui para a frente. É o seu teto para segurar os custos."
+                    : "As caixinhas não cobrem todos os meses no vermelho: é o que falta."}
+                </p>
+              </div>
+            )}
             {/* O que importa não é somar os buracos, é saber até onde a curva
                 desce. A sobra de um mês cobre os SEGUINTES, então um mês de
                 superávit antes de três magros muda tudo — a régua antiga

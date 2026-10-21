@@ -93,6 +93,19 @@ export function negativeMonths(byMonth: Map<string, EntryView[]>): NegativeMonth
 }
 
 /**
+ * Saldo LIVRE das caixinhas: o total guardado menos o que os meses no vermelho
+ * (do corrente em diante) vão precisar. É a régua conservadora — trata cada
+ * buraco como se tivesse de ser coberto pelo que existe hoje, sem contar com a
+ * sobra dos meses bons — e por isso vive ao lado da curva projetada, não no
+ * lugar dela. O usuário pediu este número para "ir segurando os custos": é o
+ * teto do que pode gastar sem comprometer os meses que já estão no vermelho.
+ * Negativo quando as caixinhas não cobrem nem os meses no vermelho.
+ */
+export function freeReserveCents(reservesTotalCents: number, negatives: NegativeMonth[]): number {
+  return reservesTotalCents + negatives.reduce((a, m) => a + m.balanceCents, 0);
+}
+
+/**
  * Meses (do corrente em diante) cujo saldo é negativo, lendo o banco. A regra
  * está em `negativeMonths`; aqui só se monta a entrada dela.
  */

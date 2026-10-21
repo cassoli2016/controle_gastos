@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.37.0",
+    date: "2026-10-20",
+    title: "Saldo livre: o que sobra das caixinhas depois dos meses no vermelho",
+    items: [
+      "O card de Reservas do Dashboard mostra a conta por extenso: o total guardado, a soma dos meses no vermelho daqui para a frente e, destacado, o saldo livre que sobra depois de cobrir todos eles. É o teto para segurar os custos.",
+      "É a régua conservadora: trata cada mês no vermelho como se tivesse de ser coberto pelo que existe hoje, sem contar com a sobra dos meses bons. A curva do plano e a tendência continuam logo abaixo, porque respondem outra pergunta.",
+      "A tela de Reservas ganhou o mesmo número ao lado do descoberto.",
+    ],
+  },
+  {
     version: "1.36.0",
     date: "2026-10-20",
     title: "Auditoria dos números: tendência real, extrato das caixinhas e cinco correções",
