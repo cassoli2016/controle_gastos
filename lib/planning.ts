@@ -232,7 +232,14 @@ export async function getCurrentMonthLeftover(today: string = todayISOInSaoPaulo
   return realizedCashBalance(rows.map((r) => toEntryView(r as never)));
 }
 
-export type ReserveView = { id: string; name: string; amountCents: number };
+export type ReserveView = {
+  id: string;
+  name: string;
+  amountCents: number;
+  /** Meta opcional: quanto juntar e até quando ("YYYY-MM"). */
+  goalCents: number | null;
+  goalMonth: string | null;
+};
 
 /** Caixinhas de reserva com valores em centavos (para exibição/cálculo). */
 export async function getReserves(): Promise<ReserveView[]> {
@@ -241,6 +248,8 @@ export async function getReserves(): Promise<ReserveView[]> {
     id: b.id,
     name: b.name,
     amountCents: decimalToCents(String(b.amount)),
+    goalCents: b.goalAmount === null ? null : decimalToCents(String(b.goalAmount)),
+    goalMonth: b.goalMonth === null ? null : monthStringFromDate(b.goalMonth),
   }));
 }
 

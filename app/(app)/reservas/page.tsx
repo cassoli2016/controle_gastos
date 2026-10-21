@@ -97,6 +97,7 @@ export default async function ReservasPage() {
               key={r.id}
               reserve={r}
               totalCents={totalCents}
+              currentMonth={today.slice(0, 7)}
               leftoverCents={leftoverCents}
               statement={statements[r.id] ?? { lines: [], check: { ok: false, differenceCents: r.amountCents } }}
             />

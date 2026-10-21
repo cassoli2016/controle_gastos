@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
+import { Badge } from "@/components/ui/badge";
 import { TableRow, TableCell } from "@/components/ui/table";
 import {
   Dialog,
@@ -40,6 +41,8 @@ type Category = {
   type: "INCOME" | "EXPENSE";
   color: string;
   budgetCents: number | null;
+  /** Depósito/retirada de caixinha: nem ganho nem gasto. */
+  isTransfer?: boolean;
 };
 
 const TONE_BAR = { emerald: "bg-emerald-500", amber: "bg-amber-500", rose: "bg-rose-500" } as const;
@@ -81,7 +84,11 @@ export function CategoryRow({
     if (deleteState.ok) setDeleteOpen(false);
   }
 
-  const typeBadge = (
+  const typeBadge = category.isTransfer ? (
+    <Badge variant="outline" className="text-muted-foreground">
+      transferência
+    </Badge>
+  ) : (
     <CategoryTypeBadge type={category.type} />
   );
 

@@ -184,6 +184,17 @@ export const transferSchema = z
 export const reserveSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   amount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
+  // Meta opcional: valor em REAIS (CurrencyInput manda decimal; 0/vazio = sem
+  // meta) e mês-limite "YYYY-MM" (vazio = sem prazo).
+  goalAmount: z
+    .preprocess(
+      (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
+      z.coerce.number().positive("Meta deve ser maior que zero").nullable(),
+    )
+    .optional(),
+  goalMonth: z
+    .preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.string().regex(/^\d{4}-\d{2}$/, "Mês da meta inválido").nullable())
+    .optional(),
 });
 
 // Reserva do dia a dia: só o valor por dia é configurável — o total do mês e o
@@ -206,6 +217,17 @@ export const reserveAdjustSchema = z.object({
   name: z.string().trim().min(1, "Nome obrigatório"),
   amount: z.coerce.number().nonnegative("Valor não pode ser negativo"),
   reason: z.string().trim().max(80, "Motivo muito longo").optional(),
+  // Meta opcional: valor em REAIS (CurrencyInput manda decimal; 0/vazio = sem
+  // meta) e mês-limite "YYYY-MM" (vazio = sem prazo).
+  goalAmount: z
+    .preprocess(
+      (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
+      z.coerce.number().positive("Meta deve ser maior que zero").nullable(),
+    )
+    .optional(),
+  goalMonth: z
+    .preprocess((v) => (v === "" || v === null || v === undefined ? null : v), z.string().regex(/^\d{4}-\d{2}$/, "Mês da meta inválido").nullable())
+    .optional(),
 });
 
 /** Conferência contra o extrato do banco: você informa o saldo que existe. */

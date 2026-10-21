@@ -52,6 +52,19 @@ export function NewReserveForm() {
             <Label htmlFor="new-reserve-amount">Valor guardado</Label>
             <CurrencyInput id="new-reserve-amount" name="amount" />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-reserve-goal">Meta (opcional)</Label>
+              <CurrencyInput id="new-reserve-goal" name="goalAmount" />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-reserve-goal-month">Até (opcional)</Label>
+              <Input id="new-reserve-goal-month" name="goalMonth" type="month" />
+            </div>
+          </div>
+          <p className="-mt-1 text-xs text-muted-foreground">
+            Com meta, o card mostra o progresso e quanto guardar por mês para chegar lá no prazo.
+          </p>
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               Criar

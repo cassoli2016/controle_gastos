@@ -57,6 +57,7 @@ export default async function CategoriasPage() {
                     type: c.type,
                     color: c.color,
                     budgetCents: c.budgetAmount === null ? null : decimalToCents(String(c.budgetAmount)),
+                    isTransfer: c.isTransfer,
                   }}
                   monthCents={monthCents.get(c.id) ?? 0}
                   monthLabel={monthLabel}
