@@ -1,13 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
-import { cashBalance } from "@/lib/calc";
+import { cashBalance, realizedCashBalance } from "@/lib/calc";
 import type { EntryView } from "@/lib/calc";
 import { decimalToCents } from "@/lib/money";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { readInstallment } from "@/lib/fatura-match";
 import { reserveStatement, statementCheck, type StatementLine } from "@/lib/reserve-statement";
 import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
+import { observedPerDay, withVariableSpend, type CycleSpend } from "@/lib/trend";
 
 export type NegativeMonth = { month: string; balanceCents: number };
 
@@ -137,6 +139,84 @@ export async function getReserveOutlook(): Promise<ReserveOutlook> {
     reservas.reduce((a, r) => a + r.amountCents, 0),
     await monthlyViewsFromToday(today),
   );
+}
+
+export type ObservedSpend = { perDayCents: number; cycles: CycleSpend[] };
+
+/**
+ * Gasto variável OBSERVADO: o à vista (não parcelado) que passou no cartão nos
+ * três últimos ciclos fechados — consolidado já pago, ou competência anterior
+ * à corrente. Ciclo aberto fica de fora: a fatura ainda cresce.
+ * null enquanto não houver ciclo fechado nenhum.
+ */
+export async function getObservedVariableSpend(today: string = todayISOInSaoPaulo()): Promise<ObservedSpend | null> {
+  const cur = today.slice(0, 7);
+  const consolidados = await prisma.monthlyEntry.findMany({
+    where: { cardId: { not: null }, purchaseDate: null, OR: [{ paid: true }, { month: { lt: monthToDate(cur) } }] },
+    select: { month: true },
+  });
+  const closed = [...new Set(consolidados.map((c) => monthStringFromDate(c.month)))].sort().slice(-3);
+  if (closed.length === 0) return null;
+
+  const txs = await prisma.cardTransaction.findMany({
+    where: { month: { in: closed.map(monthToDate) } },
+    select: { month: true, description: true, bankDescription: true, amount: true, installmentSeq: true, installmentCount: true },
+  });
+  const vista = new Map<string, number>(closed.map((m) => [m, 0]));
+  for (const t of txs) {
+    const cents = decimalToCents(String(t.amount));
+    if (cents <= 0) continue; // estorno e pagamento não são gasto
+    const parcela = readInstallment({
+      description: t.bankDescription ?? t.description,
+      installmentSeq: t.installmentSeq,
+      installmentCount: t.installmentCount,
+    });
+    if (parcela) continue; // parcela já está provisionada nos meses futuros
+    const k = monthStringFromDate(t.month);
+    vista.set(k, (vista.get(k) ?? 0) + cents);
+  }
+  const cycles: CycleSpend[] = [...vista].map(([monthISO, vistaCents]) => ({ monthISO, vistaCents }));
+  const perDayCents = observedPerDay(cycles);
+  return perDayCents === null ? null : { perDayCents, cycles };
+}
+
+export type ReserveOutlooks = {
+  /** Com a reserva do dia a dia como configurada: o plano. */
+  plan: ReserveOutlook;
+  /** Com o gasto variável observado nos últimos ciclos; null sem ciclo fechado. */
+  trend: (ObservedSpend & { outlook: ReserveOutlook }) | null;
+  /** Total das caixinhas hoje — ponto de partida das duas curvas. */
+  startCents: number;
+};
+
+/** As duas curvas, plano e tendência, lendo o banco UMA vez. */
+export async function getReserveOutlooks(): Promise<ReserveOutlooks> {
+  const today = todayISOInSaoPaulo();
+  const [reservas, byMonth, observed] = await Promise.all([
+    getReserves(),
+    monthlyViewsFromToday(today),
+    getObservedVariableSpend(today),
+  ]);
+  const startCents = reservas.reduce((a, r) => a + r.amountCents, 0);
+  const plan = reserveOutlook(startCents, byMonth);
+  const trend = observed
+    ? { ...observed, outlook: reserveOutlook(startCents, withVariableSpend(byMonth, today.slice(0, 7), today, observed.perDayCents)) }
+    : null;
+  return { plan, trend, startCents };
+}
+
+/**
+ * Quanto do mês corrente ainda dá para guardar: o que entrou menos o que saiu,
+ * só do que já foi baixado, descontando o que já foi para as caixinhas. É o
+ * dinheiro parado na conta que a curva das reservas ainda não contou como
+ * guardado — ver `realizedCashBalance`.
+ */
+export async function getCurrentMonthLeftover(today: string = todayISOInSaoPaulo()): Promise<number> {
+  const rows = await prisma.monthlyEntry.findMany({
+    where: { month: monthToDate(today.slice(0, 7)) },
+    include: { item: { include: { category: true } }, category: true },
+  });
+  return realizedCashBalance(rows.map((r) => toEntryView(r as never)));
 }
 
 export type ReserveView = { id: string; name: string; amountCents: number };

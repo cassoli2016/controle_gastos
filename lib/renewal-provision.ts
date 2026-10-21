@@ -102,13 +102,16 @@ export async function consumeRenewalChargeWith(
   if (!entry || entry.paid) return false;
 
   const remaining = Math.max(0, decimalToCents(String(entry.plannedAmount)) - chargeCents);
+  // Valor pago = o que sobrou da provisão, não a cobrança (ela está na fatura).
+  // Mesma regra de consumeSubscriptionChargeWith: evita contar a parcela do
+  // seguro duas vezes na sobra realizada quando a fatura é paga.
   await prisma.monthlyEntry.update({
     where: { id: entry.id },
     data: {
       plannedAmount: centsToNumber(remaining),
       paid: true,
-      paidAmount: centsToNumber(chargeCents),
-      paidDate: chargeDateISO ? new Date(chargeDateISO + "T00:00:00Z") : new Date(),
+      paidAmount: centsToNumber(remaining),
+      paidDate: new Date((chargeDateISO ?? todayISOInSaoPaulo()) + "T00:00:00Z"),
     },
   });
   return true;

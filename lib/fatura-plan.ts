@@ -20,6 +20,12 @@ export type PlanState = {
   cents: number;
   /** Última parcela que o banco cobrou. */
   chargedThrough: number;
+  /**
+   * Parcelas que ESTA fatura cobrou deste plano. É o que separa planos gêmeos:
+   * o banco não cobra a mesma parcela duas vezes num ciclo, então duas linhas
+   * iguais com a mesma parcela são duas compras (dois carros, o mesmo serviço).
+   */
+  seqs: Set<number>;
 };
 
 /** Balde → planos daquele grupo. Ver `planBucket` e `findPlan`. */
@@ -42,30 +48,39 @@ function planBucket(description: string, count: number): string {
   return `${base}|${count}`;
 }
 
-/** O plano do balde cujo valor por parcela casa dentro da tolerância. */
+/** Os planos do balde cujo valor por parcela casa dentro da tolerância, do mais próximo ao mais distante. */
+export function findPlans(
+  index: PlanIndex,
+  row: { description: string; cents: number },
+  installment: { count: number },
+): PlanState[] {
+  const bucket = index.get(planBucket(row.description, installment.count));
+  if (!bucket) return [];
+  return bucket
+    .map((state) => ({ state, diff: Math.abs(state.cents - row.cents) }))
+    .filter((c) => c.diff <= CENTS_TOLERANCE)
+    .sort((a, b) => a.diff - b.diff)
+    .map((c) => c.state);
+}
+
+/** O plano do balde cujo valor por parcela casa dentro da tolerância (e passa em `accept`). */
 export function findPlan(
   index: PlanIndex,
   row: { description: string; cents: number },
   installment: { count: number },
+  accept: (state: PlanState) => boolean = () => true,
 ): PlanState | null {
-  const bucket = index.get(planBucket(row.description, installment.count));
-  if (!bucket) return null;
-  let best: PlanState | null = null;
-  let bestDiff = Number.POSITIVE_INFINITY;
-  for (const state of bucket) {
-    const diff = Math.abs(state.cents - row.cents);
-    if (diff <= CENTS_TOLERANCE && diff < bestDiff) {
-      best = state;
-      bestDiff = diff;
-    }
-  }
-  return best;
+  return findPlans(index, row, installment).find(accept) ?? null;
 }
 
 function upsertState(index: PlanIndex, state: PlanState): void {
   const bucketKey = planBucket(state.description, state.count);
   const bucket = index.get(bucketKey) ?? [];
-  index.set(bucketKey, [...bucket, state]);
+  // Gêmeo (mesma loja, mesmo nº de parcelas, mesmo valor) ganha sufixo na
+  // chave: `reconcileTail` indexa a cauda por chave, e dois planos com a mesma
+  // chave viravam um só — a cauda do segundo carro nunca era gerada.
+  const twins = bucket.filter((s) => s.cents === state.cents).length;
+  index.set(bucketKey, [...bucket, twins > 0 ? { ...state, key: `${state.key}#${twins + 1}` } : state]);
 }
 
 /**
@@ -77,18 +92,24 @@ export function faturaPlanStates(lines: FaturaLine[], orphans: AppRow[]): PlanIn
   const index: PlanIndex = new Map();
   for (const line of lines) {
     if (line.kind !== "purchase" || !line.installment) continue;
-    const existing = findPlan(index, line, line.installment);
+    const { seq, count } = line.installment;
+    // O plano que ainda não cobrou esta parcela nesta fatura. A quitação
+    // antecipada traz 3/10, 4/10… do MESMO plano (parcelas diferentes); duas
+    // linhas 1/6 iguais são planos gêmeos (a mesma parcela, duas compras).
+    const existing = findPlan(index, line, line.installment, (s) => !s.seqs.has(seq));
     if (existing) {
-      existing.chargedThrough = Math.max(existing.chargedThrough, line.installment.seq);
+      existing.chargedThrough = Math.max(existing.chargedThrough, seq);
+      existing.seqs.add(seq);
       continue;
     }
     const description = line.description.replace(/^Antecipada - /, "");
     upsertState(index, {
-      key: `${planBucket(description, line.installment.count)}|${line.cents}`,
+      key: `${planBucket(description, count)}|${line.cents}`,
       description,
-      count: line.installment.count,
+      count,
       cents: line.cents,
-      chargedThrough: line.installment.seq,
+      chargedThrough: seq,
+      seqs: new Set([seq]),
     });
   }
   for (const orphan of orphans) {
@@ -100,6 +121,7 @@ export function faturaPlanStates(lines: FaturaLine[], orphans: AppRow[]): PlanIn
       count: orphan.installment.count,
       cents: orphan.cents,
       chargedThrough: orphan.installment.seq - 1,
+      seqs: new Set(),
     });
   }
   return index;
@@ -176,12 +198,19 @@ export function reconcileTail(opts: {
     if (month <= faturaMonth) continue; // o mês da fatura é tratado pelo replace
     for (const row of rows) {
       if (!row.installment) continue; // à vista: preserva
-      const plan = findPlan(states, row, row.installment);
-      if (!plan) continue; // plano que a fatura não conhece: preserva
-      if (wanted.get(plan.key)?.get(month) === row.installment.seq) {
-        const set = covered.get(plan.key) ?? new Set<string>();
+      const candidates = findPlans(states, row, row.installment);
+      if (candidates.length === 0) continue; // plano que a fatura não conhece: preserva
+      const seq = row.installment.seq;
+      // Cada linha do app cobre UM plano. Com gêmeos, a primeira linha cobre o
+      // primeiro e a segunda cobre o segundo; uma terceira não tem plano que a
+      // queira neste mês e sai — é a mesma régua de "parcela fora da cauda".
+      const free = candidates.find(
+        (p) => wanted.get(p.key)?.get(month) === seq && !covered.get(p.key)?.has(month),
+      );
+      if (free) {
+        const set = covered.get(free.key) ?? new Set<string>();
         set.add(month);
-        covered.set(plan.key, set);
+        covered.set(free.key, set);
         continue; // já está certo
       }
       actions.push({ kind: "delete", id: row.id });

@@ -7,6 +7,7 @@ import { formatCents, decimalToCents } from "@/lib/money";
 import { toAppRow, canonicalFaturaDescription } from "@/lib/fatura-match";
 import { groupInstallmentPlans, duplicateSeqs, planName, type PlanLine } from "@/lib/installment-plan";
 import { descriptionsMatch } from "@/lib/description-match";
+import { chargeFitsSubscription } from "@/lib/card-subscription";
 import { realizedBalance, plannedIncome, plannedExpense, type EntryView } from "@/lib/calc";
 import { toEntryView } from "@/lib/entries";
 
@@ -147,6 +148,20 @@ async function main() {
           }
         }
         for (const { seq, months } of duplicateSeqs(plan)) {
+          // Mesma parcela, mesmo mês e mesma data de compra: os dados não
+          // distinguem duplicata de compras gêmeas (dois carros, o mesmo
+          // serviço, o mesmo dia). Isso é revisão humana, não violação. A
+          // mesma parcela em MESES diferentes continua sendo cauda duplicada.
+          const linhas = plan.filter((l) => l.seq === seq);
+          const gemeas =
+            new Set(months).size === 1 &&
+            linhas.every((l) => l.purchaseDateISO !== null && l.purchaseDateISO === linhas[0].purchaseDateISO);
+          if (gemeas) {
+            warn(
+              `${c.name}: "${plan[0].desc}" parcela ${seq} ${months.length}x em ${months[0]} na mesma data — compras gêmeas ou duplicata, confira`,
+            );
+            continue;
+          }
           dupSeq++;
           fail(`${c.name}: "${plan[0].desc}" parcela ${seq} cobrada ${months.length}x (${months.join(", ")})`);
         }
@@ -214,7 +229,13 @@ async function main() {
           where: { cardId: s.cardId, month: m, amount: { gt: 0 } },
           select: { description: true, amount: true },
         });
-        const hit = charges.find((t) => descriptionsMatch(s.bankDescription ?? s.description, t.description));
+        // Nome E tamanho: "Apple.Com/Bill" de R$ 324,90 não é a cobrança do
+        // iCloud de R$ 19,90, mesmo com o texto igual.
+        const hit = charges.find(
+          (t) =>
+            descriptionsMatch(s.bankDescription ?? s.description, t.description) &&
+            chargeFitsSubscription(decimalToCents(String(t.amount)), decimalToCents(String(s.amount))),
+        );
         checked++;
         if (hit && !e.paid) {
           doubles++;

@@ -114,9 +114,11 @@ export function digestMessage(digest: DailyDigest, todayISO: string): string {
     bloco("🔴 Atrasadas", digest.overdue, (i) => `${i.line} — ${formatCents(i.cents)} (venceu dia ${diaDe(i.dueISO)})`),
     bloco("📌 Vence hoje", digest.today, (i) => `${i.line} — ${formatCents(i.cents)}`),
     bloco("🗓 Próximos 7 dias", digest.week, (i) => `${dataCurta(i.dueISO)} ${i.line} — ${formatCents(i.cents)}`),
+    // "saldo a realizar", não "previsto": é o que ainda entra menos o que ainda
+    // sai (a métrica do rodapé do Panorama), não o resultado do mês inteiro.
     `💰 No mês: falta pagar ${formatCents(digest.toPayCents)} · falta receber ${formatCents(
       digest.toReceiveCents,
-    )} · saldo previsto ${formatCents(digest.balanceCents)}`,
+    )} · saldo a realizar ${formatCents(digest.balanceCents)}`,
   ];
   return partes.filter(Boolean).join("\n\n");
 }

@@ -20,12 +20,15 @@ export function DailyBudgetCard({
   daysInMonth,
   remainingCents,
   monthTotalCents,
+  observed = null,
 }: {
   perDayCents: number;
   daysRemaining: number;
   daysInMonth: number;
   remainingCents: number;
   monthTotalCents: number;
+  /** Gasto à vista real no cartão nos últimos ciclos fechados, por dia; null sem ciclo. */
+  observed?: { perDayCents: number; label: string } | null;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(setDailyBudget, {});
   useActionToast(state, { success: "Reserva por dia atualizada." });
@@ -58,6 +61,20 @@ export function DailyBudgetCard({
           </div>
         </form>
 
+        {/* O número ao lado do configurado: é a diferença entre o plano e o que
+            vem acontecendo. Sem ele a projeção parecia confirmar um gasto que a
+            fatura desmentia todo mês. */}
+        {observed && (
+          <p
+            className={
+              observed.perDayCents > perDayCents
+                ? "text-xs font-medium text-amber-700 dark:text-amber-400"
+                : "text-xs font-medium text-emerald-700 dark:text-emerald-400"
+            }
+          >
+            Gasto à vista real no cartão: {formatCents(observed.perDayCents)}/dia (média de {observed.label}).
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           Entra como despesa do mês e cai a cada dia que passa. Não soma no &quot;Total guardado&quot; — aquilo é
           dinheiro parado em caixinhas.

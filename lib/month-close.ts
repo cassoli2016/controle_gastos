@@ -28,9 +28,11 @@ export type MonthCloseState = {
 
 export function monthCloseState(rows: EntryView[], derived: EntryView[] = []): MonthCloseState {
   const openCount = rows.filter((r) => !r.paid).length;
-  // As linhas derivadas (reserva do dia a dia) entram no resíduo, mas nunca
-  // no contador de aberto: elas não se pagam, e exigir baixa nelas travaria o
-  // fechamento de qualquer mês.
+  // As linhas derivadas (reserva do dia a dia) nunca entram no contador de
+  // aberto: elas não se pagam, e exigir baixa nelas travaria o fechamento de
+  // qualquer mês. No resíduo elas também não pesam — `realizedCashBalance` soma
+  // só o que foi baixado, e a reserva nunca é. É o certo: o que sobrou da
+  // reserva não saiu da conta; o gasto do dia a dia aparece na fatura seguinte.
   const residualCents = realizedCashBalance([...rows, ...derived]);
   const canClose = rows.length > 0 && openCount === 0 && residualCents !== 0;
   return {

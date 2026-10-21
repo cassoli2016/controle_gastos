@@ -1,4 +1,5 @@
 import { normalizeText } from "@/lib/text";
+import { normalizeBRLNumber } from "@/lib/money";
 
 export type CsvRow = {
   description: string;
@@ -73,8 +74,7 @@ function splitCsvLine(line: string, delimiter: string): string[] {
 function parseAmountCell(cell: string): number | null {
   const cleaned = cell.replace(/R\$/g, "").replace(/\s/g, "");
   if (!cleaned) return null;
-  const normalized = cleaned.includes(",") ? cleaned.replace(/\./g, "").replace(",", ".") : cleaned;
-  const n = Number(normalized);
+  const n = Number(normalizeBRLNumber(cleaned));
   return Number.isFinite(n) ? n : null;
 }
 

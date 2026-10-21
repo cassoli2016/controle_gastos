@@ -35,6 +35,11 @@ export type DisplayRow = EntryView & {
   overdue: boolean;
   /** Conta paga por caixinha: desmarcar devolve o dinheiro, então confirma antes. */
   paidFromReserve: { boxName: string; amountCents: number } | null;
+  /**
+   * Assinatura cuja cobrança já chegou na fatura do cartão neste mês: a linha
+   * foi consumida (previsto e pago em zero) e o custo está no consolidado.
+   */
+  inCardInvoice: boolean;
 };
 
 /** Categorias de movimentos de caixinha: iniciam recolhidas (já concluídos). */
@@ -103,7 +108,7 @@ function EntryRow({
   const isMultiInstallment = (row.installmentCount ?? 0) > 1;
   // Consolidado do cartão: o nome da linha JÁ é o cartão — badge repetido é ruído.
   const showCardBadge = row.cardName !== null && row.cardName !== row.itemName;
-  const badges = (row.paid || showCardBadge || isMultiInstallment || row.renewsThisMonth) && (
+  const badges = (row.paid || showCardBadge || isMultiInstallment || row.renewsThisMonth || row.inCardInvoice) && (
     <span className="flex items-center gap-1 flex-wrap">
       {/* Marcador AFIRMATIVO de conta quitada. Antes o estado só se lia pela
           ausência do botão de pagar e pelo desbotamento da linha — informação
@@ -115,6 +120,13 @@ function EntryRow({
         </Badge>
       )}
       {showCardBadge && <Badge variant="outline">{row.cardName}</Badge>}
+      {/* Sem isto a linha mostrava "R$ 0,00 · Pago" e parecia erro: o valor
+          está na fatura do cartão, que é outra linha do mesmo mês. */}
+      {row.inCardInvoice && (
+        <Badge variant="outline" className="text-muted-foreground">
+          Na fatura
+        </Badge>
+      )}
       {isMultiInstallment && (
         <Badge variant="secondary">
           {row.installmentSeq}/{row.installmentCount}

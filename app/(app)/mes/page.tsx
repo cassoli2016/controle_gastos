@@ -39,10 +39,15 @@ export default async function MesPage({
   const month = sanitizeMonth(qMonth) ?? (await resolveDefaultMonth());
   const monthDate = monthToDate(month);
 
-  const [rows, activeItems, activeCards, categories, budget, reserves, recentDeposits] = await Promise.all([
+  const [rows, activeItems, activeCards, categories, budget, reserves, recentDeposits, chargedSubscriptions] = await Promise.all([
     prisma.monthlyEntry.findMany({
       where: { month: monthDate },
-      include: { item: { include: { category: true } }, category: true, card: true, reserveBox: true },
+      include: {
+        item: { include: { category: true, subscription: { select: { id: true } } } },
+        category: true,
+        card: true,
+        reserveBox: true,
+      },
       orderBy: { item: { name: "asc" } },
     }),
     prisma.item.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
@@ -58,7 +63,15 @@ export default async function MesPage({
       select: { description: true },
       take: 20,
     }),
+    // Assinaturas cuja cobrança JÁ chegou na fatura deste mês: a linha
+    // provisionada delas foi consumida (zerada) e o custo vive no consolidado
+    // do cartão — a etiqueta "Na fatura" explica o zero.
+    prisma.cardTransaction.findMany({
+      where: { month: monthDate, subscriptionId: { not: null } },
+      select: { subscriptionId: true },
+    }),
   ]);
+  const chargedSubscriptionIds = new Set(chargedSubscriptions.map((t) => t.subscriptionId));
   const reserveOptions = reserves.map((r) => ({ id: r.id, name: r.name }));
   const depositDescriptions = recentDeposits.map((d) => d.description ?? "");
 
@@ -95,6 +108,7 @@ export default async function MesPage({
       readOnlyHint: null,
       overdue: false,
       paidFromReserve: withdrawalByEntry.get(r.id) ?? null,
+      inCardInvoice: r.item?.subscription !== null && r.item?.subscription !== undefined && chargedSubscriptionIds.has(r.item.subscription.id),
     };
     return { ...view, overdue: isOverdue(view, month, today) };
   });
@@ -126,6 +140,7 @@ export default async function MesPage({
           readOnlyHint: budgetLine.hint,
           overdue: false,
           paidFromReserve: null,
+          inCardInvoice: false,
         },
       ]
     : realViews;

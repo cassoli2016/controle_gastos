@@ -17,6 +17,7 @@ const sub = (description: string, bankDescription: string | null): SubscriptionC
   itemId: "i",
   description,
   bankDescription,
+  amountCents: 5390,
 });
 
 describe("casamento de assinatura com a cobrança", () => {

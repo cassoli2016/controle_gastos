@@ -128,6 +128,10 @@ describe("digestMessage", () => {
     const texto = digestMessage(buildDailyDigest([], HOJE, 0), HOJE);
     expect(texto).toContain("Bom dia");
     expect(texto).toContain("No mês");
+    // É o que ainda entra menos o que ainda sai — a métrica do Panorama, não o
+    // saldo previsto do mês inteiro.
+    expect(texto).toContain("saldo a realizar");
+    expect(texto).not.toContain("saldo previsto");
     expect(texto).not.toContain("Atrasadas");
     expect(texto).not.toContain("Vence hoje");
   });

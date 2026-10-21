@@ -186,6 +186,50 @@ describe("reconcileTail", () => {
   });
 });
 
+describe("planos gêmeos — dois carros, o mesmo serviço, o mesmo dia", () => {
+  // A fatura de nov/2026 trouxe "Byd Sao Jose - Parcela 1/6" duas vezes com
+  // R$ 130,60 e duas vezes com R$ 166,70. Não é duplicata: são dois veículos.
+  // Antes, as duas linhas iguais viravam UM plano e a cauda do segundo carro
+  // nunca era gerada — R$ 297,30 a menos em cada um dos cinco meses seguintes.
+  const twins = [inv("Byd Sao Jose - Parcela 1/6", 13060, 1, 6), inv("Byd Sao Jose - Parcela 1/6", 13060, 1, 6)];
+
+  it("duas linhas iguais com a MESMA parcela são dois planos", () => {
+    const plans = allPlans(faturaPlanStates(twins, []));
+    expect(plans).toHaveLength(2);
+    expect(new Set(plans.map((p) => p.key)).size).toBe(2);
+    expect(plans.map((p) => p.chargedThrough)).toEqual([1, 1]);
+  });
+
+  it("quitação antecipada continua sendo UM plano (parcelas diferentes)", () => {
+    const lines = [inv("Nescafe - Parcela 2/10", 3380, 2, 10), inv("Antecipada - Nescafe - Parcela 3/10", 3380, 3, 10)];
+    expect(allPlans(faturaPlanStates(lines, []))).toHaveLength(1);
+  });
+
+  it("a cauda sai em dobro: duas parcelas por mês", () => {
+    const actions = reconcileTail({ states: faturaPlanStates(twins, []), faturaMonth: "2026-11", existingByMonth: new Map(), bank: "nubank" });
+    const inserts = actions.flatMap((a) => (a.kind === "insert" ? [a] : []));
+    expect(inserts).toHaveLength(10); // 2 planos × parcelas 2..6
+    expect(inserts.filter((a) => a.month === "2026-12").map((a) => a.seq)).toEqual([2, 2]);
+  });
+
+  it("as duas linhas já lançadas cobrem os dois planos — nada a inserir nem apagar", () => {
+    // O bot gravou cada carro com o arredondamento próprio (130,58 e 130,60).
+    const existing = new Map([
+      ["2026-12", [row("a", "Byd Sao Jose", 13058, 2, 6), row("b", "Byd Sao Jose", 13060, 2, 6)]],
+    ]);
+    const actions = reconcileTail({ states: faturaPlanStates(twins, []), faturaMonth: "2026-11", existingByMonth: existing, bank: "nubank" });
+    expect(actions.filter((a) => a.kind === "delete" || (a.kind === "insert" && a.month === "2026-12"))).toEqual([]);
+  });
+
+  it("uma terceira linha igual no mês não tem plano que a queira: sai", () => {
+    const existing = new Map([
+      ["2026-12", [row("a", "Byd Sao Jose", 13060, 2, 6), row("b", "Byd Sao Jose", 13060, 2, 6), row("c", "Byd Sao Jose", 13060, 2, 6)]],
+    ]);
+    const actions = reconcileTail({ states: faturaPlanStates(twins, []), faturaMonth: "2026-11", existingByMonth: existing, bank: "nubank" });
+    expect(actions.filter((a) => a.kind === "delete")).toEqual([{ kind: "delete", id: "c" }]);
+  });
+});
+
 describe("faturaPlanStates — fatura real", () => {
   const text = readFileSync("tests/fixtures/nubank-fatura.txt", "utf8");
   const f = parseNubankFatura(text);

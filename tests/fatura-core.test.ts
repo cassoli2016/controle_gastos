@@ -64,6 +64,16 @@ describe("buildInstallmentSchedule", () => {
     expect(schedule.get("2026-09")![0].description).toBe("AMAZON BR SAO PAULO(10/12)");
   });
 
+  it("planos gêmeos (mesma parcela, duas linhas iguais) projetam duas caudas", () => {
+    const lines = [
+      line({ description: "Byd Sao Jose - Parcela 1/6", cents: 13060, installment: { seq: 1, count: 6 } }),
+      line({ description: "Byd Sao Jose - Parcela 1/6", cents: 13060, installment: { seq: 1, count: 6 } }),
+    ];
+    const schedule = buildInstallmentSchedule(lines, "2026-11", "nubank");
+    expect(schedule.get("2026-12")!.map((r) => r.cents)).toEqual([13060, 13060]);
+    expect(schedule.get("2027-04")).toHaveLength(2);
+  });
+
   it("estorno e pagamento não projetam nada (schedule)", () => {
     const lines = [
       line({ description: "Estorno - Parcela 1/5", cents: -5000, kind: "refund", installment: { seq: 1, count: 5 } }),

@@ -4,7 +4,8 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { calcPortfolio, formatPct } from "@/lib/investments";
 import { TrendingUp, CalendarX2, PiggyBank, BellRing, CreditCard as CreditCardIcon, Target, AlarmClock } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { getNegativeMonths, getReserves, getDailyBudget, getReserveOutlook } from "@/lib/planning";
+import { getNegativeMonths, getReserves, getDailyBudget, getReserveOutlooks, getCurrentMonthLeftover } from "@/lib/planning";
+import { curveSummary, cyclesLabel, trendSentence } from "@/lib/trend";
 import { shortMonthLabel } from "@/lib/matrix";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
@@ -63,16 +64,28 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Planejamento: meses futuros no vermelho × total guardado nas caixinhas.
   // categories não depende de budget (só pieData depende) — entra no mesmo
   // Promise.all para não rodar em série à toa.
-  const [negativeMonths, outlook, reserves, investAssets, renewalItems, budget, categories, activeCards] = await Promise.all([
-    getNegativeMonths(),
-    getReserveOutlook(),
-    getReserves(),
-    prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
-    prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
-    getDailyBudget(),
-    prisma.category.findMany(),
-    prisma.creditCard.findMany({ where: { active: true }, select: { id: true, name: true, monthlyEstimate: true } }),
-  ]);
+  const [negativeMonths, outlooks, reserves, investAssets, renewalItems, budget, categories, activeCards, currentLeftoverCents] =
+    await Promise.all([
+      getNegativeMonths(),
+      getReserveOutlooks(),
+      getReserves(),
+      prisma.investmentAsset.findMany({ where: { active: true, quantity: { gt: 0 } } }),
+      prisma.item.findMany({ where: { active: true, renewalMonth: { not: null } }, select: { name: true, renewalMonth: true } }),
+      getDailyBudget(),
+      prisma.category.findMany(),
+      prisma.creditCard.findMany({ where: { active: true }, select: { id: true, name: true, monthlyEstimate: true } }),
+      getCurrentMonthLeftover(),
+    ]);
+  const outlook = outlooks.plan;
+  // Tendência em 12 meses: a mesma curva com o gasto variável observado nos
+  // últimos ciclos de cartão. A frase vive ao lado da do plano, nunca no lugar.
+  const trend = outlooks.trend
+    ? {
+        perDayCents: outlooks.trend.perDayCents,
+        label: cyclesLabel(outlooks.trend.cycles),
+        sentence: trendSentence(curveSummary(outlooks.trend.outlook.curve, 12), outlooks.startCents),
+      }
+    : null;
   const renewals = upcomingRenewals(
     renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
     Number(todayISOInSaoPaulo().slice(5, 7)),
@@ -159,6 +172,23 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             : base,
     };
   });
+  // Os mesmos meses com o gasto variável OBSERVADO no lugar da reserva do dia
+  // a dia, do mês seguinte em diante (lib/trend.ts). O mês corrente fica igual.
+  const currentMonth = today.slice(0, 7);
+  const monthlyViewsTrend =
+    trend === null
+      ? null
+      : chartMonths.map((m) => {
+          const base = viewsByMonth.get(m) ?? [];
+          const perDay = m > currentMonth ? trend.perDayCents : budget?.perDayCents ?? null;
+          return {
+            month: shortCompetencia(monthToDate(m)),
+            views:
+              base.length === 0 || perDay === null
+                ? base
+                : [...base, dailyBudgetEntryView(dailyBudgetLine(m, today, perDay))],
+          };
+        });
   const balanceData: MonthlyBalancePoint[] = monthlyViews.map(({ month: m, views: v }) => ({
     month: m,
     incomeCents: plannedIncome(v),
@@ -175,6 +205,13 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // contaria um depósito duas vezes. Estimativa — investimentos flutuam.
   const patrimonyData = patrimonyProjection(reservesTotalCents + portfolio.valueCents, monthlyViews);
   const patrimonyGrowth = seriesGrowth(patrimonyData.map((p) => p.totalCents));
+  const patrimonyTrend = monthlyViewsTrend
+    ? patrimonyProjection(reservesTotalCents + portfolio.valueCents, monthlyViewsTrend)
+    : null;
+  const patrimonyPoints = patrimonyData.map((p, i) => ({
+    ...p,
+    ...(patrimonyTrend ? { trendCents: patrimonyTrend[i].totalCents } : {}),
+  }));
 
   // Compras de cartão já roteadas para as faturas dos 3 meses seguintes:
   // reaproveita rangeRows (12 meses já buscados para o gráfico). Visibilidade
@@ -373,28 +410,61 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   ? "Nenhuma caixinha ainda"
                   : `Guardado em ${reserves.length} ${reserves.length === 1 ? "caixinha" : "caixinhas"}`}
               </p>
+              {/* O dinheiro que já sobrou no mês e ainda está na conta: a curva
+                  abaixo já o conta (é o saldo do mês corrente), mas quem olha só
+                  o total das caixinhas não o vê. */}
+              {currentLeftoverCents > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  + {formatCents(currentLeftoverCents)} na conta, sobra de{" "}
+                  {formatCompetencia(monthToDate(currentMonth))} ainda não guardada
+                </p>
+              )}
             </div>
             {/* O que importa não é somar os buracos, é saber até onde a curva
                 desce. A sobra de um mês cobre os SEGUINTES, então um mês de
                 superávit antes de três magros muda tudo — a régua antiga
                 anunciava um descoberto que nunca aconteceria. */}
-            <p className="text-sm">
-              {outlook.lowMonth === null ? (
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  Daqui para a frente as reservas só crescem — nenhum mês derruba o saldo de hoje.
+            <div className="space-y-2 text-sm">
+              <p>
+                <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Plano{budget ? ` · ${formatCents(budget.perDayCents)}/dia` : ""}
                 </span>
-              ) : outlook.lowCents >= 0 ? (
-                <span className="text-emerald-600 dark:text-emerald-400">
-                  No mês mais apertado ({shortMonthLabel(outlook.lowMonth)}) ainda sobram{" "}
-                  {formatCents(outlook.lowCents)}.
-                </span>
-              ) : (
-                <span className="text-amber-600 dark:text-amber-400">
-                  Não chegam até o fim: em {shortMonthLabel(outlook.lowMonth)} faltam{" "}
-                  {formatCents(-outlook.lowCents)}.
-                </span>
+                {outlook.lowMonth === null ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    Daqui para a frente as reservas só crescem — nenhum mês derruba o saldo de hoje.
+                  </span>
+                ) : outlook.lowCents >= 0 ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">
+                    No mês mais apertado ({shortMonthLabel(outlook.lowMonth)}) ainda sobram{" "}
+                    {formatCents(outlook.lowCents)}.
+                  </span>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    Não chegam até o fim: em {shortMonthLabel(outlook.lowMonth)} faltam{" "}
+                    {formatCents(-outlook.lowCents)}.
+                  </span>
+                )}
+              </p>
+              {/* A segunda curva, com o gasto à vista medido nas últimas faturas
+                  fechadas. Ela não substitui o plano: diz o que acontece se o
+                  ritmo atual continuar, e é isso que dá o norte. */}
+              {trend && (
+                <p>
+                  <span className="block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    Tendência · {formatCents(trend.perDayCents)}/dia (média de {trend.label})
+                  </span>
+                  <span
+                    className={
+                      trend.sentence.includes("chegam")
+                        ? "text-emerald-600 dark:text-emerald-400"
+                        : "text-amber-600 dark:text-amber-400"
+                    }
+                  >
+                    {trend.sentence}
+                  </span>
+                </p>
               )}
-            </p>
+            </div>
             <Button asChild variant="outline" size="sm">
               <Link href="/reservas">Gerenciar caixinhas</Link>
             </Button>
@@ -547,7 +617,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <PatrimonyChart data={patrimonyData} />
+          <PatrimonyChart data={patrimonyPoints} />
         </CardContent>
       </Card>
 

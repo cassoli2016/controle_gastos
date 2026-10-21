@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { itemSchema } from "@/lib/validators";
 import { monthStringFromDate, monthToDate } from "@/lib/dates";
 import { anniversariesBetween, adjustedCents } from "@/lib/adjustment";
-import { nthBusinessDay } from "@/lib/fatura";
+import { nthBusinessDay, todayISOInSaoPaulo } from "@/lib/fatura";
 import { ensureRenewalProvision } from "@/lib/renewal-provision";
 import { findActiveItemByName } from "@/lib/recurrence";
 import { decimalToCents, centsToNumber } from "@/lib/money";
@@ -66,7 +66,7 @@ export const updateItem = guardAction(async function updateItem(_prevState: Acti
 
   // Regra de data mudou? Redata os lançamentos FUTUROS não pagos do item
   // (5º dia útil calcula por mês; regra removida limpa a data).
-  const currentMonth = monthToDate(monthStringFromDate(new Date()));
+  const currentMonth = monthToDate(todayISOInSaoPaulo().slice(0, 7));
   let futureEntries = await prisma.monthlyEntry.findMany({
     where: { itemId: id, paid: false, month: { gte: currentMonth } },
   });
@@ -155,7 +155,7 @@ export const saveAdjustment = guardAction(async function saveAdjustment(_prevSta
 
   let count = 0;
   if (apply === "now") {
-    const current = monthStringFromDate(new Date());
+    const current = todayISOInSaoPaulo().slice(0, 7);
     const rule = { percent, amountCents: amount !== null ? Math.round(amount * 100) : null };
     const entries = await prisma.monthlyEntry.findMany({
       where: { itemId: id, paid: false, month: { gt: monthToDate(current) } },

@@ -62,6 +62,11 @@ describe("parseCardCsv", () => {
     ]);
   });
 
+  it("formato genérico com milhar sem centavos (1.299 = mil duzentos e noventa e nove)", () => {
+    const result = parseCardCsv("Loja;1.299\n");
+    expect(result.rows).toEqual([{ description: "Loja", amountReais: 1299 }]);
+  });
+
   it("formato genérico sem cabeçalho", () => {
     const csv = "Mercado;312,75\nUber;23,40\n";
     const result = parseCardCsv(csv);
