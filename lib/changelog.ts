@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.38.0",
+    date: "2026-10-20",
+    title: "Guardar a sobra quando o dinheiro já está na caixinha",
+    items: [
+      "O diálogo \"Guardar a sobra\" da tela do Mês e o depósito da tela de Reservas ganharam a opção \"O dinheiro já está na caixinha\". Marque quando você já fez a transferência no banco e já atualizou o saldo: o depósito entra no mês e no extrato da caixinha, e o saldo dela continua o mesmo. É a mesma opção que o \"Fechar o mês\" já tinha.",
+      "Sem isso, quem mantém o saldo da caixinha pelo app do banco via o Dashboard insistir que a sobra do mês \"ainda está na conta\", e somar de novo ao registrar.",
+    ],
+  },
+  {
     version: "1.37.0",
     date: "2026-10-20",
     title: "Saldo livre: o que sobra das caixinhas depois dos meses no vermelho",

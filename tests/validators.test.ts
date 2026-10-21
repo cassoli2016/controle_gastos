@@ -9,6 +9,7 @@ import {
   purchaseSchema,
   dailyBudgetSchema,
   incomeSchema,
+  depositSchema,
 } from "@/lib/validators";
 
 describe("validators", () => {
@@ -202,5 +203,17 @@ describe("dailyBudgetSchema", () => {
     };
     expect(incomeSchema.safeParse({ ...campos, recurrenceMonths: "1" }).success).toBe(false);
     expect(incomeSchema.safeParse({ ...campos, recurrenceMonths: "61" }).success).toBe(false);
+  });
+});
+
+describe("depositSchema — dinheiro já na caixinha", () => {
+  const base = { id: "box", amount: "17698.70", date: "2026-10-20" };
+  it("sem o campo, o depósito soma no saldo (comportamento de sempre)", () => {
+    const r = depositSchema.safeParse(base);
+    expect(r.success && r.data.alreadyMoved).toBeFalsy();
+  });
+  it('checkbox marcado ("1") vira true: registra sem somar', () => {
+    const r = depositSchema.safeParse({ ...base, alreadyMoved: "1" });
+    expect(r.success && r.data.alreadyMoved).toBe(true);
   });
 });

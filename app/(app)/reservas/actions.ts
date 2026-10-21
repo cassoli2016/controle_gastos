@@ -115,9 +115,10 @@ export const depositToReserve = guardAction(async function depositToReserve(_pre
     id: formData.get("id"),
     amount: formData.get("amount"),
     date: formData.get("date"),
+    alreadyMoved: formData.get("alreadyMoved") ?? undefined,
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { id, amount, date } = parsed.data;
+  const { id, amount, date, alreadyMoved } = parsed.data;
 
   const categoryId = await resolveCategoryId(RESERVE_CATEGORY);
   const r = await depositToReserveBox({
@@ -125,6 +126,7 @@ export const depositToReserve = guardAction(async function depositToReserve(_pre
     amountCents: Math.round(amount * 100),
     dateISO: date,
     categoryId,
+    alreadyMoved,
   });
   if ("error" in r) return { error: r.error };
   revalidateFinance();
