@@ -3,9 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { getDailyBudget } from "@/lib/planning";
+import { getDailyBudget, getNegativeMonths, getReserves } from "@/lib/planning";
+import { sumCents } from "@/lib/money";
 import { dailyBudgetLine } from "@/lib/daily-budget";
-import { buildDailyDigest, digestMessage, type DigestInput } from "@/lib/daily-digest";
+import { buildDailyDigest, digestMessage, freeReserveLine, type DigestInput } from "@/lib/daily-digest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -61,7 +62,12 @@ export async function GET(req: Request) {
   const budget = await getDailyBudget();
   const reserveCents = budget ? dailyBudgetLine(currentMonth, todayISO, budget.perDayCents).cents : 0;
 
-  const text = digestMessage(buildDailyDigest(entries, todayISO, reserveCents), todayISO);
+  // O norte do futuro, no mesmo resumo: saldo livre e meses no vermelho.
+  const [negatives, reserves] = await Promise.all([getNegativeMonths(), getReserves()]);
+  const text = [
+    digestMessage(buildDailyDigest(entries, todayISO, reserveCents), todayISO),
+    freeReserveLine(sumCents(reserves.map((r) => r.amountCents)), negatives),
+  ].join("\n\n");
   try {
     const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",

@@ -16,7 +16,7 @@ export function Sidebar({ appName }: { appName: string }) {
   const path = usePathname();
   return (
     // Menu FIXO: gruda logo abaixo do topbar (h-14) e não rola com o conteúdo.
-    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r bg-sidebar md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto">
+    <aside className="hidden md:flex w-60 shrink-0 flex-col border-r bg-sidebar md:sticky md:top-14 md:h-[calc(100dvh-3.5rem)] md:overflow-y-auto print:hidden">
       <nav className="flex flex-col gap-5 p-3 pt-4">
         {NAV_GROUPS.map((group) => (
           <div key={group}>
