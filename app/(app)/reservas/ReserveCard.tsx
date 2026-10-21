@@ -85,17 +85,21 @@ export function ReserveCard({
 
   return (
     <Card>
-      <CardContent className="flex items-center gap-3 p-4">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-          <PiggyBank className="size-5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{reserve.name}</div>
-          <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
-            {formatCents(reserve.amountCents)}
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+            <PiggyBank className="size-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium leading-snug break-words">{reserve.name}</div>
+            <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+              {formatCents(reserve.amountCents)}
+            </div>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Ações numa linha própria: ao lado do nome, cinco botões deixavam
+            "Turbo Ultravioleta" em "Turbo Ultr…". */}
+        <div className="flex items-center justify-end gap-1 border-t pt-2">
           <ReserveStatementDialog reserve={reserve} lines={statement.lines} check={statement.check} />
 
           <Dialog open={depositOpen} onOpenChange={setDepositOpen}>

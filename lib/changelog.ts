@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.38.1",
+    date: "2026-10-20",
+    title: "Polimento visual: alinhamentos, etiquetas e destaques",
+    items: [
+      "Na lista do Mês, a linha paga cabe numa linha só: valor pago, data e \"Desmarcar\" lado a lado, sem dobrar a altura.",
+      "Os cards de resumo alinham a barra de progresso na base, mesmo quando o texto de um deles quebra em duas linhas. No celular, o terceiro card ocupa a linha inteira em vez de deixar um buraco ao lado.",
+      "A etiqueta \"Receita\" ficou verde, a mesma cor de entrada dos cards; \"Despesa\" segue rosa. Azul fica reservado para botões.",
+      "Em Itens e Cartões, \"Ativo\" virou uma etiqueta discreta em verde e \"Arquivar\" deixou de ser vermelho: arquivar é reversível, vermelho é para o que não volta.",
+      "Em Cartões, a fatura do mês e a etiqueta \"Paga\" ficam na mesma linha, sem um card dentro do card.",
+      "Em Investimentos, o card de resultado mostra o percentual embaixo em vez de cortá-lo; os botões \"Receber\" ficaram discretos.",
+      "Em Reservas, os três cards do topo ganharam ícone e as caixinhas mostram o nome inteiro, com os botões numa linha própria.",
+    ],
+  },
+  {
     version: "1.38.0",
     date: "2026-10-20",
     title: "Guardar a sobra quando o dinheiro já está na caixinha",

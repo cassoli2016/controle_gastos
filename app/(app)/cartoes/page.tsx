@@ -3,7 +3,6 @@ import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableBody, TableRow, TableHead } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { MonthNav } from "@/components/MonthNav";
-import { StatCard } from "@/components/StatCard";
 import { monthToDate, monthStringFromDate, sanitizeMonth } from "@/lib/dates";
 import { resolveDefaultMonth } from "@/lib/default-month";
 import { decimalToCents, sumCents, formatCents } from "@/lib/money";
@@ -161,11 +160,27 @@ export default async function CartoesPage({
                 />
               </CardHeader>
               <CardContent className="space-y-3 pt-4">
-                <div className="flex items-center gap-2">
-                  <StatCard label="Fatura do mês" value={formatCents(totalCents)} tone="expense" />
-                  {hasEntry && (
-                    <Badge variant={paid ? "default" : "outline"}>{paid ? "Paga" : "Em aberto"}</Badge>
-                  )}
+                {/* Valor e situação na mesma linha. Antes era um card dentro do
+                    card, com a etiqueta "Paga" solta no espaço vazio ao lado. */}
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">
+                      Fatura do mês
+                    </div>
+                    <div className="truncate text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
+                      {formatCents(totalCents)}
+                    </div>
+                  </div>
+                  {hasEntry &&
+                    (paid ? (
+                      <Badge variant="outline" className="mb-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400">
+                        Paga
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="mb-1 text-muted-foreground">
+                        Em aberto
+                      </Badge>
+                    ))}
                 </div>
                 {limitCents !== null && limitCents > 0 && (
                   <div className="space-y-1">

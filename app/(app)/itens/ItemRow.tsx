@@ -108,8 +108,17 @@ export function ItemRow({
     </Badge>
   );
 
-  const statusBadge = (
-    <Badge variant={item.active ? "default" : "outline"}>{item.active ? "Ativo" : "Arquivado"}</Badge>
+  // Na aba "Ativos" todas as linhas são ativas: 38 etiquetas azuis preenchidas
+  // não diziam nada e brigavam com os botões. Verde discreto para ativo (a
+  // mesma língua do "Pago" do Mês), cinza para arquivado.
+  const statusBadge = item.active ? (
+    <Badge variant="outline" className="border-emerald-500/50 text-emerald-600 dark:text-emerald-400">
+      Ativo
+    </Badge>
+  ) : (
+    <Badge variant="secondary" className="text-muted-foreground">
+      Arquivado
+    </Badge>
   );
 
   const archiveActionLabel = item.active ? "Arquivar" : "Reativar";
@@ -139,7 +148,7 @@ export function ItemRow({
                 </Button>
               </DialogTrigger>
               <AlertDialogTrigger asChild>
-                <Button type="button" variant={item.active ? "destructive" : "outline"} size="sm">
+                <Button type="button" variant="outline" size="sm">
                   {archiveActionLabel}
                 </Button>
               </AlertDialogTrigger>
@@ -167,7 +176,7 @@ export function ItemRow({
                   </Button>
                 </DialogTrigger>
                 <AlertDialogTrigger asChild>
-                  <Button type="button" variant={item.active ? "destructive" : "outline"} size="sm">
+                  <Button type="button" variant="outline" size="sm">
                     {archiveActionLabel}
                   </Button>
                 </AlertDialogTrigger>

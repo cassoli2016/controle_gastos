@@ -79,7 +79,10 @@ export function MonthStatCards({
         detailShort={`${formatCents(remaining)} falta`}
         progress={progressPct(paidExp, expenseTotal)}
       />
+      {/* No celular a grade tem duas colunas e três cards: o terceiro ocupa a
+          linha inteira em vez de deixar um buraco ao lado. */}
       <StatCard
+        className="col-span-2 md:col-span-1"
         label="Falta pagar"
         value={formatCents(remaining)}
         tone="warn"
