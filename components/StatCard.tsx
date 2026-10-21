@@ -93,13 +93,45 @@ export function StatStrip({ items, className }: { items: StatItem[]; className?:
   const n = Math.min(4, Math.max(1, items.length));
   return (
     <Card className={cn("py-0", className)}>
-      <div className={cn("grid grid-cols-1 divide-y divide-border md:divide-x md:divide-y-0", COLS[n])}>
+      {/* Desktop: colunas lado a lado. */}
+      <div className={cn("hidden md:grid md:divide-x md:divide-border", COLS[n])}>
         {items.map((it) => (
-          <div key={it.label} className="p-3 md:p-4">
+          <div key={it.label} className="p-4">
             <StatBlock {...it} />
           </div>
         ))}
       </div>
+      {/* Celular: linhas de extrato — rótulo à esquerda, valor à direita, os
+          valores alinhados numa coluna só. Três blocos empilhados com número
+          grande ocupavam meia tela antes do primeiro lançamento aparecer. */}
+      <div className="divide-y divide-border md:hidden">
+        {items.map((it) => (
+          <StatRow key={it.label} {...it} />
+        ))}
+      </div>
     </Card>
+  );
+}
+
+function StatRow({ label, value, tone = "default", icon: Icon, detail, detailShort, progress }: StatItem) {
+  const t = TONES[tone];
+  return (
+    <div className="flex flex-col gap-1 px-3 py-2.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5 text-xs font-medium text-muted-foreground">
+          {Icon && <Icon className="size-3.5 shrink-0" aria-hidden />}
+          <span className="truncate">{label}</span>
+        </div>
+        <div className={cn("shrink-0 text-lg font-bold tracking-tight tabular-nums", t.value)}>{value}</div>
+      </div>
+      {(detailShort ?? detail) && (
+        <div className="text-[11px] leading-tight text-muted-foreground">{detailShort ?? detail}</div>
+      )}
+      {progress !== undefined && (
+        <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+          <div className={cn("h-full rounded-full", t.bar)} style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
+        </div>
+      )}
+    </div>
   );
 }

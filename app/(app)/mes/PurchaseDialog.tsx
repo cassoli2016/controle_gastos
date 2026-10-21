@@ -65,7 +65,8 @@ export function PurchaseDialog({
       <DialogTrigger asChild>
         <Button type="button">
           <ShoppingCart className="size-4" />
-          Lançar compra
+          <span className="sm:hidden">Compra</span>
+          <span className="hidden sm:inline">Lançar compra</span>
         </Button>
       </DialogTrigger>
       <DialogContent>

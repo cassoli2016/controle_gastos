@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.40.0",
+    date: "2026-10-20",
+    title: "Mês no celular: cada linha com a mesma geometria",
+    items: [
+      "Na lista do Mês, no celular, toda linha ficou igual: nome e etiquetas à esquerda, valor à direita; embaixo, o dia, a situação (Pagar, ou a data e o desfazer) e um único botão \"⋯\" na borda com as demais ações. Antes cada tipo de linha trazia dois, três ou cinco ícones, e os valores alinhavam ora com um lápis ao lado, ora sem.",
+      "Os três números do mês viraram linhas de extrato no celular, com os valores alinhados numa coluna só. Ocupavam meia tela antes de o primeiro lançamento aparecer.",
+      "Os botões Compra e Recebimento ficaram numa linha só, com o \"⋯\" das outras ações na ponta, em vez de um botão de texto sozinho na linha de baixo.",
+      "O contador dos grupos mostra só os números no celular, para o nome do grupo não ser cortado. A barra de baixo ganhou rótulos um ponto maiores.",
+    ],
+  },
+  {
     version: "1.39.0",
     date: "2026-10-20",
     title: "Identidade visual: o mês como manchete, uma fonte de extrato e a cor da marca",

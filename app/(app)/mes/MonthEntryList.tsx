@@ -80,10 +80,11 @@ function EntryRow({
   // itemId): mostra o valor; a edição desse valor acontece via "editar
   // parcelamento" (InstallmentDialog), já que toda linha avulsa/cartão
   // carrega um installmentId (mesmo compras não parceladas, count=1).
+  const compact = variant === "mobile";
   const planned = row.itemId ? (
-    <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} />
+    <PlannedCell itemId={row.itemId} month={month} plannedCents={row.plannedCents} compact={compact} />
   ) : (
-    <span className="tabular-nums">{formatCents(row.plannedCents)}</span>
+    <span className={cn("tabular-nums", compact && "font-medium")}>{formatCents(row.plannedCents)}</span>
   );
   // Linha derivada (reserva do dia a dia): não há MonthlyEntry por trás, então
   // não se paga, não se edita e não se exclui — no lugar do botão vai a
@@ -148,6 +149,7 @@ function EntryRow({
       canRecur={row.itemId === null && row.cardId === null}
       isRecurring={row.itemId !== null}
       categories={categories}
+      variant={variant}
     />
   );
   // Atraso pinta o Dia de âmbar. A linha paga NÃO esmaece: quem diz que ela
@@ -178,27 +180,27 @@ function EntryRow({
     );
   }
 
-  // Mobile em DOIS níveis: nome e valor em cima, o resto embaixo. Os rótulos
-  // "Previsto"/"Pago" saíram — repetidos em toda linha, só empurravam a lista
-  // para baixo (cada lançamento ocupava quatro linhas e ~270px).
+  // Celular em DOIS níveis com zonas fixas: nome e etiquetas à esquerda, valor
+  // à direita; embaixo, o dia à esquerda, a situação (Pagar / data e desfazer)
+  // ao centro-direita e um único "⋯" na borda. Toda linha tem a mesma
+  // geometria — antes cada tipo de linha trazia um conjunto diferente de
+  // ícones, e os valores alinhavam ora com lápis, ora sem.
   return (
     <div className="flex flex-col gap-1 px-3 py-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="flex min-w-0 items-center gap-1.5 flex-wrap">
+      <div className="flex items-start justify-between gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 flex-wrap">
           <span className="truncate font-medium">{row.itemName}</span>
           {badges}
         </span>
         <span className="shrink-0 tabular-nums">{planned}</span>
       </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className={cn("shrink-0 text-xs tabular-nums", dayClass)}>
+      <div className="flex items-center gap-2">
+        <span className={cn("min-w-0 flex-1 truncate text-xs tabular-nums", dayClass)}>
           {row.dueDay ? `Dia ${row.dueDay}` : dayLabel ?? "—"}
           {daySuffix}
         </span>
-        <div className="flex min-w-0 items-center justify-end gap-1">
-          {pay}
-          {actions}
-        </div>
+        <div className="flex shrink-0 items-center gap-1.5">{pay}</div>
+        {actions ?? <span className="size-7 shrink-0" aria-hidden />}
       </div>
     </div>
   );
@@ -260,7 +262,9 @@ function GroupHeader({
       <span className="flex shrink-0 items-center gap-2">
         {state.payable.length > 0 && (
           <span className="text-xs tabular-nums text-muted-foreground">
-            {state.paidCount}/{state.payable.length} {state.doneLabel}
+            {state.paidCount}/{state.payable.length}
+            {/* A palavra só no desktop: no celular ela truncava o nome do grupo. */}
+            <span className="hidden sm:inline"> {state.doneLabel}</span>
           </span>
         )}
         {/* O badge Receita/Despesa some no celular: a cor do valor e o "pagos"
