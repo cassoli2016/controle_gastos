@@ -34,6 +34,7 @@ export function StatCard({
   detail,
   detailShort,
   progress,
+  className,
 }: {
   label: string;
   value: string;
@@ -49,18 +50,23 @@ export function StatCard({
   detailShort?: string;
   /** 0–100: barra fina de progresso na cor do tom. Ausente = sem barra. */
   progress?: number;
+  /** Classes extras no Card (ex.: ocupar as duas colunas no celular). */
+  className?: string;
 }) {
   const t = TONES[tone];
   return (
-    <Card>
-      <CardContent className="flex items-center gap-2.5 p-2.5 md:gap-3 md:p-4">
+    // h-full: numa grade de cards, a barra de progresso fica sempre na mesma
+    // altura, mesmo quando o detalhe de um card quebra em duas linhas.
+    <Card className={cn("h-full", className)}>
+      <CardContent className="flex h-full items-center gap-2.5 p-2.5 md:gap-3 md:p-4">
         {Icon && (
           <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg md:size-9", t.chip)}>
             <Icon className="size-4 md:size-4.5" />
           </div>
         )}
-        {/* flex-1: o detalhe e a barra ocupam a largura toda do card */}
-        <div className="min-w-0 flex-1">
+        {/* flex-1: o detalhe e a barra ocupam a largura toda do card; coluna
+            com altura cheia para a barra descer até a base (mt-auto). */}
+        <div className="flex h-full min-w-0 flex-1 flex-col">
           <div className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">
             {label}
           </div>
@@ -75,11 +81,13 @@ export function StatCard({
             </div>
           )}
           {progress !== undefined && (
-            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-muted">
-              <div
-                className={cn("h-full rounded-full", t.bar)}
-                style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
-              />
+            <div className="mt-auto pt-1.5">
+              <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                <div
+                  className={cn("h-full rounded-full", t.bar)}
+                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
+                />
+              </div>
             </div>
           )}
         </div>

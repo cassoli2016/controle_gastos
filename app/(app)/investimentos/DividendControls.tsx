@@ -26,7 +26,7 @@ export function DividendReceiveButton({ dividendId, received }: { dividendId: st
   return (
     <form action={formAction}>
       <input type="hidden" name="dividendId" value={dividendId} />
-      <Button type="submit" size="sm" variant={received ? "ghost" : "default"} disabled={pending}>
+      <Button type="submit" size="sm" variant={received ? "ghost" : "outline"} disabled={pending}>
         {received ? "Desfazer" : "Receber"}
       </Button>
     </form>

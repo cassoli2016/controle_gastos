@@ -75,7 +75,15 @@ export function CardRow({ card }: { card: Card }) {
             : `Fecha dia ${card.closingDay}`}
         </Badge>
       )}
-      <Badge variant={card.active ? "default" : "outline"}>{card.active ? "Ativo" : "Arquivado"}</Badge>
+      {card.active ? (
+        <Badge variant="outline" className="border-emerald-500/50 text-emerald-600 dark:text-emerald-400">
+          Ativo
+        </Badge>
+      ) : (
+        <Badge variant="secondary" className="text-muted-foreground">
+          Arquivado
+        </Badge>
+      )}
     </div>
   );
 
@@ -112,7 +120,7 @@ export function CardRow({ card }: { card: Card }) {
                 </Button>
               </DialogTrigger>
               <AlertDialogTrigger asChild>
-                <Button type="button" variant={card.active ? "destructive" : "outline"} size="sm">
+                <Button type="button" variant="outline" size="sm">
                   {archiveActionLabel}
                 </Button>
               </AlertDialogTrigger>
@@ -138,7 +146,7 @@ export function CardRow({ card }: { card: Card }) {
                   </Button>
                 </DialogTrigger>
                 <AlertDialogTrigger asChild>
-                  <Button type="button" variant={card.active ? "destructive" : "outline"} size="sm">
+                  <Button type="button" variant="outline" size="sm">
                     {archiveActionLabel}
                   </Button>
                 </AlertDialogTrigger>

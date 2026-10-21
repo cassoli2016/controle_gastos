@@ -371,11 +371,14 @@ export function MonthEntryList({
               grupo. */}
           <div className="hidden md:block">
             <table className="w-full table-fixed text-sm">
+              {/* Situação com 33%: valor pago, data e "Desmarcar" cabem numa
+                  linha só; com 28% a célula quebrava e toda linha paga ficava
+                  com o dobro da altura. */}
               <colgroup>
-                <col className="w-[34%]" />
-                <col className="w-[9%]" />
+                <col className="w-[31%]" />
+                <col className="w-[7%]" />
                 <col className="w-[15%]" />
-                <col className="w-[28%]" />
+                <col className="w-[33%]" />
                 <col className="w-[14%]" />
               </colgroup>
               <thead className="sticky top-0 z-20 bg-card">

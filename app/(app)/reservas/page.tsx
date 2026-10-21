@@ -1,4 +1,4 @@
-import { PiggyBank } from "lucide-react";
+import { PiggyBank, CalendarX2, Wallet } from "lucide-react";
 import {
   getReserves,
   getNegativeMonths,
@@ -51,6 +51,7 @@ export default async function ReservasPage() {
             label="Descoberto (meses no vermelho)"
             value={formatCents(uncoveredCents)}
             tone="expense"
+            icon={CalendarX2}
           />
         )}
         {/* Guardado menos os meses no vermelho: o mesmo "Saldo livre" do
@@ -60,6 +61,7 @@ export default async function ReservasPage() {
             label="Saldo livre"
             value={formatCents(freeCents)}
             tone={freeCents < 0 ? "expense" : "income"}
+            icon={Wallet}
             detail="guardado menos os meses no vermelho"
           />
         )}

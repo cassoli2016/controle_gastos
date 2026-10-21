@@ -3,14 +3,15 @@ import { cn } from "@/lib/utils";
 
 /**
  * Tag Receita/Despesa, única para as três telas que a exibem (Mês, Panorama,
- * Categorias). Despesa usa a MESMA paleta rose dos cards de resumo
- * (`components/StatCard.tsx`), para a cor significar a mesma coisa no app
- * inteiro; Receita mantém o azul primário de sempre.
+ * Categorias). As duas usam a MESMA paleta dos cards de resumo
+ * (`components/StatCard.tsx`): verde é entrada, rosa é saída, no app inteiro.
+ * Receita era azul preenchido — a cor do botão primário — e parecia uma ação,
+ * não uma etiqueta.
  */
 export function CategoryTypeBadge({ type, className }: { type: "INCOME" | "EXPENSE"; className?: string }) {
   if (type === "INCOME") {
     return (
-      <Badge variant="default" className={className}>
+      <Badge className={cn("border-transparent bg-emerald-500/10 text-emerald-700 dark:text-emerald-400", className)}>
         Receita
       </Badge>
     );

@@ -115,7 +115,8 @@ export default async function InvestimentosPage() {
         />
         <StatCard
           label="Resultado"
-          value={`${formatCents(totals.resultCents)} (${formatPct(totals.resultPct)})`}
+          value={formatCents(totals.resultCents)}
+          detail={`${formatPct(totals.resultPct)} sobre o custo`}
           tone={totals.resultCents >= 0 ? "income" : "expense"}
           icon={totals.resultCents >= 0 ? TrendingUp : TrendingDown}
         />
