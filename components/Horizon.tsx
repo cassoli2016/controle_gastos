@@ -36,7 +36,10 @@ export function Horizon({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold">Horizonte</h2>
           <p className="text-xs text-muted-foreground">
-            O saldo previsto de cada um dos próximos {cells.length} meses; no mês atual, só o que ainda falta acontecer. Toque num mês para abri-lo.
+            <span className="md:hidden">Saldo previsto dos próximos {cells.length} meses; no atual, só o que ainda falta. Toque para abrir.</span>
+            <span className="hidden md:inline">
+              O saldo previsto de cada um dos próximos {cells.length} meses; no mês atual, só o que ainda falta acontecer. Toque num mês para abri-lo.
+            </span>
           </p>
         </div>
         {freeCents !== null && (

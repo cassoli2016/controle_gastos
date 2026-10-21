@@ -14,6 +14,17 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.43.0",
+    date: "2026-10-21",
+    title: "Metas nas caixinhas e um Panorama que cabe no celular",
+    items: [
+      "Cada caixinha pode ter uma meta: quanto você quer juntar e até quando. O card mostra a barra de progresso, quanto falta e quanto guardar por mês para chegar lá no prazo. É opcional, em Nova caixinha ou Editar.",
+      "Panorama: a coluna das contas ficou mais estreita no celular e a tabela usa letra menor, então cabem mais meses na tela. A frase de instruções encolheu, as seções perderam a etiqueta Receita/Despesa (o total em verde diz que é entrada) e a coluna Total deixou a caixa alta.",
+      "Categorias de transferência, como o depósito e a retirada de caixinha, aparecem com a etiqueta \"transferência\" em vez de Despesa ou Receita.",
+      "Novidades mostra as seis versões mais recentes e guarda as anteriores atrás de um clique.",
+    ],
+  },
+  {
     version: "1.42.1",
     date: "2026-10-20",
     title: "Proventos de ações vendidas voltam ao total a receber",

@@ -16,13 +16,24 @@ function parseReserve(formData: FormData) {
   return reserveSchema.safeParse({
     name: formData.get("name"),
     amount: formData.get("amount"),
+    goalAmount: formData.get("goalAmount"),
+    goalMonth: formData.get("goalMonth"),
   });
+}
+
+/** Meta como vai para o banco: valor em reais e primeiro dia do mês-limite. */
+function goalData(goalAmount: number | null | undefined, goalMonth: string | null | undefined) {
+  return {
+    goalAmount: goalAmount ?? null,
+    goalMonth: goalMonth ? monthToDate(goalMonth) : null,
+  };
 }
 
 export const createReserve = guardAction(async function createReserve(_prevState: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = parseReserve(formData);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  await prisma.reserveBox.create({ data: parsed.data });
+  const { name, amount, goalAmount, goalMonth } = parsed.data;
+  await prisma.reserveBox.create({ data: { name, amount, ...goalData(goalAmount, goalMonth) } });
   revalidateFinance();
   return { ok: true };
 });
@@ -39,16 +50,18 @@ export const updateReserve = guardAction(async function updateReserve(_prevState
     name: formData.get("name"),
     amount: formData.get("amount"),
     reason: formData.get("reason") || undefined,
+    goalAmount: formData.get("goalAmount"),
+    goalMonth: formData.get("goalMonth"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { name, amount, reason } = parsed.data;
+  const { name, amount, reason, goalAmount, goalMonth } = parsed.data;
 
   const box = await prisma.reserveBox.findUnique({ where: { id } });
   if (!box) return { error: "Caixinha não encontrada." };
   const deltaCents = Math.round(amount * 100) - decimalToCents(String(box.amount));
 
   await prisma.$transaction(async (tx) => {
-    await tx.reserveBox.update({ where: { id }, data: { name, amount } });
+    await tx.reserveBox.update({ where: { id }, data: { name, amount, ...goalData(goalAmount, goalMonth) } });
     if (deltaCents !== 0) {
       await tx.reserveAdjustment.create({
         data: {

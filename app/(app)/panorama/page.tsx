@@ -25,7 +25,6 @@ import { getDailyBudget } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CategoryTypeBadge } from "@/components/CategoryTypeBadge";
 import { CellAction } from "./CellAction";
 import { RowAction } from "./RowAction";
 import { NewAccountDialog } from "./NewAccountDialog";
@@ -191,8 +190,8 @@ export default async function PanoramaPage({
         <NewAccountDialog categories={categories} currentMonth={currentMonth} />
       </div>
       <p className="text-sm text-muted-foreground">
-        Todos os meses lado a lado · valores = o que ainda falta · verde = quitado · âmbar = parcial ·
-        clique no valor para editar ou dar baixa, no nome da conta para renomear ou excluir
+        O que ainda falta em cada mês, conta por conta. Verde é quitado, âmbar é parcial. Toque no valor
+        para editar ou dar baixa; no nome da conta, para renomear ou excluir.
       </p>
 
       {matrix.months.length === 0 ? (
@@ -240,14 +239,14 @@ export default async function PanoramaPage({
                 container (que nunca rolaria) e a linha dos meses passaria direto.
                 A conta do mobile tem a barra de navegação de baixo somada. */}
             <div className="max-h-[max(20rem,calc(100dvh-20rem))] overflow-auto md:max-h-[max(20rem,calc(100dvh-16rem))]">
-              <table className="w-full text-sm">
+              <table className="w-full text-xs md:text-sm">
                 {/* Cada th leva o próprio fundo (colBgHead) e a própria borda de
                     baixo: com border-collapse quem desenha a borda é a tabela, e
                     ela fica para trás quando o cabeçalho descola — por isso a
                     sombra inset no lugar de border-b. */}
                 <thead className="sticky top-0 z-20 [&>tr>th]:shadow-[inset_0_-1px_0_var(--border)]">
                   <tr className="border-b">
-                    <th className="sticky left-0 z-10 bg-card px-4 py-2 text-left font-medium text-muted-foreground min-w-44">
+                    <th className="sticky left-0 z-10 min-w-28 bg-card px-3 py-2 text-left font-medium text-muted-foreground md:min-w-44 md:px-4">
                       Conta
                     </th>
                     {columns.map((col) =>
@@ -258,7 +257,7 @@ export default async function PanoramaPage({
                           key={colKey(col)}
                           className={`whitespace-nowrap px-3 py-2 text-right font-medium ${colBgHead(col, currentMonth)}`}
                         >
-                          {col.kind === "year" ? col.year : "TOTAL"}
+                          {col.kind === "year" ? col.year : "Total"}
                         </th>
                       ),
                     )}
@@ -368,11 +367,8 @@ function SectionRows({
   return (
     <>
       <tr className="border-b bg-muted/50">
-        <td className="sticky left-0 z-10 bg-muted px-4 py-1.5 font-medium">
-          <span className="flex items-center gap-2">
-            {section.categoryName}
-            <CategoryTypeBadge type={section.categoryType} className="text-[10px]" />
-          </span>
+        <td className="sticky left-0 z-10 max-w-[38vw] truncate bg-muted px-3 py-1.5 font-medium md:max-w-none md:px-4">
+          {section.categoryName}
         </td>
         {columns.map((col) => {
           const has =
@@ -386,7 +382,9 @@ function SectionRows({
           return (
             <td
               key={colKey(col)}
-              className={`px-3 py-1.5 text-right tabular-nums text-xs text-muted-foreground ${colBg(col, currentMonth)}`}
+              className={`px-2 py-1.5 text-right text-xs tabular-nums md:px-3 ${
+                section.categoryType === "INCOME" ? "text-emerald-700 dark:text-emerald-400" : "text-muted-foreground"
+              } ${colBg(col, currentMonth)}`}
             >
               {has ? fmt(v) : ""}
             </td>
@@ -395,7 +393,7 @@ function SectionRows({
       </tr>
       {section.rows.map((row) => (
         <tr key={row.line} className="border-b last:border-b-0">
-          <td className="sticky left-0 z-10 bg-card px-4 py-1.5 whitespace-nowrap max-w-56 truncate">
+          <td className="sticky left-0 z-10 max-w-[38vw] truncate whitespace-nowrap bg-card px-3 py-1.5 md:max-w-56 md:px-4">
             <RowName
               row={row}
               categoryName={section.categoryName}

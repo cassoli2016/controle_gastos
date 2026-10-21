@@ -228,6 +228,10 @@ model ReserveBox {
   id          String   @id @default(cuid())
   name        String
   amount      Decimal  @db.Decimal(12, 2)
+  // Meta opcional: quanto quer juntar e até quando (primeiro dia do mês).
+  // Só leitura/UI — nenhuma métrica do app depende dela.
+  goalAmount  Decimal? @db.Decimal(12, 2)
+  goalMonth   DateTime? @db.Date
   createdAt   DateTime @default(now())
   entries     MonthlyEntry[]
   adjustments ReserveAdjustment[]

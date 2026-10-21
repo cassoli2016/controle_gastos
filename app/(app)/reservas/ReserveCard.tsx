@@ -40,6 +40,8 @@ import {
 import { useActionToast } from "@/hooks/use-action-toast";
 import { ReserveStatementDialog } from "./ReserveStatementDialog";
 import type { StatementLine } from "@/lib/reserve-statement";
+import { goalProgress, goalSentence } from "@/lib/reserve-goal";
+import { shortMonthLabel } from "@/lib/matrix";
 
 function shortDate(iso: string): string {
   const [, m, d] = iso.split("-");
@@ -49,12 +51,15 @@ function shortDate(iso: string): string {
 export function ReserveCard({
   reserve,
   totalCents,
+  currentMonth,
   leftoverCents,
   statement,
 }: {
-  reserve: { id: string; name: string; amountCents: number };
+  reserve: { id: string; name: string; amountCents: number; goalCents: number | null; goalMonth: string | null };
   /** Soma de todas as caixinhas: a fatia desta aparece no card. */
   totalCents: number;
+  /** "YYYY-MM" de hoje: base do ritmo por mês da meta. */
+  currentMonth: string;
   /** Sobra realizada do mês: informação para você decidir quanto guardar. */
   leftoverCents: number;
   /** Extrato e a checagem contra o saldo registrado (lib/reserve-statement). */
@@ -94,6 +99,10 @@ export function ReserveCard({
   }
 
   const share = totalCents > 0 ? Math.round((reserve.amountCents / totalCents) * 100) : null;
+  const goal =
+    reserve.goalCents !== null && reserve.goalCents > 0
+      ? goalProgress(reserve.amountCents, reserve.goalCents, reserve.goalMonth, currentMonth)
+      : null;
   // O extrato vem do mais recente para o mais antigo.
   const last = statement.lines[0] ?? null;
 
@@ -116,6 +125,27 @@ export function ReserveCard({
             </div>
           )}
         </div>
+
+        {/* A meta: barra, valor-alvo e o ritmo para chegar lá. */}
+        {goal && reserve.goalCents !== null && (
+          <div className="space-y-1">
+            <div className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="text-muted-foreground">
+                Meta <Money cents={reserve.goalCents} className="font-medium text-foreground" />
+                {reserve.goalMonth && <span> até {shortMonthLabel(reserve.goalMonth)}</span>}
+              </span>
+              <span className={cn("tabular-nums", goal.reached ? "font-medium text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+                {goal.pct}%
+              </span>
+            </div>
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${goal.pct}%` }} />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {goalSentence(goal, reserve.goalMonth ? shortMonthLabel(reserve.goalMonth) : null)}
+            </p>
+          </div>
+        )}
 
         {/* O último movimento é o que diz se a caixinha está viva; o extrato
             inteiro fica atrás do botão. */}
@@ -266,6 +296,16 @@ export function ReserveCard({
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`reserve-amount-${reserve.id}`}>Valor guardado</Label>
                     <CurrencyInput id={`reserve-amount-${reserve.id}`} name="amount" defaultCents={reserve.amountCents} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`reserve-goal-${reserve.id}`}>Meta (opcional)</Label>
+                      <CurrencyInput id={`reserve-goal-${reserve.id}`} name="goalAmount" defaultCents={reserve.goalCents ?? 0} />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor={`reserve-goal-month-${reserve.id}`}>Até (opcional)</Label>
+                      <Input id={`reserve-goal-month-${reserve.id}`} name="goalMonth" type="month" defaultValue={reserve.goalMonth ?? ""} />
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`reserve-reason-${reserve.id}`}>Motivo da mudança</Label>
