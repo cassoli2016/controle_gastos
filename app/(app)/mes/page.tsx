@@ -7,7 +7,8 @@ import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { getDailyBudget, getReserves } from "@/lib/planning";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { isOverdue, realizedBalance, realizedCashBalance } from "@/lib/calc";
+import { isOverdue, realizedBalance, realizedCashBalance, remainingToPay } from "@/lib/calc";
+import { dueSoon } from "@/lib/due-soon";
 import { dailyCashflow } from "@/lib/cashflow";
 import { MonthNav } from "@/components/MonthNav";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -27,6 +28,7 @@ import { lastUsedReserveId, DEPOSIT_PREFIX } from "@/lib/reserve-flow";
 import { MonthEntryList, type DisplayRow } from "./MonthEntryList";
 import { parseHidePaid } from "@/lib/month-filter";
 import { CashflowCard } from "./CashflowCard";
+import { SummaryBar } from "./SummaryBar";
 
 export default async function MesPage({
   searchParams,
@@ -153,6 +155,26 @@ export default async function MesPage({
   const cashflow = dailyCashflow(realViews, month, today, budgetLine ? { perDayCents: budgetLine.perDayCents } : null);
   const todayDay = month === today.slice(0, 7) ? Number(today.slice(8, 10)) : null;
 
+  // Rodapé do celular: o que falta e a próxima conta a vencer (atrasada
+  // primeiro). Fora do mês corrente só o atraso interessa, como no Dashboard.
+  const nextDue =
+    dueSoon(
+      realViews.map((v) => ({
+        entryId: v.entryId,
+        itemName: v.itemName,
+        categoryType: v.categoryType,
+        plannedCents: v.plannedCents,
+        paid: v.paid,
+        // Avulso não tem dia de vencimento: a data do lançamento faz o papel
+        // (a Diarista de 23/10 vence em 23/10).
+        dueDay: v.dueDay ?? (v.purchaseDate ? v.purchaseDate.getUTCDate() : null),
+        readOnlyHint: v.readOnlyHint,
+      })),
+      month,
+      today,
+      31,
+    )[0] ?? null;
+
   const entryItemIds = new Set(views.map((v) => v.itemId));
   const availableItems = activeItems
     .filter((i) => !entryItemIds.has(i.id))
@@ -160,7 +182,7 @@ export default async function MesPage({
   const allActiveItems = activeItems.map((i) => ({ id: i.id, name: i.name }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-10 md:pb-0">
       {/* Header em duas linhas no mobile: título+mês em cima, ações embaixo
           com quebra de linha — evita estourar a largura da tela (overflow
           horizontal que cortava os cards). */}
@@ -244,6 +266,7 @@ export default async function MesPage({
             categories={categories.map((c) => ({ id: c.id, name: c.name }))}
             reserves={reserveOptions}
           />
+          <SummaryBar remainingCents={remainingToPay(views)} next={nextDue} />
         </>
       )}
     </div>

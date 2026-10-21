@@ -23,12 +23,11 @@ import { toEntryView, dailyBudgetEntryView } from "@/lib/entries";
 import { plannedIncome, plannedExpense, plannedBalance, monthSplit, expenseByCategory, expenseRanking } from "@/lib/calc";
 import { formatCents, sumCents, decimalToCents } from "@/lib/money";
 import { upcomingCardCommitments } from "@/lib/card-entry";
-import { budgetLines } from "@/lib/budget";
+import { budgetLines, budgetTone } from "@/lib/budget";
 import { patrimonyProjection } from "@/lib/patrimony";
 import { seriesGrowth } from "@/lib/chart-scale";
 import { dueSoon } from "@/lib/due-soon";
 import { cardCycleStatus } from "@/lib/card-estimate";
-import { usageTone } from "@/lib/card-usage";
 import { horizonCells, horizonHeadline } from "@/lib/horizon";
 import { cn } from "@/lib/utils";
 import { MonthStatCards } from "@/components/MonthStatCards";
@@ -81,7 +80,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
       categoryType: (r.item?.category ?? r.category)?.type ?? "EXPENSE",
       plannedCents: decimalToCents(String(r.plannedAmount)),
       paid: r.paid,
-      dueDay: r.item?.dueDay ?? null,
+      // Avulso usa a data do lançamento como vencimento (mesma regra do Mês).
+      dueDay: r.item?.dueDay ?? (r.purchaseDate ? r.purchaseDate.getUTCDate() : null),
       readOnlyHint: null,
     })),
     month,
@@ -293,6 +293,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
         name: c.name,
         color: c.color,
         budgetCents: c.budgetAmount === null ? null : decimalToCents(String(c.budgetAmount)),
+        budgetIsFloor: c.budgetIsFloor,
       })),
   );
 
@@ -650,16 +651,22 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <span className="size-2.5 rounded-full" style={{ background: b.color }} aria-hidden />
                         {b.name}
                       </span>
-                      <span className={cn("text-xs tabular-nums", b.pct > 100 ? cn("font-semibold", rose) : "text-muted-foreground")}>
+                      <span
+                        className={cn(
+                          "text-xs tabular-nums",
+                          budgetTone(b) === "rose" ? cn("font-semibold", rose) : budgetTone(b) === "emerald" && b.isFloor ? cn("font-semibold", emerald) : "text-muted-foreground",
+                        )}
+                      >
                         {formatCents(b.plannedCents)} de {formatCents(b.budgetCents)} · {b.pct}%
+                        {b.isFloor && (b.pct >= 100 ? " · mínimo batido" : " · mínimo")}
                       </span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
                       <div
                         className={cn("h-full rounded-full", {
-                          "bg-emerald-500": usageTone(b.pct) === "emerald",
-                          "bg-amber-500": usageTone(b.pct) === "amber",
-                          "bg-rose-500": usageTone(b.pct) === "rose",
+                          "bg-emerald-500": budgetTone(b) === "emerald",
+                          "bg-amber-500": budgetTone(b) === "amber",
+                          "bg-rose-500": budgetTone(b) === "rose",
                         })}
                         style={{ width: `${Math.min(100, b.pct)}%` }}
                       />

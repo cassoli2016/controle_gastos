@@ -1,4 +1,5 @@
 import type { EntryView } from "@/lib/calc";
+import { usageTone } from "@/lib/card-usage";
 
 export type BudgetLine = {
   categoryId: string;
@@ -11,7 +12,22 @@ export type BudgetLine = {
   paidCents: number;
   /** Percentual REAL planejado/meta — pode passar de 100 (estouro); a barra clampa na exibição. */
   pct: number;
+  /** Meta-piso (investir, guardar): passar dela é bom, ficar aquém é o aviso. */
+  isFloor: boolean;
 };
+
+export type BudgetTone = "emerald" | "amber" | "rose";
+
+/**
+ * Cor da barra. Teto: verde longe, âmbar perto, vermelho estourado. Piso: o
+ * contrário — verde quando bateu, âmbar enquanto falta. Sem isso a categoria
+ * Investimento, com meta de mínimo, ficava "457% estourada" em vermelho todo
+ * mês por ter investido MAIS que o combinado.
+ */
+export function budgetTone(line: Pick<BudgetLine, "pct" | "isFloor">): BudgetTone {
+  if (line.isFloor) return line.pct >= 100 ? "emerald" : "amber";
+  return usageTone(line.pct);
+}
 
 /**
  * Linhas do card "Orçamento do mês": uma por categoria COM meta, com o
@@ -20,7 +36,7 @@ export type BudgetLine = {
  */
 export function budgetLines(
   views: EntryView[],
-  categories: { id: string; name: string; color: string; budgetCents: number | null }[],
+  categories: { id: string; name: string; color: string; budgetCents: number | null; budgetIsFloor?: boolean }[],
 ): BudgetLine[] {
   return categories
     .filter((c): c is typeof c & { budgetCents: number } => c.budgetCents !== null && c.budgetCents > 0)
@@ -36,6 +52,7 @@ export function budgetLines(
         plannedCents,
         paidCents,
         pct: Math.round((plannedCents / c.budgetCents) * 100),
+        isFloor: c.budgetIsFloor === true,
       };
     })
     .sort((a, b) => b.pct - a.pct);

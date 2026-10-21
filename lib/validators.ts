@@ -13,6 +13,9 @@ export const categorySchema = z.object({
     (v) => (v === "" || v === "0" || v === 0 || v === null || v === undefined ? null : v),
     z.coerce.number().positive("Meta deve ser maior que zero").nullable(),
   ),
+  // Checkbox: presente ("1") só quando marcado. z.coerce.boolean() leria "false"
+  // como true, por isso o preprocess explícito.
+  budgetIsFloor: z.preprocess((v) => v === "1" || v === "on" || v === true, z.boolean()).optional().default(false),
 });
 
 export const itemSchema = z.object({
