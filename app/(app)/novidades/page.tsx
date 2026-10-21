@@ -17,7 +17,7 @@ export default function NovidadesPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Novidades</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Novidades</h1>
         <p className="text-sm text-muted-foreground">O que mudou no {appName()} a cada atualização.</p>
       </div>
       <div className="space-y-4">

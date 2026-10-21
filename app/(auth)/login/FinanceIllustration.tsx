@@ -1,6 +1,6 @@
 /**
  * Ilustração da proposta do app (SVG inline, sem assets externos): gráfico de
- * crescimento + cartão de crédito + moedas, na paleta azul→violeta→ciano da
+ * crescimento + cartão de crédito + moedas, na paleta violeta→verde da
  * marca. Usada na tela de login (painel desktop e hero mobile).
  */
 import { appName } from "@/lib/branding";
@@ -15,17 +15,17 @@ export function FinanceIllustration({ className, idPrefix = "gi" }: { className?
     <svg viewBox="0 0 440 340" fill="none" className={className} aria-hidden role="presentation">
       <defs>
         <linearGradient id={`${idPrefix}-card`} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" />
+          <stop offset="0%" stopColor="#7c3aed" />
           <stop offset="100%" stopColor="#7c3aed" />
         </linearGradient>
         <linearGradient id={`${idPrefix}-line`} x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0%" stopColor="#22d3ee" />
-          <stop offset="55%" stopColor="#3b82f6" />
+          <stop offset="0%" stopColor="#34d399" />
+          <stop offset="55%" stopColor="#7c3aed" />
           <stop offset="100%" stopColor="#a78bfa" />
         </linearGradient>
         <linearGradient id={`${idPrefix}-area`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.45" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.45" />
+          <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
         </linearGradient>
         <linearGradient id={`${idPrefix}-coin`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%" stopColor="#fbbf24" />
@@ -69,8 +69,8 @@ export function FinanceIllustration({ className, idPrefix = "gi" }: { className?
         <circle key={cx} cx={cx} cy={cy} r="5.5" fill="#0b1220" stroke={`url(#${idPrefix}-line)`} strokeWidth="3" />
       ))}
       {/* Ponto de pico com brilho */}
-      <circle cx="410" cy="74" r="8" fill="#22d3ee" filter={`url(#${idPrefix}-glow)`} />
-      <circle cx="410" cy="74" r="14" stroke="#22d3ee" strokeOpacity="0.35" strokeWidth="2" fill="none" />
+      <circle cx="410" cy="74" r="8" fill="#34d399" filter={`url(#${idPrefix}-glow)`} />
+      <circle cx="410" cy="74" r="14" stroke="#34d399" strokeOpacity="0.35" strokeWidth="2" fill="none" />
 
       {/* Cartão de crédito */}
       <g transform="rotate(-9 150 210)">
@@ -116,7 +116,7 @@ export function FinanceIllustration({ className, idPrefix = "gi" }: { className?
       </g>
 
       {/* Faíscas */}
-      <g fill="#22d3ee">
+      <g fill="#34d399">
         <path d="M64 84 l3.5 8.5 8.5 3.5 -8.5 3.5 -3.5 8.5 -3.5 -8.5 -8.5 -3.5 8.5 -3.5 Z" opacity="0.9" />
         <path d="M338 52 l2.5 6 6 2.5 -6 2.5 -2.5 6 -2.5 -6 -6 -2.5 6 -2.5 Z" opacity="0.7" />
         <circle cx="120" cy="120" r="3" opacity="0.5" />

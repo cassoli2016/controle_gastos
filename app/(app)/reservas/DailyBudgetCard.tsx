@@ -36,18 +36,14 @@ export function DailyBudgetCard({
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 p-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <PiggyBank className="size-4.5" />
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <PiggyBank className="size-3.5 shrink-0" aria-hidden />
+            Reserva do dia a dia
           </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">
-              Reserva do dia a dia
-            </div>
-            <div className="text-xl font-bold tabular-nums">{formatCents(remainingCents)}</div>
-            <div className="text-[11px] text-muted-foreground">
-              {daysRemaining} de {daysInMonth} dias · mês cheio {formatCents(monthTotalCents)}
-            </div>
+          <div className="text-2xl font-bold tracking-tight tabular-nums">{formatCents(remainingCents)}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {daysRemaining} de {daysInMonth} dias · mês cheio {formatCents(monthTotalCents)}
           </div>
         </div>
 

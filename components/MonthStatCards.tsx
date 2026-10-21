@@ -1,5 +1,5 @@
 import { TrendingUp, TrendingDown, Clock } from "lucide-react";
-import { StatCard } from "@/components/StatCard";
+import { StatStrip } from "@/components/StatCard";
 import {
   plannedIncome,
   plannedExpense,
@@ -55,41 +55,41 @@ export function MonthStatCards({
   const toComeShort =
     remaining === 0 ? undefined : toCome < 0 ? `faltam ${formatCents(-toCome)}` : `sobram ${formatCents(toCome)}`;
 
+  // Uma faixa só com os três números do mês, separados por filetes: é o
+  // extrato do mês, não três cards soltos.
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-      <StatCard
-        label="Receitas"
-        value={formatCents(incomeTotal)}
-        tone="income"
-        icon={TrendingUp}
-        detail={
-          incomeTotal > 0
-            ? `${formatCents(receivedInc)} recebido · ${formatCents(incomeTotal - receivedInc)} a receber`
-            : "nenhuma receita lançada"
-        }
-        detailShort={incomeTotal > 0 ? `${formatCents(incomeTotal - receivedInc)} a receber` : undefined}
-        progress={incomeTotal > 0 ? progressPct(receivedInc, incomeTotal) : undefined}
-      />
-      <StatCard
-        label="Despesas"
-        value={formatCents(expenseTotal)}
-        tone="expense"
-        icon={TrendingDown}
-        detail={`${formatCents(paidExp)} pago · ${formatCents(remaining)} falta`}
-        detailShort={`${formatCents(remaining)} falta`}
-        progress={progressPct(paidExp, expenseTotal)}
-      />
-      {/* No celular a grade tem duas colunas e três cards: o terceiro ocupa a
-          linha inteira em vez de deixar um buraco ao lado. */}
-      <StatCard
-        className="col-span-2 md:col-span-1"
-        label="Falta pagar"
-        value={formatCents(remaining)}
-        tone="warn"
-        icon={Clock}
-        detail={toComeDetail ?? faltaDetail}
-        detailShort={toComeShort}
-      />
-    </div>
+    <StatStrip
+      items={[
+        {
+          label: "Receitas",
+          value: formatCents(incomeTotal),
+          tone: "income",
+          icon: TrendingUp,
+          detail:
+            incomeTotal > 0
+              ? `${formatCents(receivedInc)} recebido · ${formatCents(incomeTotal - receivedInc)} a receber`
+              : "nenhuma receita lançada",
+          detailShort: incomeTotal > 0 ? `${formatCents(incomeTotal - receivedInc)} a receber` : undefined,
+          progress: incomeTotal > 0 ? progressPct(receivedInc, incomeTotal) : undefined,
+        },
+        {
+          label: "Despesas",
+          value: formatCents(expenseTotal),
+          tone: "expense",
+          icon: TrendingDown,
+          detail: `${formatCents(paidExp)} pago · ${formatCents(remaining)} falta`,
+          detailShort: `${formatCents(remaining)} falta`,
+          progress: progressPct(paidExp, expenseTotal),
+        },
+        {
+          label: "Falta pagar",
+          value: formatCents(remaining),
+          tone: "warn",
+          icon: Clock,
+          detail: toComeDetail ?? faltaDetail,
+          detailShort: toComeShort,
+        },
+      ]}
+    />
   );
 }

@@ -154,7 +154,7 @@ export function Calculadora() {
 
       <Card>
         <CardContent className="space-y-3 p-4">
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <div className="text-xs font-medium text-muted-foreground">
             À vista sai por {formatCents(r.cashCents)}
           </div>
           {best ? (

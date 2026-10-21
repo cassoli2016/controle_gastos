@@ -14,6 +14,18 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.39.0",
+    date: "2026-10-20",
+    title: "Identidade visual: o mês como manchete, uma fonte de extrato e a cor da marca",
+    items: [
+      "Nas telas do Mês, do Dashboard e de Cartões, o mês virou a manchete: grande, no alto, clicável para escolher outro. O nome da tela ficou como um rótulo discreto acima dele.",
+      "Os três números do mês (receitas, despesas, falta pagar) ficam numa faixa só, separados por filetes, sem ícones em quadradinhos coloridos. O mesmo nas faixas de Reservas e de Investimentos.",
+      "Nova fonte em todo o app, IBM Plex Sans, com algarismos de largura fixa: os valores alinham em coluna como num extrato.",
+      "O azul de botões e destaques deu lugar ao violeta que já estava no logo. Verde, rosa e âmbar continuam significando entrada, saída e aviso.",
+      "Rótulos deixaram a caixa alta espaçada. A tela de entrada perdeu os gradientes e as manchas de luz; ficou o essencial.",
+    ],
+  },
+  {
     version: "1.38.1",
     date: "2026-10-20",
     title: "Polimento visual: alinhamentos, etiquetas e destaques",

@@ -118,8 +118,8 @@ export default async function CartoesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold tracking-tight">Cartões</h1>
+      <div>
+        <h1 className="text-sm font-medium text-muted-foreground">Cartões</h1>
         <MonthNav month={month} basePath="/cartoes" />
       </div>
 
@@ -164,7 +164,7 @@ export default async function CartoesPage({
                     card, com a etiqueta "Paga" solta no espaço vazio ao lado. */}
                 <div className="flex items-end justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground md:text-xs">
+                    <div className="text-xs font-medium text-muted-foreground">
                       Fatura do mês
                     </div>
                     <div className="truncate text-2xl font-bold tabular-nums text-rose-600 dark:text-rose-400">
@@ -221,7 +221,7 @@ export default async function CartoesPage({
                 )}
                 {upcoming.length > 0 && (
                   <div className="border-t pt-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs font-medium text-muted-foreground">
                       Próximas faturas
                     </p>
                     <ul className="mt-1 space-y-0.5">

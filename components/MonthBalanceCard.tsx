@@ -42,7 +42,7 @@ export function MonthBalanceCard({ views }: { views: EntryView[] }) {
     total: number,
   ) => (
     <div className="space-y-1">
-      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{titulo}</div>
+      <div className="text-xs font-medium text-muted-foreground">{titulo}</div>
       {linha(entrada[0], entrada[1])}
       {linha(saida[0], saida[1])}
       <div className="flex items-baseline justify-between gap-3 border-t pt-1 text-sm font-semibold">
@@ -63,27 +63,20 @@ export function MonthBalanceCard({ views }: { views: EntryView[] }) {
   return (
     <Card>
       <CardContent className="space-y-4 p-4">
-        <div className="flex items-center gap-3">
+        {/* O número é o desenho: rótulo pequeno com o ícone como sinal, valor
+            grande. O quadradinho colorido de ícone saiu junto com os das faixas. */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <Wallet className="size-3.5 shrink-0" aria-hidden />
+            Saldo do mês
+          </div>
           <div
             className={cn(
-              "flex size-9 shrink-0 items-center justify-center rounded-lg",
-              balance < 0 ? "bg-rose-500/10 text-rose-600 dark:text-rose-400" : "bg-primary/10 text-primary",
+              "text-2xl font-bold tracking-tight tabular-nums md:text-3xl",
+              balance < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground",
             )}
           >
-            <Wallet className="size-4.5" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Saldo do mês
-            </div>
-            <div
-              className={cn(
-                "text-xl font-bold tabular-nums",
-                balance < 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground",
-              )}
-            >
-              {formatCents(balance)}
-            </div>
+            {formatCents(balance)}
           </div>
         </div>
 

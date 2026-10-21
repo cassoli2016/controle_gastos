@@ -187,7 +187,7 @@ export default async function PanoramaPage({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">Panorama</h1>
+        <h1 className="text-2xl font-semibold tracking-tight md:text-[1.75rem]">Panorama</h1>
         <NewAccountDialog categories={categories} currentMonth={currentMonth} />
       </div>
       <p className="text-sm text-muted-foreground">
