@@ -1,5 +1,13 @@
 import { PiggyBank } from "lucide-react";
-import { getReserves, getNegativeMonths, getDailyBudget, getReserveStatements } from "@/lib/planning";
+import {
+  getReserves,
+  getNegativeMonths,
+  getDailyBudget,
+  getReserveStatements,
+  getCurrentMonthLeftover,
+  getObservedVariableSpend,
+} from "@/lib/planning";
+import { cyclesLabel } from "@/lib/trend";
 import { dailyBudget } from "@/lib/daily-budget";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { sumCents, formatCents } from "@/lib/money";
@@ -8,36 +16,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { NewReserveForm } from "./NewReserveForm";
 import { ReserveCard } from "./ReserveCard";
 import { DailyBudgetCard } from "./DailyBudgetCard";
-import { prisma } from "@/lib/prisma";
-import { monthToDate } from "@/lib/dates";
-import { realizedCashBalance } from "@/lib/calc";
-import { toEntryView } from "@/lib/entries";
 
-/**
- * Quanto ainda dá para guardar neste mês: o que entrou menos o que saiu,
- * contando só o que já foi baixado E descontando o que já foi para as
- * caixinhas.
- *
- * Nenhuma das métricas vizinhas serve aqui: o card "Saldo" do Mês ignora a
- * baixa (contaria salário que não caiu) e o `realizedBalance` ignora os
- * depósitos (sugeriria guardar de novo o dinheiro que já está guardado).
- */
-async function getMonthLeftover(): Promise<number> {
-  const month = todayISOInSaoPaulo().slice(0, 7);
-  const entries = await prisma.monthlyEntry.findMany({
-    where: { month: monthToDate(month) },
-    include: { item: { include: { category: true } }, category: true },
-  });
-  return realizedCashBalance(entries.map(toEntryView));
-}
-
+// Quanto ainda dá para guardar neste mês vem de `getCurrentMonthLeftover`
+// (lib/planning): só o que já foi baixado, descontando o que já foi para as
+// caixinhas. O card "Saldo" do Mês ignora a baixa e o `realizedBalance` ignora
+// os depósitos — nenhum dos dois serve para sugerir quanto guardar.
 export default async function ReservasPage() {
-  const [reserves, negativeMonths, budget, leftoverCents, statements] = await Promise.all([
+  const [reserves, negativeMonths, budget, leftoverCents, statements, observed] = await Promise.all([
     getReserves(),
     getNegativeMonths(),
     getDailyBudget(),
-    getMonthLeftover(),
+    getCurrentMonthLeftover(),
     getReserveStatements(),
+    getObservedVariableSpend(),
   ]);
   const totalCents = sumCents(reserves.map((r) => r.amountCents));
   const uncoveredCents = sumCents(negativeMonths.map((m) => m.balanceCents)); // negativo
@@ -69,6 +60,7 @@ export default async function ReservasPage() {
           daysInMonth={budgetView.daysInMonth}
           remainingCents={budgetView.remainingCents}
           monthTotalCents={budgetView.monthTotalCents}
+          observed={observed ? { perDayCents: observed.perDayCents, label: cyclesLabel(observed.cycles) } : null}
         />
       )}
 

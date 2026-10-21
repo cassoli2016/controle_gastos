@@ -128,21 +128,27 @@ export function buildInstallmentSchedule(
   faturaMonth: string,
   bank: FaturaBank,
 ): Map<string, { dateISO: string; description: string; cents: number }[]> {
-  const plans = new Map<string, { line: FaturaLine; seq: number; count: number }>();
+  // `twins`: quantas vezes a MESMA parcela apareceu — duas linhas 1/6 iguais são
+  // duas compras (o banco não cobra a mesma parcela duas vezes no ciclo), e
+  // cada uma tem a própria cauda.
+  const plans = new Map<string, { line: FaturaLine; seq: number; count: number; twins: number }>();
   for (const line of lines) {
     if (line.kind !== "purchase" || !line.installment) continue;
     const { seq, count } = line.installment;
     const key = planKey(line, line.installment);
     const current = plans.get(key);
-    if (!current || seq > current.seq) plans.set(key, { line, seq, count });
+    if (!current || seq > current.seq) plans.set(key, { line, seq, count, twins: 1 });
+    else if (seq === current.seq) current.twins++;
   }
 
   const byMonth = new Map<string, { dateISO: string; description: string; cents: number }[]>();
-  for (const { line, seq, count } of plans.values()) {
+  for (const { line, seq, count, twins } of plans.values()) {
     for (let k = seq + 1; k <= count; k++) {
       const month = shiftMonthISO(faturaMonth, k - seq);
       const list = byMonth.get(month) ?? [];
-      list.push({ dateISO: line.dateISO, description: renumber(line.description, k, count, bank), cents: line.cents });
+      for (let t = 0; t < twins; t++) {
+        list.push({ dateISO: line.dateISO, description: renumber(line.description, k, count, bank), cents: line.cents });
+      }
       byMonth.set(month, list);
     }
   }

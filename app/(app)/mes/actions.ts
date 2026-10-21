@@ -760,7 +760,7 @@ export const setEntriesPaid = guardAction(async function setEntriesPaid(_prevSta
       prisma.monthlyEntry.update({
         where: { id: e.id },
         data: paid
-          ? { paid: true, paidAmount: e.plannedAmount, paidDate: new Date() }
+          ? { paid: true, paidAmount: e.plannedAmount, paidDate: new Date(todayISOInSaoPaulo() + "T00:00:00Z") }
           : { paid: false, paidAmount: null, paidDate: null },
       }),
     ),

@@ -60,6 +60,12 @@ describe("parseExpenseMessage", () => {
       intervalMonths: null,
     });
   });
+  it("ponto de milhar sem centavos: 1.299 é mil duzentos e noventa e nove", () => {
+    // Lançava R$ 1,30 (e "2.500 10x" virava dez parcelas de R$ 2,50).
+    expect(parseExpenseMessage("mercado 1.299 nubank")?.amountReais).toBe(1299);
+    expect(parseExpenseMessage("tv 2.500 bradesco 10x")).toMatchObject({ amountReais: 2500, installments: 10 });
+    expect(parseExpenseMessage("mercado 1.299,90")?.amountReais).toBe(1299.9);
+  });
   it("descrição com várias palavras", () => {
     expect(parseExpenseMessage("mercado do mês 512.30")).toEqual({
       description: "mercado do mês",

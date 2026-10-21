@@ -1,4 +1,5 @@
 import { isOverdue } from "@/lib/calc";
+import { daysInMonth } from "@/lib/daily-budget";
 
 /**
  * "O que eu preciso pagar agora" — a pergunta que o Dashboard não respondia.
@@ -43,12 +44,15 @@ export function dueSoon(
 ): DueRow[] {
   const todayMonth = todayISO.slice(0, 7);
   const today = Number(todayISO.slice(8, 10));
+  // Dia 31 num mês de 30 vence no dia 30: sem o teto, "em N dias" errava por um.
+  const lastDay = daysInMonth(month);
 
   const out: DueRow[] = [];
   for (const r of rows) {
     if (r.paid || r.categoryType === "INCOME" || r.readOnlyHint || r.dueDay === null) continue;
-    const overdue = isOverdue({ paid: r.paid, categoryType: r.categoryType, dueDay: r.dueDay }, month, todayISO);
-    const daysLeft = r.dueDay - today;
+    const dueDay = Math.min(r.dueDay, lastDay);
+    const overdue = isOverdue({ paid: r.paid, categoryType: r.categoryType, dueDay }, month, todayISO);
+    const daysLeft = dueDay - today;
     // Fora do mês corrente, só o atraso interessa: o mês futuro ainda vai
     // aparecer no seu lugar, e comparar dias entre meses diferentes daria
     // "vence em -20 dias" para conta de outubro.
@@ -57,7 +61,7 @@ export function dueSoon(
       entryId: r.entryId,
       itemName: r.itemName,
       cents: r.plannedCents,
-      dueDay: r.dueDay,
+      dueDay,
       overdue,
       daysLeft,
     });

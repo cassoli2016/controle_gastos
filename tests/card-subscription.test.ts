@@ -1,5 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { descriptionsMatch, firstChargeFaturaMonth } from "@/lib/card-subscription";
+import { descriptionsMatch, firstChargeFaturaMonth, chargeFitsSubscription } from "@/lib/card-subscription";
+
+describe("chargeFitsSubscription", () => {
+  it("reajuste de preço passa (45 → 50)", () => expect(chargeFitsSubscription(5000, 4500)).toBe(true));
+  it("valor exato passa", () => expect(chargeFitsSubscription(1990, 1990)).toBe(true));
+  it("compra avulsa no mesmo estabelecimento não é a assinatura (324,90 × 19,90)", () =>
+    expect(chargeFitsSubscription(32490, 1990)).toBe(false));
+  it("assinatura barata tolera R$ 5 (não 30%)", () => expect(chargeFitsSubscription(1490, 990)).toBe(true));
+});
 
 describe("descriptionsMatch", () => {
   it("iguais sem caixa/acentos", () => {

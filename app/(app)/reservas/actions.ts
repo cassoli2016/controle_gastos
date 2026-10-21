@@ -166,8 +166,15 @@ export const withdrawFromReserve = guardAction(async function withdrawFromReserv
   const categoryId = await resolveCategoryId(RESERVE_WITHDRAWAL_CATEGORY);
   await prisma.$transaction(async (tx) => {
     await tx.reserveBox.update({ where: { id }, data: { amount: { decrement: amount } } });
+    // `reserveBoxId` é o que põe a retirada no extrato da caixinha. Sem ele o
+    // saldo caía e a linha não aparecia: o extrato de uma caixinha ficou
+    // divergindo em R$ 1.022,77 por uma retirada feita por aqui.
     await tx.monthlyEntry.create({
-      data: { categoryId, ...withdrawalEntryData(box.name, amount, monthToDate(date.slice(0, 7)), date) },
+      data: {
+        categoryId,
+        reserveBoxId: id,
+        ...withdrawalEntryData(box.name, amount, monthToDate(date.slice(0, 7)), date),
+      },
     });
   });
   revalidateFinance();

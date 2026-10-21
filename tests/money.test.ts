@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { decimalToCents, centsToNumber, sumCents, formatCents, parseBRLToCents } from "@/lib/money";
+import { decimalToCents, centsToNumber, sumCents, formatCents, parseBRLToCents, normalizeBRLNumber } from "@/lib/money";
 
 const norm = (s: string) => s.replace(/[  ]/g, " ");
 
@@ -25,6 +25,22 @@ describe("money", () => {
     expect(parseBRLToCents("1383.42")).toBe(138342);
     expect(parseBRLToCents(" R$ 449 ")).toBe(44900);
     expect(parseBRLToCents(" 449")).toBe(44900);
+  });
+  it("ponto de milhar sem vírgula é milhar, não decimal", () => {
+    // "reserva 1.500" virava R$ 1,50; "1.299" virava R$ 1,30.
+    expect(parseBRLToCents("1.299")).toBe(129900);
+    expect(parseBRLToCents("1.500")).toBe(150000);
+    expect(parseBRLToCents("12.345.678")).toBe(1234567800);
+    // Decimal com ponto continua decimal: uma ou duas casas.
+    expect(parseBRLToCents("54.9")).toBe(5490);
+    expect(parseBRLToCents("1299.90")).toBe(129990);
+  });
+  it("normalizeBRLNumber", () => {
+    expect(normalizeBRLNumber("1.383,42")).toBe("1383.42");
+    expect(normalizeBRLNumber("1.299")).toBe("1299");
+    expect(normalizeBRLNumber("-1.299")).toBe("-1299");
+    expect(normalizeBRLNumber("54.9")).toBe("54.9");
+    expect(normalizeBRLNumber("300")).toBe("300");
   });
   it("parseBRLToCents lança em valor inválido", () => {
     expect(() => parseBRLToCents("abc")).toThrow();

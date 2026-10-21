@@ -14,6 +14,20 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.36.0",
+    date: "2026-10-20",
+    title: "Auditoria dos números: tendência real, extrato das caixinhas e cinco correções",
+    items: [
+      "O card de Reservas e o gráfico de patrimônio ganharam uma segunda curva, a tendência: a mesma projeção, mas com o gasto à vista que de fato passou no cartão nos últimos três ciclos fechados no lugar da reserva do dia a dia. O plano continua lá, com o valor por dia que você escolheu; a tendência diz o que acontece se o ritmo atual continuar. A tela de Reservas mostra a média real por dia ao lado do valor configurado.",
+      "O card de Reservas passou a mostrar também o que já sobrou no mês e ainda está na conta, sem ter ido para a caixinha.",
+      "A retirada avulsa feita pela tela de Reservas não entrava no extrato da caixinha, embora o saldo caísse: o extrato de uma caixinha divergia sem explicação. Corrigido, e a retirada antiga foi ligada ao extrato.",
+      "Quando a cobrança de uma assinatura chega na fatura, a linha provisionada do mês ganha a etiqueta \"Na fatura\" e deixa de registrar valor pago próprio. Antes, a sobra realizada (\"Guardar a sobra\" e \"Fechar o mês\") descontava a mesma cobrança duas vezes: na linha e na fatura paga. As assinaturas ativas foram religadas ao texto que vem na fatura, para a cobrança consumir a linha automaticamente.",
+      "Duas compras iguais no mesmo dia e na mesma loja (dois veículos, o mesmo serviço) eram tratadas como uma só, e a cauda de parcelas da segunda nunca era gerada. Agora cada uma tem a própria cauda, e a conferência avisa em vez de acusar duplicata.",
+      "No bot, um valor com ponto de milhar e sem centavos (\"1.299\") era lido como um real e trinta. Agora vale mil duzentos e noventa e nove, como se escreve.",
+      "Miúdos: conta com vencimento dia 31 num mês de 30 dias vence no dia 30; o mês padrão das telas segue o horário de Brasília, não mais o do servidor; o resumo diário do Telegram chama de \"saldo a realizar\" o que é saldo a realizar.",
+    ],
+  },
+  {
     version: "1.35.0",
     date: "2026-10-19",
     title: "A folga das caixinhas passou a olhar a ordem dos meses",

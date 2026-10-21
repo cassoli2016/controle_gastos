@@ -160,7 +160,20 @@ export type SubscriptionCandidate = {
   description: string;
   /** Como aparece na fatura; quando null, casa pelo próprio `description`. */
   bankDescription: string | null;
+  /** Valor mensal cadastrado, em centavos — a régua de `chargeFitsSubscription`. */
+  amountCents: number;
 };
+
+/**
+ * A cobrança tem o tamanho da assinatura? Tolera 30% (ou R$ 5, o que for
+ * maior): reajuste de preço passa, compra avulsa no mesmo estabelecimento não.
+ * O caso real: "Apple.Com/Bill" é o texto tanto do iCloud (R$ 19,90) quanto de
+ * uma compra de R$ 324,90 — só o nome casava as duas, e a compra consumia a
+ * linha da assinatura.
+ */
+export function chargeFitsSubscription(chargeCents: number, subscriptionCents: number): boolean {
+  return Math.abs(chargeCents - subscriptionCents) <= Math.max(500, Math.round(subscriptionCents * 0.3));
+}
 
 /**
  * Assinaturas ativas do cartão. Existe separada do consumo para quem importa
@@ -169,10 +182,17 @@ export type SubscriptionCandidate = {
  * sempre a mesma lista.
  */
 export async function loadSubscriptionCandidates(cardId: string): Promise<SubscriptionCandidate[]> {
-  return prisma.cardSubscription.findMany({
+  const subs = await prisma.cardSubscription.findMany({
     where: { cardId, active: true },
-    select: { id: true, itemId: true, description: true, bankDescription: true },
+    select: { id: true, itemId: true, description: true, bankDescription: true, amount: true },
   });
+  return subs.map((s) => ({
+    id: s.id,
+    itemId: s.itemId,
+    description: s.description,
+    bankDescription: s.bankDescription,
+    amountCents: decimalToCents(String(s.amount)),
+  }));
 }
 
 export async function consumeSubscriptionCharge(
@@ -198,7 +218,10 @@ export async function consumeSubscriptionChargeWith(
   if (chargeCents <= 0) return { subscriptionId: null };
   // Casa pelo texto do BANCO quando informado: "YouTube Premium" não está
   // contido em "Google Youtubepremium", então o nome fantasia não serve de chave.
-  const match = subs.find((s) => descriptionsMatch(s.bankDescription ?? s.description, description));
+  // E pelo tamanho da cobrança: o mesmo texto serve a compras avulsas.
+  const match = subs.find(
+    (s) => descriptionsMatch(s.bankDescription ?? s.description, description) && chargeFitsSubscription(chargeCents, s.amountCents),
+  );
   if (!match?.itemId) return { subscriptionId: match?.id ?? null };
 
   const entry = await prisma.monthlyEntry.findUnique({
@@ -206,13 +229,17 @@ export async function consumeSubscriptionChargeWith(
   });
   if (entry && !entry.paid) {
     const remaining = Math.max(0, decimalToCents(String(entry.plannedAmount)) - chargeCents);
+    // O valor pago da linha é o que SOBROU da provisão, nunca a cobrança: ela
+    // já vive dentro do consolidado do cartão. Gravar a cobrança aqui fazia a
+    // sobra realizada ("Guardar a sobra", "Fechar o mês") descontá-la duas
+    // vezes — na linha e na fatura paga. Medido: R$ 53,90 em ago/2026.
     await prisma.monthlyEntry.update({
       where: { id: entry.id },
       data: {
         plannedAmount: centsToNumber(remaining),
         paid: true,
-        paidAmount: centsToNumber(chargeCents),
-        paidDate: chargeDateISO ? new Date(chargeDateISO + "T00:00:00Z") : new Date(),
+        paidAmount: centsToNumber(remaining),
+        paidDate: new Date((chargeDateISO ?? todayISOInSaoPaulo()) + "T00:00:00Z"),
       },
     });
   }

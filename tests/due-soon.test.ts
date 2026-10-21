@@ -62,6 +62,12 @@ describe("dueSoon", () => {
   it("conta sem dia de vencimento não entra: não dá para dizer quando vence", () =>
     expect(dueSoon([conta({ dueDay: null })], "2026-09", HOJE, 7)).toEqual([]));
 
+  it("dia 31 num mês de 30 vence no dia 30", () => {
+    // Sem o teto, "em N dias" errava por um e o dia exibido não existia.
+    const [linha] = dueSoon([conta({ dueDay: 31 })], "2026-11", "2026-11-28", 7);
+    expect(linha).toMatchObject({ dueDay: 30, daysLeft: 2, overdue: false });
+  });
+
   it("o dia de hoje conta como vencendo hoje", () => {
     const linhas = dueSoon([conta({ dueDay: 4 })], "2026-09", HOJE, 7);
     expect(linhas).toHaveLength(1);

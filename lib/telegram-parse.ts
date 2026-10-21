@@ -1,4 +1,5 @@
 import { stripDiacritics } from "@/lib/text";
+import { normalizeBRLNumber } from "@/lib/money";
 
 export type ParsedExpense = {
   description: string;
@@ -53,9 +54,9 @@ const WEEKDAYS: Record<string, number> = {
 };
 
 function parseAmount(token: string): number {
-  // "1.299,90" (pt-BR) ou "512.30"/"300" (decimal com ponto)
-  const normalized = token.includes(",") ? token.replace(/\./g, "").replace(",", ".") : token;
-  return Number(normalized);
+  // "1.299,90" (pt-BR), "1.299" (milhar sem centavos) ou "512.30"/"300" (decimal
+  // com ponto). O caso do meio lançava R$ 1,30: ver normalizeBRLNumber.
+  return Number(normalizeBRLNumber(token));
 }
 
 /**
