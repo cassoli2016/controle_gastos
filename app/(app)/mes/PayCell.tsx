@@ -32,6 +32,12 @@ function formatDateBR(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+/** "20/10": no celular o ano é o da tela, e cada caractere a menos alinha a linha. */
+function formatDateShort(iso: string): string {
+  const [, m, d] = iso.split("-");
+  return `${d}/${m}`;
+}
+
 export function PayCell({
   entryId,
   plannedCents,
@@ -79,8 +85,8 @@ export function PayCell({
         {(!compact || valorDivergente) && (
           <span className="font-medium tabular-nums">{paidCents !== null ? formatCents(paidCents) : "—"}</span>
         )}
-        <span className="text-xs text-muted-foreground">
-          {paidDate ? formatDateBR(toDateInputValue(paidDate)) : ""}
+        <span className="text-xs tabular-nums text-muted-foreground">
+          {paidDate ? (compact ? formatDateShort(toDateInputValue(paidDate)) : formatDateBR(toDateInputValue(paidDate))) : ""}
         </span>
       </>
     );

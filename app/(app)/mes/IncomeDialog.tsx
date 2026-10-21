@@ -43,7 +43,8 @@ export function IncomeDialog() {
       <DialogTrigger asChild>
         <Button type="button" className="bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600">
           <TrendingUp className="size-4" />
-          Lançar recebimento
+          <span className="sm:hidden">Recebimento</span>
+          <span className="hidden sm:inline">Lançar recebimento</span>
         </Button>
       </DialogTrigger>
       <DialogContent>

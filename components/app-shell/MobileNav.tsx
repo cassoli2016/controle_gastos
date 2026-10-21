@@ -12,7 +12,7 @@ const SECONDARY = NAV_ITEMS.filter((i) => !i.primary);
 
 const itemClass = (active: boolean) =>
   cn(
-    "flex flex-1 flex-col items-center gap-1 py-2 text-[10px] leading-none",
+    "flex flex-1 flex-col items-center gap-1 py-2 text-[11px] leading-none",
     active ? "text-primary font-semibold" : "text-muted-foreground",
   );
 

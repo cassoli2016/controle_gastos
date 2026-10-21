@@ -172,26 +172,24 @@ export default async function MesPage({
         </div>
         {/* Ações em dois grupos: lançar (primárias, sólidas) × utilitárias
             (outline sm) — hierarquia visual em vez de cinco botões iguais. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <PurchaseDialog
-              cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
-              categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+        <div className="flex flex-wrap items-center gap-2 md:gap-x-3">
+          <PurchaseDialog
+            cards={activeCards.map((c) => ({ id: c.id, name: c.name }))}
+            categories={categories.map((c) => ({ id: c.id, name: c.name }))}
+          />
+          <IncomeDialog />
+          {/* Fora do "Mais ações" de propósito: só aparece quando o mês está
+              todo baixado e ainda sobra ou falta algo — e aí é a ação que
+              importa na tela. */}
+          {closeState.canClose && (
+            <CloseMonthDialog
+              month={month}
+              monthLabel={formatCompetencia(monthDate)}
+              residualCents={closeState.residualCents}
+              reserves={reserveOptions}
+              defaultReserveId={lastUsedReserveId(depositDescriptions, reserveOptions)}
             />
-            <IncomeDialog />
-            {/* Fora do "Mais ações" de propósito: só aparece quando o mês está
-                todo baixado e ainda sobra ou falta algo — e aí é a ação que
-                importa na tela. */}
-            {closeState.canClose && (
-              <CloseMonthDialog
-                month={month}
-                monthLabel={formatCompetencia(monthDate)}
-                residualCents={closeState.residualCents}
-                reserves={reserveOptions}
-                defaultReserveId={lastUsedReserveId(depositDescriptions, reserveOptions)}
-              />
-            )}
-          </div>
+          )}
           <MoreActions>
             <SaveLeftoverDialog
               reserves={reserveOptions}

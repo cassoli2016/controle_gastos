@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { MoreHorizontal, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -18,18 +18,20 @@ export function MoreActions({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <>
+      {/* Um "⋯" na ponta da linha dos botões principais, não um botão de texto
+          sozinho na linha de baixo. */}
       <Button
         type="button"
         variant="outline"
-        size="sm"
+        size="icon"
+        aria-label={open ? "Menos ações" : "Mais ações"}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        className="md:hidden"
+        className="ml-auto md:hidden"
       >
-        <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
-        {open ? "Menos ações" : "Mais ações"}
+        {open ? <X className="size-4" /> : <MoreHorizontal className="size-4" />}
       </Button>
-      <div className={cn("flex-wrap items-center gap-2 md:flex", open ? "flex w-full" : "hidden")}>{children}</div>
+      <div className={cn("flex-wrap items-center gap-2 md:flex", open ? "flex basis-full md:basis-auto" : "hidden")}>{children}</div>
     </>
   );
 }

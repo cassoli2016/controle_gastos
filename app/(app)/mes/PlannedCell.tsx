@@ -12,10 +12,13 @@ export function PlannedCell({
   itemId,
   month,
   plannedCents,
+  compact = false,
 }: {
   itemId: string;
   month: string;
   plannedCents: number;
+  /** Celular: só o número, sem lápis nem padding — a coluna de valores alinha com os avulsos. */
+  compact?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(upsertEntry, {});
   useActionToast(state, {
@@ -39,9 +42,15 @@ export function PlannedCell({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="sm" className="font-medium tabular-nums" aria-label="Editar valor previsto">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className={compact ? "h-auto px-0 py-0 font-medium tabular-nums hover:bg-transparent" : "font-medium tabular-nums"}
+          aria-label="Editar valor previsto"
+        >
           {formatCents(plannedCents)}
-          <Pencil className="size-3 opacity-50" />
+          {!compact && <Pencil className="size-3 opacity-50" />}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-56">

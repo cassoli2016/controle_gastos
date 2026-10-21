@@ -34,12 +34,20 @@ import { Pencil, Trash2 } from "lucide-react";
  * excluir o parcelamento inteiro. Sempre exibido junto da ação genérica
  * "excluir lançamento" (que afeta só a linha/mês atual) em EntryActions.
  */
+export type InstallmentDialogControl = {
+  editOpen: boolean;
+  setEditOpen: (open: boolean) => void;
+  deleteOpen: boolean;
+  setDeleteOpen: (open: boolean) => void;
+};
+
 export function InstallmentDialog({
   installmentId,
   entryId,
   plannedCents,
   label,
   categories,
+  control,
 }: {
   installmentId: string;
   /** Parcela (lançamento) do mês que abriu o dialog — alvo do escopo "só esta". */
@@ -48,12 +56,19 @@ export function InstallmentDialog({
   label: string;
   /** Categorias para reclassificar o grupo (opcional). */
   categories?: { id: string; name: string }[];
+  /**
+   * Estado vindo de fora (o menu "⋯" do celular abre os diálogos): sem os
+   * botões de gatilho, que lá viram itens do menu.
+   */
+  control?: InstallmentDialogControl;
 }) {
   const [editState, editAction, editPending] = useActionState<ActionState, FormData>(updateInstallment, {});
   useActionToast(editState, {
     success: (s) => `Parcelamento atualizado (${s.count ?? 0} parcela(s) em aberto).`,
   });
-  const [editOpen, setEditOpen] = useState(false);
+  const [editOpenLocal, setEditOpenLocal] = useState(false);
+  const editOpen = control ? control.editOpen : editOpenLocal;
+  const setEditOpen = control ? control.setEditOpen : setEditOpenLocal;
   // Fecha o dialog ao suceder (mesmo padrão do PurchaseDialog/PlannedCell).
   const [seenEditState, setSeenEditState] = useState(editState);
   if (editState !== seenEditState) {
@@ -65,7 +80,9 @@ export function InstallmentDialog({
   useActionToast(deleteState, {
     success: (s) => `Parcelamento excluído (${s.count ?? 0} parcela(s)).`,
   });
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteOpenLocal, setDeleteOpenLocal] = useState(false);
+  const deleteOpen = control ? control.deleteOpen : deleteOpenLocal;
+  const setDeleteOpen = control ? control.setDeleteOpen : setDeleteOpenLocal;
   const [seenDeleteState, setSeenDeleteState] = useState(deleteState);
   if (deleteState !== seenDeleteState) {
     setSeenDeleteState(deleteState);
@@ -77,11 +94,13 @@ export function InstallmentDialog({
   return (
     <>
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Editar parcelamento">
-            <Pencil />
-          </Button>
-        </DialogTrigger>
+        {!control && (
+          <DialogTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Editar parcelamento">
+              <Pencil />
+            </Button>
+          </DialogTrigger>
+        )}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar parcelamento</DialogTitle>
@@ -143,11 +162,13 @@ export function InstallmentDialog({
       </Dialog>
 
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-        <AlertDialogTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Excluir parcelamento">
-            <Trash2 />
-          </Button>
-        </AlertDialogTrigger>
+        {!control && (
+          <AlertDialogTrigger asChild>
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Excluir parcelamento">
+              <Trash2 />
+            </Button>
+          </AlertDialogTrigger>
+        )}
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir parcelamento?</AlertDialogTitle>
