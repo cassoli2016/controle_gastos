@@ -137,6 +137,16 @@ export function ReserveCard({
                     required
                   />
                 </div>
+                <label className="flex items-start gap-2 text-sm">
+                  <input type="checkbox" name="alreadyMoved" value="1" className="mt-0.5 size-4" />
+                  <span>
+                    O dinheiro já está na caixinha
+                    <span className="block text-xs text-muted-foreground">
+                      Marque quando você já fez a transferência no banco e já atualizou o saldo da
+                      caixinha: o depósito entra no extrato e o saldo continua o mesmo.
+                    </span>
+                  </span>
+                </label>
                 <DialogFooter>
                   <Button type="submit" disabled={depositPending}>
                     Depositar

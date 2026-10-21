@@ -218,6 +218,8 @@ export const depositSchema = z.object({
   id: z.string().min(1, "Caixinha inválida"),
   amount: z.coerce.number().positive("Valor deve ser maior que zero"),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data YYYY-MM-DD"),
+  /** "1" quando o dinheiro JÁ está na caixinha e o saldo não deve mudar. */
+  alreadyMoved: z.coerce.boolean().optional(),
 });
 
 /** Recebimento avulso ou recorrente (tela Mês → "Lançar recebimento"). */
