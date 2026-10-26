@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.46.1",
+    date: "2026-10-26",
+    title: "Cópias do app sempre em dia com a versão nova",
+    items: [
+      "Quando sai uma versão nova, cada cópia do app prepara os próprios dados sozinha na hora de atualizar. Antes, uma cópia podia receber a tela nova sem os dados prontos e dar erro até alguém ajustar à mão.",
+    ],
+  },
+  {
     version: "1.46.0",
     date: "2026-10-21",
     title: "Extrato do mês em PDF, seis meses por categoria e o saldo livre no bom-dia",

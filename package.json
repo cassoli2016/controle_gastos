@@ -1,10 +1,10 @@
 {
   "name": "controle-gastos",
-  "version": "1.46.0",
+  "version": "1.46.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "tsx scripts/migra-no-deploy.ts && next build",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
