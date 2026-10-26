@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertSchemaName, pendingMigrations, parseInstanceSchemas, envBlock } from "@/lib/instance-schema";
+import { assertSchemaName, pendingMigrations, parseInstanceSchemas, envBlock, deployMigrationTarget } from "@/lib/instance-schema";
 
 describe("assertSchemaName", () => {
   it("aceita nome simples", () => expect(assertSchemaName("fulano")).toBe("fulano"));
@@ -51,4 +51,19 @@ describe("envBlock", () => {
     expect(txt).toContain("APP_PASSWORD=p");
     expect(txt).toContain("AUTH_SECRET=s");
   });
+});
+
+describe("deployMigrationTarget", () => {
+  it("deploy de produção de uma cópia migra o próprio schema", () =>
+    expect(deployMigrationTarget({ VERCEL_ENV: "production", DATABASE_SCHEMA: "ana" })).toEqual({ schema: "ana" }));
+  it("fora da Vercel (build local) não migra", () =>
+    expect(deployMigrationTarget({ DATABASE_SCHEMA: "ana" })).toEqual({ skip: expect.stringMatching(/produção/) }));
+  it("preview não migra — o banco é o mesmo da produção", () =>
+    expect(deployMigrationTarget({ VERCEL_ENV: "preview", DATABASE_SCHEMA: "ana" })).toHaveProperty("skip"));
+  it("deploy do dono (sem DATABASE_SCHEMA ou public) não migra", () => {
+    expect(deployMigrationTarget({ VERCEL_ENV: "production" })).toHaveProperty("skip");
+    expect(deployMigrationTarget({ VERCEL_ENV: "production", DATABASE_SCHEMA: "public" })).toHaveProperty("skip");
+  });
+  it("nome inválido derruba o build em vez de ser ignorado", () =>
+    expect(() => deployMigrationTarget({ VERCEL_ENV: "production", DATABASE_SCHEMA: "x; drop" })).toThrow());
 });

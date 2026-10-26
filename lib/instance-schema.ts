@@ -109,3 +109,25 @@ export function envBlock(opts: {
     `AUTH_SECRET=${authSecret}`,
   ].join("\n");
 }
+
+/**
+ * Decide em qual schema o build de um deploy aplica as migrations pendentes
+ * (scripts/migra-no-deploy.ts). Só deploy de PRODUÇÃO na Vercel de uma CÓPIA:
+ * preview e build local apontam para o mesmo banco da produção e não podem
+ * mexer nele; o deploy do dono (sem DATABASE_SCHEMA, ou "public") segue com
+ * scripts/aplica-migration.ts, como antes. Nome presente mas inválido lança —
+ * melhor o build falhar do que a cópia subir com o schema atrasado.
+ */
+export function deployMigrationTarget(env: {
+  VERCEL_ENV?: string;
+  DATABASE_SCHEMA?: string;
+}): { schema: string } | { skip: string } {
+  if (env.VERCEL_ENV !== "production") {
+    return { skip: "não é deploy de produção na Vercel" };
+  }
+  const raw = env.DATABASE_SCHEMA?.trim();
+  if (!raw || raw === "public") {
+    return { skip: "deploy do dono (schema public) — migrations dele seguem manuais" };
+  }
+  return { schema: assertSchemaName(raw) };
+}

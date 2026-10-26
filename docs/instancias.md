@@ -3,7 +3,7 @@ type: Runbook
 title: Cópias do app — criar, entregar, atualizar e remover
 description: Como operar o app em múltiplas instâncias (uma por pessoa), cada uma com seu deploy na Vercel e seu schema Postgres no mesmo Supabase do dono.
 tags: [instancias, provisionamento, deploy, vercel, supabase, schema]
-timestamp: 2026-10-03
+timestamp: 2026-10-26
 ---
 
 # Cópias do app
@@ -97,9 +97,22 @@ alcança) precisa de um projeto Supabase próprio, não de um schema aqui.
 ## 3. Atualizar as instâncias
 
 Um `push` na `main` redeploya **todas** as cópias automaticamente, porque
-todas apontam para o mesmo repositório e a mesma branch — isso a Vercel já
-faz sozinha. O que a Vercel **não** faz é tocar no banco: cada schema só
-recebe as migrations novas quando alguém manda.
+todas apontam para o mesmo repositório e a mesma branch — e, desde a v1.46.1,
+cada cópia também aplica as próprias migrations nesse deploy. O script
+`build` roda `scripts/migra-no-deploy.ts` antes do `next build`: em deploy de
+**produção** com `DATABASE_SCHEMA` definido (e diferente de `public`), ele
+aplica as pendentes naquele schema, pelo mesmo `applyPending` do
+provisionador. Preview e build local não tocam no banco; o deploy do dono
+(sem `DATABASE_SCHEMA`) também não — as migrations do `public` continuam por
+`scripts/aplica-migration.ts`.
+
+Se a migration falhar (ou o schema não estiver provisionado), **o build
+falha** e a Vercel mantém no ar o deploy anterior, que ainda bate com o
+schema antigo. Veja o erro no log de build do projeto da cópia, corrija e
+redeploye.
+
+O comando manual continua valendo para conferir todas as cópias de uma vez,
+ou para destravar uma cópia cujo build falhou:
 
 1. Primeiro, sempre em modo leitura:
    ```
