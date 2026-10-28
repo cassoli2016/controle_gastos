@@ -10,6 +10,7 @@
 import { monthToDate, monthStringFromDate } from "@/lib/dates";
 import { CENTS_TOLERANCE, type FaturaBank, type FaturaLine } from "@/lib/fatura-core";
 import { canonicalFaturaDescription, type AppRow } from "@/lib/fatura-match";
+import { descriptionsMatch } from "@/lib/description-match";
 
 export type PlanState = {
   key: string;
@@ -41,11 +42,43 @@ export type PlanIndex = Map<string, PlanState[]>;
  * tamanho (há duas Privalia 5x, de R$ 116,11 e R$ 138,39).
  */
 function planBucket(description: string, count: number): string {
-  const base = canonicalFaturaDescription(description)
+  return `${planBase(description)}|${count}`;
+}
+
+/** Nome da loja sem o marcador de parcela — a parte do balde que vem da descrição. */
+function planBase(description: string): string {
+  return canonicalFaturaDescription(description)
     .replace(/ - parcela \d+\/\d+$/, "")
     .replace(/\(\d{2}\/\d{2}\)$/, "")
     .trim();
-  return `${base}|${count}`;
+}
+
+/**
+ * Planos de OUTRO balde com nome aparentado: um nome contém o outro, mesmo nº de
+ * parcelas e valor dentro da tolerância, do mais próximo ao mais distante.
+ *
+ * O aviso do banco grava o nome curto ("AMAZON BR") e a fatura o nome com cidade
+ * ("AMAZON BR SAO PAULO"). Os baldes não se encontram, e sem este parentesco a
+ * cauda lançada pelo aviso era tratada como plano que a fatura não conhece —
+ * preservada ao lado da cauda da fatura. Medido: R$ 1.142,34 em dez/2026..ago/2027.
+ * Quem chama exige ainda a MESMA parcela no mesmo mês, o que mantém separada a
+ * compra nova de nome curto (ela está sempre numa parcela anterior à do plano).
+ */
+function findSiblingPlans(
+  index: PlanIndex,
+  row: { description: string; cents: number },
+  installment: { count: number },
+): PlanState[] {
+  const base = planBase(row.description);
+  const own = planBucket(row.description, installment.count);
+  return [...index.entries()]
+    .filter(([bucket]) => bucket !== own)
+    .flatMap(([, plans]) => plans)
+    .filter((s) => s.count === installment.count && descriptionsMatch(planBase(s.description), base))
+    .map((state) => ({ state, diff: Math.abs(state.cents - row.cents) }))
+    .filter((c) => c.diff <= CENTS_TOLERANCE)
+    .sort((a, b) => a.diff - b.diff)
+    .map((c) => c.state);
 }
 
 /** Os planos do balde cujo valor por parcela casa dentro da tolerância, do mais próximo ao mais distante. */
@@ -115,6 +148,10 @@ export function faturaPlanStates(lines: FaturaLine[], orphans: AppRow[]): PlanIn
   for (const orphan of orphans) {
     if (!orphan.installment) continue; // à vista não é plano
     if (findPlan(index, orphan, orphan.installment)) continue; // a fatura já disse; ela ganha
+    // A mesma parcela já cobrada com o nome aparentado (com/sem cidade): é a
+    // linha repetida, não parcela atrasada — não pode deslocar o plano.
+    const seq = orphan.installment.seq;
+    if (findSiblingPlans(index, orphan, orphan.installment).some((s) => s.chargedThrough >= seq)) continue;
     upsertState(index, {
       key: `${planBucket(orphan.description, orphan.installment.count)}|${orphan.cents}`,
       description: orphan.description,
@@ -194,12 +231,22 @@ export function reconcileTail(opts: {
   const actions: TailAction[] = [];
   const covered = new Map<string, Set<string>>(); // key do plano → meses já corretos no app
 
+  const cover = (key: string, month: string) => {
+    const set = covered.get(key) ?? new Set<string>();
+    set.add(month);
+    covered.set(key, set);
+  };
+
   for (const [month, rows] of existingByMonth) {
     if (month <= faturaMonth) continue; // o mês da fatura é tratado pelo replace
+    const unknown: (AppRow & { installment: { seq: number; count: number } })[] = [];
     for (const row of rows) {
       if (!row.installment) continue; // à vista: preserva
       const candidates = findPlans(states, row, row.installment);
-      if (candidates.length === 0) continue; // plano que a fatura não conhece: preserva
+      if (candidates.length === 0) {
+        unknown.push({ ...row, installment: row.installment });
+        continue;
+      }
       const seq = row.installment.seq;
       // Cada linha do app cobre UM plano. Com gêmeos, a primeira linha cobre o
       // primeiro e a segunda cobre o segundo; uma terceira não tem plano que a
@@ -208,12 +255,23 @@ export function reconcileTail(opts: {
         (p) => wanted.get(p.key)?.get(month) === seq && !covered.get(p.key)?.has(month),
       );
       if (free) {
-        const set = covered.get(free.key) ?? new Set<string>();
-        set.add(month);
-        covered.set(free.key, set);
+        cover(free.key, month);
         continue; // já está certo
       }
       actions.push({ kind: "delete", id: row.id });
+    }
+    // Depois das linhas com o nome da fatura, para elas terem a preferência: a
+    // linha de nome aparentado (cauda do aviso) só cobre o plano se ninguém
+    // cobriu, e sai se o plano já está coberto.
+    for (const row of unknown) {
+      const seq = row.installment.seq;
+      const siblings = findSiblingPlans(states, row, row.installment).filter(
+        (p) => wanted.get(p.key)?.get(month) === seq,
+      );
+      if (siblings.length === 0) continue; // plano que a fatura não conhece: preserva
+      const free = siblings.find((p) => !covered.get(p.key)?.has(month));
+      if (free) cover(free.key, month);
+      else actions.push({ kind: "delete", id: row.id });
     }
   }
 

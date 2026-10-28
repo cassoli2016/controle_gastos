@@ -74,6 +74,11 @@ Formato de cada linha: `dd/mm  DESCRIÇÃO CIDADE(pp/tt)  valor`
    3º passe por (nº de parcelas, parcela, valor ±10 centavos). Sem ele a parcela já
    cobrada virava "parcela atrasada" e a cauda dobrava (medido: R$ 3.372,61 em 86
    linhas na fatura de 27/08/2026).
+   Nos meses FUTUROS a cauda do aviso (nome curto) e a da fatura (nome com cidade)
+   caem em baldes diferentes; `reconcileTail` as reconhece como o mesmo plano por
+   parentesco de nome (um contém o outro), mesmo nº de parcelas, MESMA parcela no
+   mês e valor ±10 centavos — fica a linha com o nome da fatura. Sem isso a cauda
+   dobrava (medido: R$ 1.142,34 de dez/2026 a ago/2027 na fatura de 27/10/2026).
 
 Relacionados: [cartao-credito](cartao-credito.md)
 
