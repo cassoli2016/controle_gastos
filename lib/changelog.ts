@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.46.2",
+    date: "2026-10-28",
+    title: "Fatura do Bradesco sem parcelas em dobro",
+    items: [
+      "Compra parcelada lançada pelo aviso do banco (\"AMAZON BR\") e a mesma compra na fatura (\"AMAZON BR SAO PAULO\") agora são reconhecidas como uma só. Antes, ao importar a fatura, as parcelas dos meses seguintes podiam aparecer duas vezes e inflar as próximas faturas.",
+    ],
+  },
+  {
     version: "1.46.1",
     date: "2026-10-26",
     title: "Cópias do app sempre em dia com a versão nova",

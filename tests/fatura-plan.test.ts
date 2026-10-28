@@ -296,3 +296,89 @@ describe("compra do ciclo novo já lançada pelo caminho curto (fatura Bradesco 
     expect(last).toMatchObject({ month: "2027-06", seq: 10 });
   });
 });
+
+describe("nome curto do aviso × nome com cidade da fatura (fatura Bradesco de 27/10/2026)", () => {
+  // Regressão de R$ 1.142,34 em dez/2026..ago/2027: o aviso do banco lançou a
+  // compra de outubro com o nome curto e a cauda inteira; a fatura trouxe o nome
+  // com cidade. O mês da fatura casava (3º passe de findOrphans), mas os meses
+  // futuros caíam em outro balde, a cauda do aviso era preservada como "plano
+  // que a fatura não conhece" e a da fatura nascia ao lado.
+  const lines: FaturaLine[] = [
+    inv("AMAZON BR SAO PAULO(01/07)", 2058, 1, 7),
+    inv("AMAZON BR SAO PAULO(01/07)", 2075, 1, 7),
+    inv("AMAZONMKTPLC*JAVIANACO SAO PAULO(02/10)", 4398, 2, 10),
+  ];
+
+  it("a cauda do aviso cobre o plano da fatura: nada a inserir nem apagar", () => {
+    const existingByMonth = new Map<string, AppRow[]>();
+    for (let seq = 2; seq <= 7; seq++) {
+      const month = shiftMonth("2026-11", seq - 1);
+      existingByMonth.set(month, [
+        { id: `aviso-${seq}`, description: "AMAZON BR", cents: 2053, installment: { seq, count: 7 } },
+        { id: `fat-${seq}`, description: `AMAZON BR SAO PAULO(0${seq}/07)`, cents: 2075, installment: { seq, count: 7 } },
+      ]);
+    }
+    const actions = reconcileTail({
+      states: faturaPlanStates(lines.slice(0, 2), []),
+      faturaMonth: "2026-11",
+      existingByMonth,
+      bank: "bradesco",
+    });
+    expect(actions).toEqual([]);
+  });
+
+  it("com as duas caudas no mês, fica a da fatura e sai a do aviso", () => {
+    const existingByMonth = new Map<string, AppRow[]>([
+      [
+        "2026-12",
+        [
+          { id: "aviso", description: "AMAZON BR", cents: 2053, installment: { seq: 2, count: 7 } },
+          { id: "fat-a", description: "AMAZON BR SAO PAULO(02/07)", cents: 2058, installment: { seq: 2, count: 7 } },
+          { id: "fat-b", description: "AMAZON BR SAO PAULO(02/07)", cents: 2075, installment: { seq: 2, count: 7 } },
+        ],
+      ],
+    ]);
+    const actions = reconcileTail({
+      states: faturaPlanStates(lines.slice(0, 2), []),
+      faturaMonth: "2026-11",
+      existingByMonth,
+      bank: "bradesco",
+    });
+    expect(actions.filter((a) => a.kind === "delete")).toEqual([{ kind: "delete", id: "aviso" }]);
+    expect(actions.filter((a) => a.kind === "insert" && a.month === "2026-12")).toEqual([]);
+  });
+
+  it("parcela do aviso com a numeração de outra parcela não é absorvida", () => {
+    // Compra NOVA com nome curto: 1/7 no mês seguinte, quando o plano da fatura
+    // está na 2/7. A numeração diferente separa as duas.
+    const existingByMonth = new Map<string, AppRow[]>([
+      ["2026-12", [{ id: "nova", description: "AMAZON BR", cents: 2060, installment: { seq: 1, count: 7 } }]],
+    ]);
+    const actions = reconcileTail({
+      states: faturaPlanStates(lines.slice(0, 2), []),
+      faturaMonth: "2026-11",
+      existingByMonth,
+      bank: "bradesco",
+    });
+    expect(actions.some((a) => a.kind === "delete")).toBe(false);
+  });
+
+  it("linha repetida sem cidade no mês da fatura não desloca o plano", () => {
+    const orphan: AppRow = {
+      id: "dup",
+      description: "AMAZONMKTPLC*JAVIANACO(02/10)",
+      cents: 4398,
+      installment: { seq: 2, count: 10 },
+    };
+    const plans = allPlans(faturaPlanStates(lines, [orphan]));
+    const java = plans.filter((p) => p.count === 10);
+    expect(java).toHaveLength(1);
+    expect(java[0].chargedThrough).toBe(2);
+  });
+});
+
+function shiftMonth(month: string, delta: number): string {
+  const d = new Date(`${month}-01T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + delta);
+  return d.toISOString().slice(0, 7);
+}
