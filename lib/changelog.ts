@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.46.3",
+    date: "2026-11-09",
+    title: "Tendência das reservas olha um ano à frente de verdade",
+    items: [
+      "A frase \"No ritmo dos últimos ciclos…\" no Dashboard agora projeta as reservas para o mesmo mês do ano que vem. Antes parava um mês antes (em novembro, falava de outubro do ano seguinte), como se o app ainda estivesse no mês passado.",
+    ],
+  },
+  {
     version: "1.46.2",
     date: "2026-10-28",
     title: "Fatura do Bradesco sem parcelas em dobro",

@@ -73,9 +73,14 @@ export type CurveSummary = {
   firstNegativeMonth: string | null;
 };
 
-/** Resumo dos primeiros `horizonMonths` pontos da curva. */
-export function curveSummary(curve: CurvePoint[], horizonMonths = 12): CurveSummary {
-  const window = curve.slice(0, horizonMonths);
+/**
+ * Resumo da curva até `monthsAhead` meses DEPOIS do primeiro ponto. O primeiro
+ * ponto é o mês corrente, então "um ano à frente" são 13 pontos: em nov/26 a
+ * frase fala de nov/27. Cortar em 12 pontos parava em out/27 e soava como se o
+ * app ainda estivesse em outubro.
+ */
+export function curveSummary(curve: CurvePoint[], monthsAhead = 12): CurveSummary {
+  const window = curve.slice(0, monthsAhead + 1);
   const last = window[window.length - 1];
   return {
     atHorizonCents: last?.reservesCents ?? null,

@@ -73,7 +73,15 @@ describe("curveSummary e trendSentence", () => {
       atHorizonMonth: "2027-04",
       firstNegativeMonth: "2027-03",
     });
-    expect(curveSummary(curva([100, 50, -10, 20]), 2).firstNegativeMonth).toBeNull();
+    expect(curveSummary(curva([100, 50, -10, 20]), 1).firstNegativeMonth).toBeNull();
+  });
+
+  it("um ano à frente do mês corrente: nov/26 fala de nov/27, não de out/27", () => {
+    const meses = Array.from({ length: 20 }, (_, i) => {
+      const d = new Date(Date.UTC(2026, 10 + i, 1));
+      return { month: d.toISOString().slice(0, 7), reservesCents: 100 + i };
+    });
+    expect(curveSummary(meses, 12).atHorizonMonth).toBe("2027-11");
   });
 
   it("frases: acaba, cai, chega", () => {
