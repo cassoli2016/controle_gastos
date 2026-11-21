@@ -69,6 +69,11 @@ export async function createCardSubscription(opts: {
   // vínculo para o consumo passar a acontecer.
   const existing = await findActiveItemByName(opts.description);
   if (existing) {
+    // A conta fixa adotada passa para "Assinaturas", como as criadas do zero.
+    // Sem isso o HBO Max seguia em "Lazer" depois de virar assinatura.
+    if (existing.categoryId !== categoryId) {
+      await prisma.item.update({ where: { id: existing.id }, data: { categoryId } });
+    }
     const alreadyLinked = await prisma.cardSubscription.findUnique({ where: { itemId: existing.id } });
     if (alreadyLinked?.active) {
       return { error: `"${existing.name}" já é assinatura do cartão ${alreadyLinked.cardId === opts.card.id ? "atual" : "outro"}.` };

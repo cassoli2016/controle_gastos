@@ -14,6 +14,14 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.47.2",
+    date: "2026-11-21",
+    title: "Conta fixa que vira assinatura vai para Assinaturas",
+    items: [
+      "Ao transformar uma conta fixa que já existia em assinatura do cartão, ela passa para a categoria Assinaturas, igual às assinaturas criadas do zero. Antes ela continuava na categoria antiga (o HBO Max seguia em Lazer).",
+    ],
+  },
+  {
     version: "1.47.1",
     date: "2026-11-21",
     title: "Tendência das reservas mais clara e mais precisa",
