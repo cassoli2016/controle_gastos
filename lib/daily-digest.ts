@@ -1,4 +1,6 @@
 import { formatCents } from "@/lib/money";
+import type { CardSpend } from "@/lib/card-spend";
+import { monthLabel } from "@/lib/month-nav";
 
 /** Lançamento como o cron o entrega ao helper. */
 export type DigestInput = {
@@ -133,4 +135,19 @@ export function freeReserveLine(reservesTotalCents: number, negatives: { month: 
   if (negatives.length === 0) return `🧭 Saldo livre ${formatCents(free)} · nenhum mês no vermelho à frente`;
   const n = negatives.length;
   return `🧭 Saldo livre ${formatCents(free)} · guardado ${formatCents(reservesTotalCents)} menos ${n} ${n === 1 ? "mês" : "meses"} no vermelho (${formatCents(-uncovered)})`;
+}
+
+/**
+ * Linha do resumo matinal com o ritmo do cartão (lib/card-spend.ts): o gasto à
+ * vista do mês em R$/dia contra a meta e a média recente, e o grupo que mais
+ * pesou. É o número que decide a tendência das reservas, visto todo dia
+ * enquanto ainda dá para mudar o mês — e não só quando a fatura fecha.
+ */
+export function cardPaceLine(spend: CardSpend, goalPerDayCents: number | null): string {
+  const mes = monthLabel(spend.month).split(" ")[0].toLowerCase();
+  const icon = goalPerDayCents !== null && spend.currentPerDayCents > goalPerDayCents ? "🔺" : "✅";
+  const meta = goalPerDayCents !== null ? ` (meta ${formatCents(goalPerDayCents)})` : "";
+  const top = spend.groups.find((g) => g.currentCents > 0);
+  const destaque = top ? ` · mais em ${top.label.toLowerCase()}: ${formatCents(top.currentCents)}` : "";
+  return `${icon} Cartão à vista em ${mes}: ${formatCents(spend.currentPerDayCents)}/dia${meta} · média recente ${formatCents(spend.averagePerDayCents)}/dia${destaque}`;
 }

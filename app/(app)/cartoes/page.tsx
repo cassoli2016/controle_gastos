@@ -21,6 +21,8 @@ import { ImportFaturaDialog } from "./ImportFaturaDialog";
 import { SubscriptionsDialog, type SubscriptionView } from "./SubscriptionsDialog";
 import { formatCompetencia } from "@/lib/dates";
 import { PurchaseDialog } from "../mes/PurchaseDialog";
+import { getCardSpend, getDailyBudget } from "@/lib/planning";
+import { CardSpendCard } from "@/components/CardSpendCard";
 
 const TONE_BAR = { emerald: "bg-emerald-500", amber: "bg-amber-500", rose: "bg-rose-500" } as const;
 
@@ -42,7 +44,7 @@ export default async function CartoesPage({
   });
   const nextMonth = nextThreeMonths[0];
 
-  const [cards, monthEntries, transactions, categories, subscriptions, openEntries, upcomingRows] = await Promise.all([
+  const [cards, monthEntries, transactions, categories, subscriptions, openEntries, upcomingRows, spend, budget] = await Promise.all([
     prisma.creditCard.findMany({ orderBy: { name: "asc" } }),
     prisma.monthlyEntry.findMany({
       where: { month: monthDate, cardId: { not: null } },
@@ -69,6 +71,9 @@ export default async function CartoesPage({
       where: { cardId: { not: null }, month: { in: nextThreeMonths.map(monthToDate) } },
       select: { cardId: true, month: true, plannedAmount: true },
     }),
+    // Gasto à vista por grupo: estado presente, independe do mês navegado.
+    getCardSpend(),
+    getDailyBudget(),
   ]);
 
   const activeCards = cards.filter((c) => c.active);
@@ -132,6 +137,8 @@ export default async function CartoesPage({
         <h1 className="text-sm font-medium text-muted-foreground">Cartões</h1>
         <MonthNav month={month} basePath="/cartoes" />
       </div>
+
+      {activeCards.length > 0 && <CardSpendCard spend={spend} goalPerDayCents={budget?.perDayCents ?? null} />}
 
       {activeCards.length === 0 ? (
         <Card>

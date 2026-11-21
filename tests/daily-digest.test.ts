@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { dueDateISO, buildDailyDigest, digestMessage, type DigestInput } from "@/lib/daily-digest";
+import { dueDateISO, buildDailyDigest, digestMessage, cardPaceLine, type DigestInput } from "@/lib/daily-digest";
 
 const HOJE = "2026-08-15";
 
@@ -152,5 +152,30 @@ describe("digestMessage", () => {
   it("atrasada mostra o dia em que venceu", () => {
     const texto = digestMessage(buildDailyDigest([conta("Internet", 10990, 10)], HOJE, 0), HOJE);
     expect(norm(texto)).toContain("Internet — R$ 109,90 (venceu dia 10)");
+  });
+});
+
+describe("cardPaceLine", () => {
+  const spend = {
+    month: "2026-11",
+    daysElapsed: 21,
+    currentCents: 299912,
+    currentPerDayCents: 14282,
+    previousMonths: ["2026-08", "2026-09", "2026-10"],
+    averageCents: 998999,
+    averagePerDayCents: 32576,
+    lastPurchaseISO: "2026-11-20",
+    groups: [
+      { id: "mercado" as const, label: "Mercado e padaria", color: "#000", currentCents: 103137, averageCents: 232358, top: [] },
+    ],
+  };
+  it("abaixo da meta: ✅, ritmo, média e o grupo que mais pesou", () => {
+    expect(cardPaceLine(spend, 15000).replace(/ /g, " ")).toBe(
+      "✅ Cartão à vista em novembro: R$ 142,82/dia (meta R$ 150,00) · média recente R$ 325,76/dia · mais em mercado e padaria: R$ 1.031,37",
+    );
+  });
+  it("acima da meta: 🔺; sem meta, sem parênteses", () => {
+    expect(cardPaceLine(spend, 10000).startsWith("🔺")).toBe(true);
+    expect(cardPaceLine(spend, null)).not.toContain("meta");
   });
 });

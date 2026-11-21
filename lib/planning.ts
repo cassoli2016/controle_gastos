@@ -10,6 +10,8 @@ import { readInstallment } from "@/lib/fatura-match";
 import { reserveStatement, statementCheck, type StatementLine } from "@/lib/reserve-statement";
 import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
 import { countsAsVariableSpend, observedPerDay, withVariableSpend, type CycleSpend } from "@/lib/trend";
+import { cardSpend, type CardSpend, type SpendTx } from "@/lib/card-spend";
+import { shiftMonth } from "@/lib/month-nav";
 
 export type NegativeMonth = { month: string; balanceCents: number };
 
@@ -203,6 +205,41 @@ export async function getObservedVariableSpend(today: string = todayISOInSaoPaul
   const cycles: CycleSpend[] = [...vista].map(([monthISO, vistaCents]) => ({ monthISO, vistaCents }));
   const perDayCents = observedPerDay(cycles);
   return perDayCents === null ? null : { perDayCents, cycles };
+}
+
+/**
+ * Gasto à vista no cartão por grupo, pela data da compra (lib/card-spend.ts):
+ * mês corrente até hoje × média dos três anteriores. Mesmo filtro da
+ * tendência (`countsAsVariableSpend`), para os dois números conversarem.
+ */
+export async function getCardSpend(today: string = todayISOInSaoPaulo()): Promise<CardSpend> {
+  const from = monthToDate(shiftMonth(today.slice(0, 7), -3));
+  const rows = await prisma.cardTransaction.findMany({
+    where: { purchaseDate: { gte: from, lte: new Date(today + "T00:00:00Z") }, amount: { gt: 0 } },
+    select: {
+      description: true,
+      bankDescription: true,
+      amount: true,
+      purchaseDate: true,
+      installmentSeq: true,
+      installmentCount: true,
+      subscription: { select: { itemId: true } },
+    },
+  });
+  const txs: SpendTx[] = [];
+  for (const t of rows) {
+    const cents = decimalToCents(String(t.amount));
+    const description = t.bankDescription ?? t.description;
+    const counts = countsAsVariableSpend({
+      cents,
+      description,
+      isInstallment:
+        readInstallment({ description, installmentSeq: t.installmentSeq, installmentCount: t.installmentCount }) !== null,
+      hasPlannedLine: t.subscription?.itemId != null,
+    });
+    if (counts && t.purchaseDate) txs.push({ dateISO: t.purchaseDate.toISOString().slice(0, 10), cents, description });
+  }
+  return cardSpend(txs, today);
 }
 
 export type ReserveOutlooks = {
