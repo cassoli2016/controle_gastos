@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.48.0",
+    date: "2026-11-21",
+    title: "Caixinhas + saldo a realizar, mês a mês",
+    items: [
+      "Novo gráfico no Panorama: parte do que você tem hoje nas caixinhas e soma o saldo a realizar de cada mês (o que ainda vai entrar menos o que ainda vai sair). Mostra quanto você terá no fim de cada mês se tudo o que está lançado acontecer.",
+      "Toque em um mês para ver a conta escrita: caixinhas hoje + saldo a realizar até aquele mês = total. Dá para ver 12 meses, 24 meses ou tudo o que está lançado, e os meses em que falta dinheiro aparecem em vermelho.",
+    ],
+  },
+  {
     version: "1.47.3",
     date: "2026-11-21",
     title: "Atualização de segurança",

@@ -21,10 +21,12 @@ import {
 import { parseHidePaid } from "@/lib/month-filter";
 import { looseRowBlocked } from "@/lib/account-actions";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { getDailyBudget } from "@/lib/planning";
+import { getDailyBudget, getReserves } from "@/lib/planning";
+import { reserveRunway, defaultRunwayMonth } from "@/lib/reserve-runway";
+import { ReserveRunway } from "@/components/charts/ReserveRunway";
 import { dailyBudgetLine, DAILY_BUDGET_ENTRY_ID } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CellAction } from "./CellAction";
 import { RowAction } from "./RowAction";
 import { NewAccountDialog } from "./NewAccountDialog";
@@ -80,12 +82,13 @@ export default async function PanoramaPage({
     return qs ? `/panorama?${qs}` : "/panorama";
   };
 
-  const [rows, budget, categories] = await Promise.all([
+  const [rows, budget, categories, reserves] = await Promise.all([
     prisma.monthlyEntry.findMany({
       include: { item: { include: { category: true } }, category: true, card: true },
     }),
     getDailyBudget(),
     prisma.category.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    getReserves(),
   ]);
 
   // Categoria e trava de cada LINHA da matriz, pela mesma chave que o
@@ -142,6 +145,11 @@ export default async function PanoramaPage({
 
   const matrix = buildMatrix(entries);
 
+  // Caixinhas + saldo a realizar acumulado: o mesmo rodapé da matriz, somado.
+  const reservesCents = reserves.reduce((a, r) => a + r.amountCents, 0);
+  const runway = reserveRunway(reservesCents, matrix.balanceByMonth, currentMonth);
+  const runwayMonth = defaultRunwayMonth(runway.points, currentMonth);
+
   const hidden = settledPastMonths(matrix, currentMonth);
   const visibleMonths = showSettled ? matrix.months : matrix.months.filter((m) => !hidden.includes(m));
   const columns = matrixColumns(visibleMonths);
@@ -193,6 +201,24 @@ export default async function PanoramaPage({
         O que ainda falta em cada mês, conta por conta. Verde é quitado, âmbar é parcial. Toque no valor
         para editar ou dar baixa; no nome da conta, para renomear ou excluir.
       </p>
+
+      {runwayMonth && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Caixinhas + saldo a realizar</CardTitle>
+            <CardDescription>Quanto você tem no fim de cada mês se tudo o que está lançado acontecer.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ReserveRunway
+              startCents={reservesCents}
+              points={runway.points}
+              defaultMonth={runwayMonth}
+              overdueCents={runway.overdueCents}
+              perDayCents={budget?.perDayCents ?? null}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {matrix.months.length === 0 ? (
         <Card>
