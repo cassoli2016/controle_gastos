@@ -4,7 +4,15 @@ import { revalidateFinance } from "@/lib/revalidate";
 import { prisma } from "@/lib/prisma";
 import { reserveSchema, reserveAdjustSchema, reserveReconcileSchema, dailyBudgetSchema, depositSchema, withdrawalSchema } from "@/lib/validators";
 import { resolveCategoryId } from "@/lib/purchases";
-import { RESERVE_CATEGORY, RESERVE_WITHDRAWAL_CATEGORY, withdrawalEntryData } from "@/lib/reserve-flow";
+import {
+  RESERVE_CATEGORY,
+  RESERVE_WITHDRAWAL_CATEGORY,
+  withdrawalEntryData,
+  depositEntryData,
+  splitBalanceIncrease,
+} from "@/lib/reserve-flow";
+import { getCurrentMonthLeftover } from "@/lib/planning";
+import type { Prisma } from "@prisma/client";
 import { depositToReserveBox } from "@/lib/reserve-deposit";
 import { monthToDate } from "@/lib/dates";
 import { decimalToCents, centsToNumber } from "@/lib/money";
@@ -27,6 +35,57 @@ function goalData(goalAmount: number | null | undefined, goalMonth: string | nul
     goalAmount: goalAmount ?? null,
     goalMonth: goalMonth ? monthToDate(goalMonth) : null,
   };
+}
+
+/**
+ * Grava a mudança de saldo digitada à mão. Se você disse que o aumento veio da
+ * conta corrente (salário, sobra do mês), a parte que a conta tem vira
+ * DEPÓSITO — lançamento "Reserva" pago no mês de hoje — e só o resto fica
+ * como ajuste. Ver `splitBalanceIncrease`: ajuste não passa pela conta, e
+ * registrar salário como ajuste fazia o app contar o mesmo dinheiro duas vezes.
+ */
+async function recordBalanceChange(
+  tx: Prisma.TransactionClient,
+  box: { id: string; name: string },
+  deltaCents: number,
+  opts: { origin: AccountOrigin | null; todayISO: string; reason: string },
+) {
+  const { depositCents, adjustmentCents } = splitBalanceIncrease(
+    deltaCents,
+    opts.origin?.leftoverCents ?? 0,
+    opts.origin !== null,
+  );
+  if (depositCents > 0 && opts.origin) {
+    await tx.monthlyEntry.create({
+      data: { categoryId: opts.origin.categoryId, reserveBoxId: box.id, ...depositEntryData(box.name, centsToNumber(depositCents), opts.todayISO) },
+    });
+  }
+  if (adjustmentCents !== 0) {
+    await tx.reserveAdjustment.create({
+      data: {
+        boxId: box.id,
+        date: new Date(opts.todayISO + "T00:00:00Z"),
+        amount: centsToNumber(adjustmentCents),
+        reason: opts.reason,
+      },
+    });
+  }
+}
+
+type AccountOrigin = { leftoverCents: number; categoryId: string };
+
+/**
+ * Lido ANTES da transação: o aumento saiu da conta corrente ("conta" no campo
+ * `origin` do form)? Se sim, quanto a conta tem e a categoria "Reserva".
+ * null quando o saldo não subiu ou o aumento foi rendimento/correção.
+ */
+async function accountOrigin(formData: FormData, deltaCents: number, todayISO: string): Promise<AccountOrigin | null> {
+  if (deltaCents <= 0 || formData.get("origin") !== "conta") return null;
+  const [leftoverCents, categoryId] = await Promise.all([
+    getCurrentMonthLeftover(todayISO),
+    resolveCategoryId(RESERVE_CATEGORY),
+  ]);
+  return { leftoverCents, categoryId };
 }
 
 export const createReserve = guardAction(async function createReserve(_prevState: ActionState, formData: FormData): Promise<ActionState> {
@@ -59,17 +118,16 @@ export const updateReserve = guardAction(async function updateReserve(_prevState
   const box = await prisma.reserveBox.findUnique({ where: { id } });
   if (!box) return { error: "Caixinha não encontrada." };
   const deltaCents = Math.round(amount * 100) - decimalToCents(String(box.amount));
+  const todayISO = todayISOInSaoPaulo();
+  const origin = await accountOrigin(formData, deltaCents, todayISO);
 
   await prisma.$transaction(async (tx) => {
     await tx.reserveBox.update({ where: { id }, data: { name, amount, ...goalData(goalAmount, goalMonth) } });
     if (deltaCents !== 0) {
-      await tx.reserveAdjustment.create({
-        data: {
-          boxId: id,
-          date: new Date(todayISOInSaoPaulo() + "T00:00:00Z"),
-          amount: centsToNumber(deltaCents),
-          reason: reason && reason !== "" ? reason : "Ajuste manual",
-        },
+      await recordBalanceChange(tx, box, deltaCents, {
+        origin,
+        todayISO,
+        reason: reason && reason !== "" ? reason : "Ajuste manual",
       });
     }
   });
@@ -95,16 +153,14 @@ export const reconcileReserve = guardAction(async function reconcileReserve(_pre
   const today = todayISOInSaoPaulo();
   const deltaCents = Math.round(realAmount * 100) - decimalToCents(String(box.amount));
   if (deltaCents === 0) return { ok: true, count: 0 };
+  const origin = await accountOrigin(formData, deltaCents, today);
 
   await prisma.$transaction(async (tx) => {
     await tx.reserveBox.update({ where: { id }, data: { amount: realAmount } });
-    await tx.reserveAdjustment.create({
-      data: {
-        boxId: id,
-        date: new Date(today + "T00:00:00Z"),
-        amount: centsToNumber(deltaCents),
-        reason: `Conferência em ${today.slice(8, 10)}/${today.slice(5, 7)}`,
-      },
+    await recordBalanceChange(tx, box, deltaCents, {
+      origin,
+      todayISO: today,
+      reason: `Conferência em ${today.slice(8, 10)}/${today.slice(5, 7)}`,
     });
   });
   revalidateFinance();

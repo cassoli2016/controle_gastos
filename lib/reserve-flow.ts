@@ -139,3 +139,30 @@ export function savedInMonthLabel(balanceCents: number, savedCents: number): str
   const taken = formatCents(-savedCents);
   return balanceCents < 0 ? `${taken} vieram da caixinha` : `${taken} tirado da caixinha`;
 }
+
+/**
+ * Divide o AUMENTO do saldo digitado à mão (editar a caixinha, conferir com o
+ * banco) entre depósito e ajuste.
+ *
+ * Existe porque o salário que vai direto para a caixinha era registrado como
+ * "Ajuste manual" — movimento que, por definição, não passa pela conta. O
+ * salário, porém, já estava lançado como receita recebida no mês, então o app
+ * via o mesmo dinheiro duas vezes: na caixinha e "parado na conta". Em
+ * nov/2026 eram R$ 31.525,68 contados em dobro, e a tendência das reservas
+ * anunciava R$ 50.985,95 em nov/27 quando o real era perto de R$ 19 mil.
+ *
+ * Quando você diz que o aumento veio da conta corrente, a parte que cabe na
+ * sobra realizada do mês (`leftoverCents`, o que ainda está na conta) vira
+ * depósito; só o excedente fica como ajuste — depositar mais do que a conta
+ * tem deixaria o mês negativo com dinheiro que nunca saiu dela.
+ * Redução de saldo, ou aumento que não veio da conta, é ajuste inteiro.
+ */
+export function splitBalanceIncrease(
+  deltaCents: number,
+  leftoverCents: number,
+  fromAccount: boolean,
+): { depositCents: number; adjustmentCents: number } {
+  if (!fromAccount || deltaCents <= 0) return { depositCents: 0, adjustmentCents: deltaCents };
+  const depositCents = Math.min(deltaCents, Math.max(0, leftoverCents));
+  return { depositCents, adjustmentCents: deltaCents - depositCents };
+}

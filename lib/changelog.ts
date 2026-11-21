@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.47.0",
+    date: "2026-11-21",
+    title: "Salário que vai para a caixinha não conta mais duas vezes",
+    items: [
+      "Ao editar o valor da caixinha ou conferir com o saldo do banco, se o valor subiu, o app pergunta de onde veio: da conta corrente (salário, sobra do mês) ou de rendimento/correção. Vindo da conta, a diferença entra como depósito, até o que ainda está na conta no mês.",
+      "Antes, todo aumento digitado virava \"Ajuste manual\", e o salário aparecia ao mesmo tempo na caixinha e como dinheiro parado na conta. Com isso, a frase \"No ritmo dos últimos ciclos…\" mostrava as reservas bem acima do que elas vão estar de verdade.",
+    ],
+  },
+  {
     version: "1.46.3",
     date: "2026-11-09",
     title: "Tendência das reservas olha um ano à frente de verdade",

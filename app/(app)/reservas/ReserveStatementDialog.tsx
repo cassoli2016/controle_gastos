@@ -2,6 +2,7 @@
 import { useActionState, useState } from "react";
 import { ScrollText, AlertTriangle, Check } from "lucide-react";
 import { reconcileReserve, type ActionState } from "./actions";
+import { AccountOriginField } from "./AccountOriginField";
 import { formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,10 +40,13 @@ export function ReserveStatementDialog({
   reserve,
   lines,
   check,
+  leftoverCents,
 }: {
   reserve: { id: string; name: string; amountCents: number };
   lines: StatementLine[];
   check: { ok: boolean; differenceCents: number };
+  /** Dinheiro ainda parado na conta este mês: decide se a pergunta da origem aparece. */
+  leftoverCents: number;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(reconcileReserve, {});
   useActionToast(state, {
@@ -149,6 +153,7 @@ export function ReserveStatementDialog({
               Conferir
             </Button>
           </div>
+          <AccountOriginField idPrefix={`reconcile-origin-${reserve.id}`} leftoverCents={leftoverCents} />
           <p className="text-xs text-muted-foreground">
             Digite o que a aplicação mostra hoje. Se houver diferença, ela entra como ajuste com a data
             de hoje — e você passa a ver quanto rendeu de uma conferência para a outra.
