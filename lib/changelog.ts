@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.47.3",
+    date: "2026-11-21",
+    title: "Atualização de segurança",
+    items: [
+      "Componentes do app atualizados para versões que corrigem falhas de segurança conhecidas, inclusive na parte que exige a senha para entrar.",
+      "Toda ação que grava algo (lançar, pagar, depositar, importar) agora confere se você está logado antes de executar, além da checagem que as telas já faziam.",
+    ],
+  },
+  {
     version: "1.47.2",
     date: "2026-11-21",
     title: "Conta fixa que vira assinatura vai para Assinaturas",
