@@ -2,5 +2,5 @@
 export { auth as proxy } from "@/lib/auth";
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/mes/:path*", "/itens/:path*", "/categorias/:path*", "/cartoes/:path*", "/reservas/:path*", "/investimentos/:path*", "/panorama/:path*", "/novidades/:path*"],
+  matcher: ["/dashboard/:path*", "/mes/:path*", "/itens/:path*", "/categorias/:path*", "/cartoes/:path*", "/reservas/:path*", "/investimentos/:path*", "/panorama/:path*", "/novidades/:path*", "/ajustes/:path*", "/calculadora/:path*"],
 };
