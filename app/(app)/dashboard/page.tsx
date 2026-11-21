@@ -13,7 +13,7 @@ import {
   getCurrentMonthLeftover,
   freeReserveCents,
 } from "@/lib/planning";
-import { curveSummary, cyclesLabel, trendSentence } from "@/lib/trend";
+import { curveSummary, cyclesLabel, trendFalls, trendSentence } from "@/lib/trend";
 import { shortMonthLabel } from "@/lib/matrix";
 import { dailyBudgetLine } from "@/lib/daily-budget";
 import { Button } from "@/components/ui/button";
@@ -109,13 +109,19 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const outlook = outlooks.plan;
   // Tendência em 12 meses: a mesma curva com o gasto variável observado nos
   // últimos ciclos de cartão. A frase vive ao lado da do plano, nunca no lugar.
-  const trend = outlooks.trend
-    ? {
-        perDayCents: outlooks.trend.perDayCents,
-        label: cyclesLabel(outlooks.trend.cycles),
-        sentence: trendSentence(curveSummary(outlooks.trend.outlook.curve, 12), outlooks.startCents),
-      }
-    : null;
+  const trendSummary = outlooks.trend ? curveSummary(outlooks.trend.outlook.curve, 12) : null;
+  const trend =
+    outlooks.trend && trendSummary
+      ? {
+          perDayCents: outlooks.trend.perDayCents,
+          label: cyclesLabel(outlooks.trend.cycles),
+          falls: trendFalls(trendSummary, outlooks.startCents),
+          sentence: trendSentence(trendSummary, outlooks.startCents, {
+            observedPerDayCents: outlooks.trend.perDayCents,
+            planPerDayCents: budget?.perDayCents ?? null,
+          }),
+        }
+      : null;
   const renewals = upcomingRenewals(
     renewalItems.map((i) => ({ name: i.name, renewalMonth: i.renewalMonth! })),
     Number(todayISOInSaoPaulo().slice(5, 7)),
@@ -265,8 +271,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   // Ela não substitui o plano: diz o que acontece se o ritmo atual continuar.
   const trendLine: HorizonSentence | null = trend
     ? {
-        label: `Tendência · ${formatCents(trend.perDayCents)} por dia, média de ${trend.label}`,
-        tone: trend.sentence.includes("chegam") ? "good" : "warn",
+        label: `Tendência · gasto à vista no cartão, média de ${trend.label}`,
+        tone: trend.falls ? "warn" : "good",
         sentence: trend.sentence,
       }
     : null;

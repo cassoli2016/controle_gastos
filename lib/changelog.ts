@@ -14,6 +14,15 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.47.1",
+    date: "2026-11-21",
+    title: "Tendência das reservas mais clara e mais precisa",
+    items: [
+      "A frase da tendência no Dashboard agora diz a condição e o ponto de partida: \"Se o cartão seguir em … por dia (sua meta é …), as reservas caem de … hoje para … daqui a um ano\". Antes ela mostrava só o valor final, e parecia que o dinheiro guardado hoje tinha sumido.",
+      "Assinaturas que já têm conta fixa no Mês e parcelas cobradas fora do cartão (como o seguro do carro em 4 vezes) não entram mais no ritmo de gasto do cartão. Antes elas contavam duas vezes e deixavam a tendência mais pessimista do que o real.",
+    ],
+  },
+  {
     version: "1.47.0",
     date: "2026-11-21",
     title: "Salário que vai para a caixinha não conta mais duas vezes",

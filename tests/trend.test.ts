@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { observedPerDay, cyclesLabel, withVariableSpend, curveSummary, trendSentence } from "@/lib/trend";
+import { observedPerDay, cyclesLabel, withVariableSpend, curveSummary, trendSentence, trendFalls, countsAsVariableSpend } from "@/lib/trend";
 import { reserveOutlook } from "@/lib/planning";
 import { dailyBudgetEntryView } from "@/lib/entries";
 import { dailyBudgetLine } from "@/lib/daily-budget";
@@ -84,14 +84,40 @@ describe("curveSummary e trendSentence", () => {
     expect(curveSummary(meses, 12).atHorizonMonth).toBe("2027-11");
   });
 
-  it("frases: acaba, cai, chega", () => {
-    expect(trendSentence(curveSummary(curva([100, -5]), 12), 100)).toBe("No ritmo dos últimos ciclos, as caixinhas acabam em fev/27.");
-    expect(norm(trendSentence(curveSummary(curva([100, 5000]), 12), 10000))).toBe(
-      "No ritmo dos últimos ciclos, as reservas caem para R$ 50,00 em fev/27.",
+  it("frases citam o ritmo, a meta e o saldo de hoje", () => {
+    const pace = { observedPerDayCents: 34477, planPerDayCents: 15000 };
+    expect(norm(trendSentence(curveSummary(curva([100, -5]), 12), 100, pace))).toBe(
+      "Se o cartão seguir em R$ 344,77/dia (sua meta é R$ 150,00), as caixinhas acabam em fev/27.",
     );
-    expect(norm(trendSentence(curveSummary(curva([100, 20000]), 12), 10000))).toBe(
-      "No ritmo dos últimos ciclos, as reservas chegam a R$ 200,00 em fev/27.",
+    expect(norm(trendSentence(curveSummary(curva([100, 5000]), 12), 10000, pace))).toBe(
+      "Se o cartão seguir em R$ 344,77/dia (sua meta é R$ 150,00), as reservas caem de R$ 100,00 hoje para R$ 50,00 em fev/27.",
     );
-    expect(trendSentence(curveSummary([], 12), 0)).toBe("Sem meses à frente para projetar.");
+    expect(norm(trendSentence(curveSummary(curva([100, 20000]), 12), 10000, { observedPerDayCents: 34477, planPerDayCents: null }))).toBe(
+      "Se o cartão seguir em R$ 344,77/dia, as reservas vão de R$ 100,00 hoje para R$ 200,00 em fev/27.",
+    );
+    expect(trendSentence(curveSummary([], 12), 0, pace)).toBe("Sem meses à frente para projetar.");
+  });
+
+  it("tom: cai quando termina abaixo de hoje ou zera", () => {
+    expect(trendFalls(curveSummary(curva([100, 5000]), 12), 10000)).toBe(true);
+    expect(trendFalls(curveSummary(curva([100, -5, 20000]), 12), 100)).toBe(true);
+    expect(trendFalls(curveSummary(curva([100, 20000]), 12), 10000)).toBe(false);
+  });
+});
+
+describe("countsAsVariableSpend", () => {
+  const base = { cents: 5000, description: "Festval Torres", isInstallment: false, hasPlannedLine: false };
+  it("compra à vista conta", () => {
+    expect(countsAsVariableSpend(base)).toBe(true);
+  });
+  it("estorno, parcela e assinatura com linha no Mês não contam", () => {
+    expect(countsAsVariableSpend({ ...base, cents: -5000 })).toBe(false);
+    expect(countsAsVariableSpend({ ...base, isInstallment: true })).toBe(false);
+    expect(countsAsVariableSpend({ ...base, description: "Google Youtubepremium", hasPlannedLine: true })).toBe(false);
+  });
+  it("parcela cobrada fora do cartão (\"Aut*04de04\") não conta", () => {
+    expect(countsAsVariableSpend({ ...base, cents: 32408, description: "Bradesco Aut*04de04" })).toBe(false);
+    expect(countsAsVariableSpend({ ...base, description: "Loja*05de04" })).toBe(true);
+    expect(countsAsVariableSpend({ ...base, description: "Dafiti*4605843990" })).toBe(true);
   });
 });
