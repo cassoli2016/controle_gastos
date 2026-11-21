@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { ReserveStatementDialog } from "./ReserveStatementDialog";
+import { AccountOriginField } from "./AccountOriginField";
 import type { StatementLine } from "@/lib/reserve-statement";
 import { goalProgress, goalSentence } from "@/lib/reserve-goal";
 import { shortMonthLabel } from "@/lib/matrix";
@@ -274,7 +275,12 @@ export function ReserveCard({
           </Dialog>
 
           <span className="ml-auto flex items-center gap-0.5">
-            <ReserveStatementDialog reserve={reserve} lines={statement.lines} check={statement.check} />
+            <ReserveStatementDialog
+              reserve={reserve}
+              lines={statement.lines}
+              check={statement.check}
+              leftoverCents={leftoverCents}
+            />
 
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
               <DialogTrigger asChild>
@@ -307,6 +313,7 @@ export function ReserveCard({
                       <Input id={`reserve-goal-month-${reserve.id}`} name="goalMonth" type="month" defaultValue={reserve.goalMonth ?? ""} />
                     </div>
                   </div>
+                  <AccountOriginField idPrefix={`reserve-origin-${reserve.id}`} leftoverCents={leftoverCents} />
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor={`reserve-reason-${reserve.id}`}>Motivo da mudança</Label>
                     <Input
@@ -317,7 +324,8 @@ export function ReserveCard({
                     />
                     <p className="text-xs text-muted-foreground">
                       Mudar o valor cria uma linha no extrato com a diferença. Em branco, fica
-                      &ldquo;Ajuste manual&rdquo;.
+                      &ldquo;Ajuste manual&rdquo;. Para guardar dinheiro da conta, prefira
+                      &ldquo;Depositar&rdquo;.
                     </p>
                   </div>
                   <DialogFooter>

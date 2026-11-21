@@ -8,6 +8,7 @@ import {
   lastUsedReserveId,
   reserveReversal,
   savedInMonthLabel,
+  splitBalanceIncrease,
 } from "@/lib/reserve-flow";
 
 describe("depositEntryData", () => {
@@ -139,4 +140,23 @@ describe("savedInMonthLabel", () => {
 
   it("sem movimento de caixinha: nada a dizer", () =>
     expect(savedInMonthLabel(-100000, 0)).toBe(null));
+});
+
+describe("splitBalanceIncrease", () => {
+  it("salário que veio da conta vira depósito inteiro quando cabe na sobra", () => {
+    expect(splitBalanceIncrease(1535015, 3152568, true)).toEqual({ depositCents: 1535015, adjustmentCents: 0 });
+  });
+  it("só deposita o que a conta tem; o excedente fica como ajuste", () => {
+    expect(splitBalanceIncrease(2760267, 1535000, true)).toEqual({ depositCents: 1535000, adjustmentCents: 1225267 });
+  });
+  it("sem sobra na conta, tudo é ajuste", () => {
+    expect(splitBalanceIncrease(50000, 0, true)).toEqual({ depositCents: 0, adjustmentCents: 50000 });
+    expect(splitBalanceIncrease(50000, -12000, true)).toEqual({ depositCents: 0, adjustmentCents: 50000 });
+  });
+  it("rendimento/correção é ajuste inteiro", () => {
+    expect(splitBalanceIncrease(5391, 3152568, false)).toEqual({ depositCents: 0, adjustmentCents: 5391 });
+  });
+  it("redução de saldo nunca vira depósito", () => {
+    expect(splitBalanceIncrease(-12266, 3152568, true)).toEqual({ depositCents: 0, adjustmentCents: -12266 });
+  });
 });
