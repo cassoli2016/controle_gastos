@@ -9,7 +9,7 @@ import { todayISOInSaoPaulo } from "@/lib/fatura";
 import { readInstallment } from "@/lib/fatura-match";
 import { reserveStatement, statementCheck, type StatementLine } from "@/lib/reserve-statement";
 import { DEPOSIT_PREFIX, WITHDRAWAL_PREFIX } from "@/lib/reserve-flow";
-import { observedPerDay, withVariableSpend, type CycleSpend } from "@/lib/trend";
+import { countsAsVariableSpend, observedPerDay, withVariableSpend, type CycleSpend } from "@/lib/trend";
 
 export type NegativeMonth = { month: string; balanceCents: number };
 
@@ -173,18 +173,30 @@ export async function getObservedVariableSpend(today: string = todayISOInSaoPaul
 
   const txs = await prisma.cardTransaction.findMany({
     where: { month: { in: closed.map(monthToDate) } },
-    select: { month: true, description: true, bankDescription: true, amount: true, installmentSeq: true, installmentCount: true },
+    select: {
+      month: true,
+      description: true,
+      bankDescription: true,
+      amount: true,
+      installmentSeq: true,
+      installmentCount: true,
+      subscription: { select: { itemId: true } },
+    },
   });
   const vista = new Map<string, number>(closed.map((m) => [m, 0]));
   for (const t of txs) {
     const cents = decimalToCents(String(t.amount));
-    if (cents <= 0) continue; // estorno e pagamento não são gasto
-    const parcela = readInstallment({
-      description: t.bankDescription ?? t.description,
-      installmentSeq: t.installmentSeq,
-      installmentCount: t.installmentCount,
+    const description = t.bankDescription ?? t.description;
+    const counts = countsAsVariableSpend({
+      cents, // estorno e pagamento não são gasto
+      description,
+      // parcela já está provisionada nos meses futuros
+      isInstallment:
+        readInstallment({ description, installmentSeq: t.installmentSeq, installmentCount: t.installmentCount }) !== null,
+      // assinatura com linha no Mês já é cobrada pela linha fixa
+      hasPlannedLine: t.subscription?.itemId != null,
     });
-    if (parcela) continue; // parcela já está provisionada nos meses futuros
+    if (!counts) continue;
     const k = monthStringFromDate(t.month);
     vista.set(k, (vista.get(k) ?? 0) + cents);
   }

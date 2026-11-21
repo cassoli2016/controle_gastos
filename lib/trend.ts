@@ -21,6 +21,34 @@ import { shortMonthLabel } from "@/lib/matrix";
 export type CycleSpend = { monthISO: string; vistaCents: number };
 
 /**
+ * "Aut*04de04": cobrança parcelada FORA do cartão (o seguro do carro em 4×,
+ * cobrado pela seguradora). A fatura não sabe que é parcela, e por isso
+ * `readInstallment` não lê esse formato (ele esperaria as próximas parcelas
+ * provisionadas). Para o ritmo de gasto, porém, não é compra do dia a dia: o
+ * seguro seguinte já está lançado como conta fixa.
+ */
+const OUTSIDE_INSTALLMENT_RE = /\*(\d{2})de(\d{2})$/i;
+
+/**
+ * A transação conta no ritmo de gasto variável? Só compra à vista positiva que
+ * não esteja já prevista em outro lugar dos meses à frente:
+ * - parcela (da fatura ou parcelada fora do cartão) — já é provisão ou acabou;
+ * - assinatura com linha no Mês (`hasPlannedLine`) — a linha fixa já cobra o
+ *   mesmo valor todo mês; contar no ritmo também cobrava duas vezes
+ *   (R$ 118,80/mês em nov/2026: YouTube, iCloud, Nucel).
+ */
+export function countsAsVariableSpend(t: {
+  cents: number;
+  description: string;
+  isInstallment: boolean;
+  hasPlannedLine: boolean;
+}): boolean {
+  if (t.cents <= 0 || t.isInstallment || t.hasPlannedLine) return false;
+  const m = OUTSIDE_INSTALLMENT_RE.exec(t.description.trim());
+  return !(m && Number(m[1]) <= Number(m[2]));
+}
+
+/**
  * Média por dia do gasto à vista nos ciclos informados. Divide pelo total de
  * dias dos meses, não por 30: três ciclos de 31, 30 e 31 dias são 92 dias.
  * null sem ciclo nenhum — sem fatura fechada não há tendência a medir.
@@ -89,18 +117,30 @@ export function curveSummary(curve: CurvePoint[], monthsAhead = 12): CurveSummar
   };
 }
 
+/** O ritmo que a frase cita: o observado e, se houver, a meta do dia a dia. */
+export type TrendPace = { observedPerDayCents: number; planPerDayCents: number | null };
+
+/** A curva termina abaixo do ponto de partida (ou zera)? Define o tom da frase. */
+export function trendFalls(summary: CurveSummary, startCents: number): boolean {
+  return summary.firstNegativeMonth !== null || (summary.atHorizonCents !== null && summary.atHorizonCents < startCents);
+}
+
 /**
- * Frase da tendência no card de Reservas. Diz o que acontece com as caixinhas
- * em um ano se o gasto variável continuar como nos últimos ciclos.
+ * Frase da tendência no Dashboard. Diz o que acontece com as caixinhas em um
+ * ano SE o gasto à vista no cartão continuar como nos últimos ciclos.
+ *
+ * Cita o ritmo, a meta e o saldo de hoje de propósito: "as reservas caem para
+ * R$ 19.460,27" sozinha foi lida como erro por quem tem R$ 34.538 guardados
+ * hoje — faltava dizer que é uma condição (o ritmo atual) e de onde parte.
  */
-export function trendSentence(summary: CurveSummary, startCents: number): string {
+export function trendSentence(summary: CurveSummary, startCents: number, pace: TrendPace): string {
   if (summary.atHorizonCents === null || summary.atHorizonMonth === null) return "Sem meses à frente para projetar.";
+  const meta = pace.planPerDayCents !== null ? ` (sua meta é ${formatCents(pace.planPerDayCents)})` : "";
+  const se = `Se o cartão seguir em ${formatCents(pace.observedPerDayCents)}/dia${meta}`;
   if (summary.firstNegativeMonth !== null) {
-    return `No ritmo dos últimos ciclos, as caixinhas acabam em ${shortMonthLabel(summary.firstNegativeMonth)}.`;
+    return `${se}, as caixinhas acabam em ${shortMonthLabel(summary.firstNegativeMonth)}.`;
   }
   const where = shortMonthLabel(summary.atHorizonMonth);
-  if (summary.atHorizonCents < startCents) {
-    return `No ritmo dos últimos ciclos, as reservas caem para ${formatCents(summary.atHorizonCents)} em ${where}.`;
-  }
-  return `No ritmo dos últimos ciclos, as reservas chegam a ${formatCents(summary.atHorizonCents)} em ${where}.`;
+  const verbo = summary.atHorizonCents < startCents ? "caem" : "vão";
+  return `${se}, as reservas ${verbo} de ${formatCents(startCents)} hoje para ${formatCents(summary.atHorizonCents)} em ${where}.`;
 }
