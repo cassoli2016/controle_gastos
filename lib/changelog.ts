@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.49.0",
+    date: "2026-11-21",
+    title: "Para onde vai o cartão",
+    items: [
+      "Novo quadro no topo da tela Cartões: as compras à vista separadas em grupos (mercado, restaurantes, combustível, compras, farmácia, lazer, serviços), com o que já foi neste mês ao lado da média dos três meses anteriores e os maiores estabelecimentos de cada grupo.",
+      "O ritmo do mês em reais por dia aparece junto da sua meta da reserva do dia a dia e da média recente, para você ver se o mês está acima ou abaixo enquanto ainda dá para mudar.",
+      "O resumo da manhã no Telegram ganhou uma linha com esse ritmo e o grupo que mais pesou no mês.",
+    ],
+  },
+  {
     version: "1.48.0",
     date: "2026-11-21",
     title: "Caixinhas + saldo a realizar, mês a mês",

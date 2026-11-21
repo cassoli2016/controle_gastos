@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { monthToDate } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
-import { getDailyBudget, getNegativeMonths, getReserves } from "@/lib/planning";
+import { getCardSpend, getDailyBudget, getNegativeMonths, getReserves } from "@/lib/planning";
 import { sumCents } from "@/lib/money";
 import { dailyBudgetLine } from "@/lib/daily-budget";
-import { buildDailyDigest, digestMessage, freeReserveLine, type DigestInput } from "@/lib/daily-digest";
+import { buildDailyDigest, cardPaceLine, digestMessage, freeReserveLine, type DigestInput } from "@/lib/daily-digest";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -63,9 +63,10 @@ export async function GET(req: Request) {
   const reserveCents = budget ? dailyBudgetLine(currentMonth, todayISO, budget.perDayCents).cents : 0;
 
   // O norte do futuro, no mesmo resumo: saldo livre e meses no vermelho.
-  const [negatives, reserves] = await Promise.all([getNegativeMonths(), getReserves()]);
+  const [negatives, reserves, spend] = await Promise.all([getNegativeMonths(), getReserves(), getCardSpend(todayISO)]);
   const text = [
     digestMessage(buildDailyDigest(entries, todayISO, reserveCents), todayISO),
+    cardPaceLine(spend, budget?.perDayCents ?? null),
     freeReserveLine(sumCents(reserves.map((r) => r.amountCents)), negatives),
   ].join("\n\n");
   try {
