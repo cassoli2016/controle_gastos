@@ -11,7 +11,7 @@
  *      e a parcela por divisão do total, contra o nome do seller e o valor real
  *      da parcela na fatura — ver o 3º passe de `findOrphans`.
  */
-import { normalizeDescription } from "@/lib/description-match";
+import { descriptionsMatch, normalizeDescription } from "@/lib/description-match";
 import { decimalToCents } from "@/lib/money";
 import { FATURA_ALIASES } from "@/lib/fatura-aliases";
 import { CENTS_TOLERANCE, type FaturaLine } from "@/lib/fatura-core";
@@ -177,6 +177,28 @@ export function findOrphans(appRows: AppRow[], faturaLines: FaturaLine[]): AppRo
   const orphans: AppRow[] = [];
   for (const row of stillPending) {
     const installment = row.installment;
+    // 4º passe, SÓ para compra À VISTA positiva: nome aparentado (um contém o
+    // outro) e valor dentro da tolerância, contra linha da fatura também à
+    // vista. O aviso grava "AMAZONMKTPLC*LIQUIDATA" e a fatura escreve
+    // "AMAZONMKTPLC*LIQUIDATA SAO PAULO BRA": sem este passe a compra já
+    // cobrada virava órfã e reaparecia no mês seguinte (medido: R$ 135,60 em
+    // jan/2027, fatura Bradesco de 26/11/2026). Exige candidato ÚNICO, como
+    // o 3º passe.
+    if (!installment && row.cents > 0) {
+      const base = canonicalFaturaDescription(row.description);
+      const candidates = slots.filter(
+        (s) =>
+          !s.taken &&
+          !s.line.installment &&
+          s.line.cents > 0 &&
+          Math.abs(s.line.cents - row.cents) <= CENTS_TOLERANCE &&
+          descriptionsMatch(canonicalFaturaDescription(s.line.description), base),
+      );
+      if (candidates.length === 1) {
+        candidates[0].taken = true;
+        continue;
+      }
+    }
     if (installment && row.cents > 0) {
       const candidates = slots.filter(
         (s) =>
