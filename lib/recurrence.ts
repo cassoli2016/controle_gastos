@@ -3,6 +3,9 @@ import { monthToDate } from "@/lib/dates";
 import { installmentMonths } from "@/lib/installments";
 import { resolveDefaultPurchaseCategoryId } from "@/lib/purchases";
 import { nthBusinessDay } from "@/lib/fatura";
+import { monthSpan, occurrencesUntil } from "@/lib/recurrence-span";
+
+export { monthSpan, occurrencesUntil, isPastEnd, lastOccurrence } from "@/lib/recurrence-span";
 
 /** Horizonte padrão de provisionamento de uma recorrência (mês inicial incluso). */
 export const RECURRENCE_MONTHS = 12;
@@ -26,8 +29,11 @@ export async function createRecurrence(opts: {
   startMonth: string; // YYYY-MM
   categoryId?: string | null;
   dueDay?: number | null;
-  /** Nº de OCORRÊNCIAS (não meses corridos). */
+  /** Nº de OCORRÊNCIAS (não meses corridos). Ignorado quando há endMonth. */
   months?: number;
+  /** Último mês (YYYY-MM, inclusive): provisiona até ele e grava o prazo no
+   * Item, para o "Copiar mês anterior" não passar dali. */
+  endMonth?: string | null;
   /** Frequência em meses: 1=mensal (default), 2=bimestral, 3=trimestral… */
   intervalMonths?: number | null;
   /** N-ésimo dia útil do mês (ex.: 5 = salário no 5º dia útil): a data varia
@@ -37,7 +43,9 @@ export async function createRecurrence(opts: {
   const categoryId = opts.categoryId ?? (await resolveDefaultPurchaseCategoryId());
   const interval = Math.max(1, opts.intervalMonths ?? 1);
   // Default: ~12 meses de cobertura (mensal = 12 ocorrências; trimestral = 4…).
-  const occurrences = opts.months ?? Math.max(2, Math.round(RECURRENCE_MONTHS / interval));
+  const occurrences = opts.endMonth
+    ? Math.max(1, occurrencesUntil(opts.startMonth, opts.endMonth, interval))
+    : (opts.months ?? Math.max(2, Math.round(RECURRENCE_MONTHS / interval)));
   const allMonths = installmentMonths(opts.startMonth, (occurrences - 1) * interval + 1);
   const months = allMonths.filter((_, i) => i % interval === 0);
 
@@ -48,6 +56,7 @@ export async function createRecurrence(opts: {
       dueDay: opts.businessDay ? null : (opts.dueDay ?? null),
       businessDay: opts.businessDay ?? null,
       intervalMonths: interval,
+      endMonth: opts.endMonth ? monthToDate(opts.endMonth) : null,
       active: true,
     },
   });
@@ -78,10 +87,16 @@ export async function createWeekdayRecurrence(opts: {
   /** Data inicial (YYYY-MM-DD) — ocorrências anteriores não são criadas. */
   startISO: string;
   months?: number;
+  /** Último mês (YYYY-MM, inclusive) — prevalece sobre `months`. */
+  endMonth?: string | null;
   categoryId?: string | null;
 }): Promise<{ count: number; firstISO: string | null; lastISO: string | null; totalCents: number }> {
   const categoryId = opts.categoryId ?? (await resolveDefaultPurchaseCategoryId());
-  const monthsList = installmentMonths(opts.startISO.slice(0, 7), opts.months ?? RECURRENCE_MONTHS);
+  const startMonth = opts.startISO.slice(0, 7);
+  const monthsList = installmentMonths(
+    startMonth,
+    opts.endMonth ? Math.max(1, monthSpan(startMonth, opts.endMonth)) : (opts.months ?? RECURRENCE_MONTHS),
+  );
   const lastMonth = monthsList[monthsList.length - 1];
   const [ly, lm] = lastMonth.split("-").map(Number);
   const end = new Date(Date.UTC(ly, lm, 0)); // último dia do último mês

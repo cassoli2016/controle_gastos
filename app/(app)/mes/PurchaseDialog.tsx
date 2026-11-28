@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { todayISOInSaoPaulo } from "@/lib/fatura";
+import { lastOccurrence, normalizeMonthInput, occurrencesUntil } from "@/lib/recurrence-span";
 import { useActionToast } from "@/hooks/use-action-toast";
 import { ShoppingCart } from "lucide-react";
 
@@ -43,6 +44,22 @@ export function PurchaseDialog({
   const [recurring, setRecurring] = useState(false);
   const [frequency, setFrequency] = useState("1");
   const [durationMonths, setDurationMonths] = useState("12");
+  // Prazo da recorrência: N meses a partir da compra OU até um mês final.
+  const [endMode, setEndMode] = useState<"duration" | "until">("duration");
+  const [endMonthRaw, setEndMonth] = useState("");
+  const [dateISO, setDateISO] = useState(todayISOInSaoPaulo);
+  const startMonth = dateISO.slice(0, 7);
+  const interval = Math.max(1, Number(frequency) || 1);
+  const fmtMonth = (m: string) => `${m.slice(5, 7)}/${m.slice(0, 4)}`;
+  const untilSummary = (() => {
+    const endMonth = normalizeMonthInput(endMonthRaw);
+    if (endMode !== "until" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(endMonth) || !startMonth) return null;
+    if (endMonth < startMonth) return "O mês final não pode ser antes do mês da compra.";
+    if (frequency === "0") return `Toda semana, de ${fmtMonth(startMonth)} até o fim de ${fmtMonth(endMonth)}.`;
+    const n = occurrencesUntil(startMonth, endMonth, interval);
+    const last = lastOccurrence(startMonth, endMonth, interval);
+    return `${n} ocorrência${n === 1 ? "" : "s"}: de ${fmtMonth(startMonth)} a ${last ? fmtMonth(last) : "—"}.`;
+  })();
   const WEEKDAYS = [
     { value: 1, label: "Seg" },
     { value: 2, label: "Ter" },
@@ -170,20 +187,62 @@ export function PurchaseDialog({
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="purchase-duration">Duração (meses)</Label>
-                <Input
-                  id="purchase-duration"
-                  type="number"
-                  name="recurrenceMonths"
-                  min={2}
-                  max={60}
-                  value={durationMonths}
-                  onChange={(e) => setDurationMonths(e.target.value)}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Por quantos meses provisionar. Depois desse prazo, use “Copiar mês anterior”.
-                </p>
+                <Label>Prazo</Label>
+                <div role="radiogroup" aria-label="Prazo da recorrência" className="grid grid-cols-2 gap-1.5">
+                  {(
+                    [
+                      { value: "duration", label: "Por nº de meses" },
+                      { value: "until", label: "Até um mês" },
+                    ] as const
+                  ).map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={endMode === o.value}
+                      onClick={() => setEndMode(o.value)}
+                      className="rounded-md border px-2.5 py-1.5 text-sm aria-checked:border-primary aria-checked:bg-primary/10 aria-checked:text-primary"
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
               </div>
+              {endMode === "duration" ? (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="purchase-duration">Duração (meses)</Label>
+                  <Input
+                    id="purchase-duration"
+                    type="number"
+                    name="recurrenceMonths"
+                    min={2}
+                    max={60}
+                    value={durationMonths}
+                    onChange={(e) => setDurationMonths(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Por quantos meses provisionar. Depois desse prazo, use “Copiar mês anterior”.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="purchase-end">Termina em</Label>
+                  <Input
+                    id="purchase-end"
+                    type="month"
+                    name="recurrenceEnd"
+                    min={startMonth}
+                    placeholder="MM/AAAA"
+                    value={endMonthRaw}
+                    onChange={(e) => setEndMonth(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {untilSummary ??
+                      "Último mês da recorrência (inclusive). Depois dele, “Copiar mês anterior” não traz mais esta conta."}
+                  </p>
+                </div>
+              )}
               {frequency === "0" && (
                 <div className="flex flex-col gap-1.5">
                   <Label>Dias da semana</Label>
@@ -200,7 +259,7 @@ export function PurchaseDialog({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Um lançamento por ocorrência (com a data de cada dia), a partir da data da
-                    compra, pelos próximos {durationMonths} meses.
+                    compra, {endMode === "until" ? "até o mês final" : `pelos próximos ${durationMonths} meses`}.
                   </p>
                 </div>
               )}
@@ -213,7 +272,8 @@ export function PurchaseDialog({
               id="purchase-date"
               type="date"
               name="date"
-              defaultValue={todayISOInSaoPaulo()}
+              value={dateISO}
+              onChange={(e) => setDateISO(e.target.value)}
               required
             />
             <p className="text-xs text-muted-foreground">

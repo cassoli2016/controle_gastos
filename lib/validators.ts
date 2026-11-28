@@ -1,5 +1,9 @@
 import { z } from "zod";
 import { monthRange } from "./dates";
+import { normalizeMonthInput } from "./recurrence-span";
+
+/** Teto de meses corridos de uma recorrência com prazo final (10 anos). */
+export const MAX_RECURRENCE_SPAN_MONTHS = 120;
 
 /** Limite máximo de meses num intervalo de aplicação em lote. */
 export const MAX_APPLY_RANGE_MONTHS = 120;
@@ -153,7 +157,24 @@ export const purchaseSchema = z.object({
     (v) => (v === "" || v === null || v === undefined ? 12 : v),
     z.coerce.number().int().min(2, "Duração entre 2 e 60 meses").max(60, "Duração entre 2 e 60 meses"),
   ),
-});
+  // Prazo final da recorrência (YYYY-MM, inclusive). Quando vem, manda no
+  // lugar da duração: "bimestral até 12/2029".
+  recurrenceEnd: z.preprocess(
+    (v) => (v === "" || v === null || v === undefined ? null : typeof v === "string" ? normalizeMonthInput(v) : v),
+    z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Mês final no formato MM/AAAA").nullable(),
+  ),
+})
+  .refine((d) => !d.recurring || !d.recurrenceEnd || d.recurrenceEnd >= d.date.slice(0, 7), {
+    message: "O mês final não pode ser antes do mês da compra.",
+    path: ["recurrenceEnd"],
+  })
+  .refine(
+    (d) =>
+      !d.recurring ||
+      !d.recurrenceEnd ||
+      monthRange(d.date.slice(0, 7), d.recurrenceEnd).length <= MAX_RECURRENCE_SPAN_MONTHS,
+    { message: `Prazo muito longo (máx. ${MAX_RECURRENCE_SPAN_MONTHS / 12} anos).`, path: ["recurrenceEnd"] },
+  );
 
 export const applyRangeSchema = z
   .object({
