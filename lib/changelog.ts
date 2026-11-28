@@ -19,7 +19,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: "Fatura do Bradesco sem compra repetida no mês seguinte",
     items: [
       "Uma compra à vista que você lançou pelo aviso do banco (nome curto, como “AMAZONMKTPLC*LIQUIDATA”) agora é reconhecida na fatura, que escreve o nome com a cidade. Antes, a importação achava que o banco não tinha cobrado e repetia a compra na fatura seguinte.",
-      "A fatura de janeiro/2027 do Bradesco foi corrigida: saiu a cópia de R$ 135,60 que tinha entrado a mais.",
     ],
   },
   {
