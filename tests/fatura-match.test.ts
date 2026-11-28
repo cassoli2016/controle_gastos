@@ -312,4 +312,29 @@ describe("findOrphans — estorno casa por valor", () => {
     // A linha 1 casa com a Loja A pelo nome; a 2 sobra para a Loja B pelo valor.
     expect(findOrphans(rows, lines)).toEqual([]);
   });
+
+});
+
+describe("findOrphans — compra à vista lançada pelo aviso (nome curto) × fatura (nome com cidade)", () => {
+  it("casa quando um nome contém o outro e o valor bate — LIQUIDATA, fatura de 26/11/2026", () => {
+    const rows = [app("1", "AMAZONMKTPLC*LIQUIDATA", 13560)];
+    const lines = [inv("AMAZONMKTPLC*LIQUIDATA SAO PAULO BRA", 13560)];
+    expect(findOrphans(rows, lines)).toEqual([]);
+  });
+
+  it("dois candidatos aparentados com o mesmo valor: não chuta, fica órfã", () => {
+    const rows = [app("1", "AMAZON BR", 5000)];
+    const lines = [inv("AMAZON BR SAO PAULO", 5000), inv("AMAZON BR CURITIBA", 5000)];
+    expect(findOrphans(rows, lines).map((o) => o.id)).toEqual(["1"]);
+  });
+
+  it("nome sem parentesco continua órfão mesmo com o valor igual", () => {
+    const rows = [app("1", "Padaria Central", 13560)];
+    expect(findOrphans(rows, [inv("AMAZONMKTPLC*LIQUIDATA SAO PAULO BRA", 13560)]).map((o) => o.id)).toEqual(["1"]);
+  });
+
+  it("não rouba a linha de uma parcela da fatura", () => {
+    const rows = [app("1", "AMAZON BR", 2029)];
+    expect(findOrphans(rows, [inv("AMAZON BR SAO PAULO(01/06)", 2029, 1, 6)]).map((o) => o.id)).toEqual(["1"]);
+  });
 });
