@@ -11,7 +11,7 @@ import { decimalToCents, centsToNumber, formatCents } from "@/lib/money";
 import { createPurchaseCore, resolveDefaultPurchaseCategoryId, resolveIncomeCategoryId, resolveCategoryId } from "@/lib/purchases";
 import { addPurchaseToCard, cardTargetMonth } from "@/lib/card-entry";
 import { nthBusinessDay, todayISOInSaoPaulo } from "@/lib/fatura";
-import { createRecurrence, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth, weeklyGroupAlreadyIn, type WeeklyEntryInput } from "@/lib/recurrence";
+import { createRecurrence, isPastEnd, convertEntryToRecurring, findActiveItemByName, createWeekdayRecurrence, weeklyGroupsFrom, weekdayDatesInMonth, weeklyGroupAlreadyIn, type WeeklyEntryInput } from "@/lib/recurrence";
 import {
   RESERVE_CATEGORY,
   RESERVE_WITHDRAWAL_CATEGORY,
@@ -245,7 +245,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
   const prevEntries = await prisma.monthlyEntry.findMany({
     where: { month: prev },
     include: {
-      item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true, intervalMonths: true, businessDay: true, renewalInstallments: true } },
+      item: { select: { adjustMonth: true, adjustPercent: true, adjustAmount: true, intervalMonths: true, businessDay: true, renewalInstallments: true, endMonth: true } },
     },
   });
 
@@ -253,7 +253,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
   // mês anterior, e sim o mês (alvo - intervalo) — mantém a cadência.
   const intervalItems = await prisma.item.findMany({
     where: { active: true, intervalMonths: { gt: 1 } },
-    select: { id: true, intervalMonths: true, businessDay: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, renewalInstallments: true },
+    select: { id: true, intervalMonths: true, businessDay: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, renewalInstallments: true, endMonth: true },
   });
   const intervalEntries: typeof prevEntries = [];
   for (const item of intervalItems) {
@@ -271,6 +271,7 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
           intervalMonths: item.intervalMonths,
           businessDay: item.businessDay,
           renewalInstallments: item.renewalInstallments,
+          endMonth: item.endMonth,
         },
       } as (typeof prevEntries)[number]);
     }
@@ -285,6 +286,8 @@ export const copyPreviousMonth = guardAction(async function copyPreviousMonth(mo
       // provisão (ensureRenewalProvision), não da cópia — copiar arrastaria a
       // última parcela para o mês seguinte e o seguro viraria conta mensal.
       if (e.item?.renewalInstallments) continue;
+      // Conta com prazo final (ex.: bimestral até 12/2029): não passa dele.
+      if (isPastEnd(e.item?.endMonth, target)) continue;
       // Item com frequência > 1 vindo de prevEntries: fora de cadência, pula
       // (a cópia correta dele veio em intervalEntries, do mês alvo-intervalo).
       if ((e.item?.intervalMonths ?? 1) > 1 && e.month.getTime() === prev.getTime()) continue;
@@ -342,7 +345,7 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
   const sourceEntries = await prisma.monthlyEntry.findMany({
     where: { month: source, itemId: { not: null } },
     include: {
-      item: { select: { name: true, active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true } },
+      item: { select: { name: true, active: true, adjustMonth: true, adjustPercent: true, adjustAmount: true, businessDay: true, endMonth: true } },
     },
   });
   const looseSource = await prisma.monthlyEntry.findMany({
@@ -360,6 +363,7 @@ export const copyYearAgoMonthAction = guardAction(async function copyYearAgoMont
   await prisma.$transaction(async (tx) => {
     for (const e of sourceEntries) {
       if (!e.itemId || !e.item?.active) continue;
+      if (isPastEnd(e.item.endMonth, target)) continue;
       // Reajuste anual: aplica um passo por aniversário cruzado entre o mês
       // de origem e o de destino (12 meses ⇒ no máximo 1).
       let plannedAmount: number | typeof e.plannedAmount = e.plannedAmount;
@@ -406,9 +410,10 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
     recurring: formData.get("recurring"),
     intervalMonths: formData.get("intervalMonths"),
     recurrenceMonths: formData.get("recurrenceMonths"),
+    recurrenceEnd: formData.get("recurrenceEnd"),
   });
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { description, amount, installments, date, recurring } = parsed.data;
+  const { description, amount, installments, date, recurring, recurrenceEnd } = parsed.data;
 
   // cardId vazio (ou o sentinel "sem cartão" do Select) vira null.
   const cardId = parsed.data.cardId && parsed.data.cardId !== "none" ? parsed.data.cardId : null;
@@ -434,6 +439,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       weekdays,
       startISO: date,
       months: parsed.data.recurrenceMonths,
+      endMonth: recurrenceEnd,
       categoryId,
     });
     revalidateFinance();
@@ -456,6 +462,7 @@ export const createPurchase = guardAction(async function createPurchase(_prevSta
       dueDay: Number(date.slice(8, 10)),
       intervalMonths: parsed.data.intervalMonths,
       months: Math.max(2, Math.round(parsed.data.recurrenceMonths / interval)),
+      endMonth: recurrenceEnd,
     });
     revalidateFinance();
     return { ok: true, count };

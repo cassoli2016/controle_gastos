@@ -39,6 +39,9 @@ model Item {
   // Frequência da recorrência em meses (1=mensal, 2=bimestral, 3=trimestral…):
   // o provisionamento e o "Copiar mês anterior" respeitam a cadência.
   intervalMonths Int  @default(1)
+  // Último mês (1º dia) em que a conta recorre — ex.: bimestral até 12/2029.
+  // null = sem prazo. "Copiar mês anterior/do ano passado" não passa daqui.
+  endMonth      DateTime? @db.Date
   // Regra de data por dia útil (ex.: 5 = 5º dia útil): a data varia por mês;
   // quando setado, dueDay é ignorado e purchaseDate é calculada por mês.
   businessDay   Int?

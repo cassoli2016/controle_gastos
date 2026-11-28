@@ -14,6 +14,16 @@ export type ChangelogEntry = {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.50.0",
+    date: "2026-11-28",
+    title: "Recorrência com prazo final",
+    items: [
+      "Ao lançar uma compra recorrente, escolha o prazo: por número de meses (como antes) ou até um mês final — por exemplo, bimestral terminando em 12/2029.",
+      "O formulário já mostra quantas vezes a conta vai entrar e em qual mês cai a última (bimestral de 11/2026 a 12/2029 = 19 vezes, a última em 11/2029).",
+      "Depois do mês final, “Copiar mês anterior” e “Copiar mês do ano passado” não trazem mais essa conta. Na tela Itens, a frequência aparece com o “até MM/AAAA”.",
+    ],
+  },
+  {
     version: "1.49.0",
     date: "2026-11-21",
     title: "Para onde vai o cartão",

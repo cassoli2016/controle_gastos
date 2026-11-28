@@ -129,7 +129,7 @@ export default async function ItensPage({ searchParams }: { searchParams: Promis
                     categories={categoryOptions}
                     value={v ? { cents: v.cents, month: v.month === currentMonth ? null : shortMonthLabel(v.month) } : null}
                     dueText={dueLabel(i.dueDay, i.businessDay)}
-                    frequencyText={frequencyLabel(i.intervalMonths)}
+                    frequencyText={frequencyLabel(i.intervalMonths) + (i.endMonth ? ` · até ${String(i.endMonth.getUTCMonth() + 1).padStart(2, "0")}/${i.endMonth.getUTCFullYear()}` : "")}
                     adjust={{
                       month: i.adjustMonth,
                       percent: i.adjustPercent === null ? null : Number(i.adjustPercent),
